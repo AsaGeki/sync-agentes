@@ -82,7 +82,19 @@ CREATE TABLE IF NOT EXISTS eventos (
 
 CREATE INDEX IF NOT EXISTS idx_eventos_projeto ON eventos (projeto_id, seq);
 CREATE INDEX IF NOT EXISTS idx_eventos_task    ON eventos (task_id, seq);
+
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  id          TEXT PRIMARY KEY,
+  aplicada_em TEXT NOT NULL
+);
 """
+
+# Mudou modelagem (coluna nova numa tabela existente)? `CREATE TABLE IF NOT EXISTS`
+# acima nao alcanca banco ja criado - ele pula a tabela inteira. Adicione aqui:
+# (id unico e permanente, tabela, coluna, "ALTER TABLE ... ADD COLUMN ...").
+# Bancos novos ja nascem com a coluna via SCHEMA (adicione la tambem) - a checagem
+# de coluna existente abaixo garante que a migracao nao tenta duplicar.
+MIGRACOES: list[tuple[str, str, str, str]] = []
 
 
 def agora() -> str:
@@ -96,9 +108,25 @@ def conectar() -> sqlite3.Connection:
     return conn
 
 
+def _coluna_existe(conn: sqlite3.Connection, tabela: str, coluna: str) -> bool:
+    linhas = conn.execute(f"PRAGMA table_info({tabela})").fetchall()
+    return any(linha["name"] == coluna for linha in linhas)
+
+
 def iniciar_banco() -> None:
     conn = conectar()
     with conn:
         conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript(SCHEMA)
+
+        aplicadas = {row["id"] for row in conn.execute("SELECT id FROM schema_migrations")}
+        for id_, tabela, coluna, sql in MIGRACOES:
+            if id_ in aplicadas:
+                continue
+            if not _coluna_existe(conn, tabela, coluna):
+                conn.execute(sql)
+            conn.execute(
+                "INSERT INTO schema_migrations (id, aplicada_em) VALUES (?, ?)",
+                (id_, agora()),
+            )
     conn.close()

@@ -37,14 +37,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="Sync de agentes",
     description="Canal de alinhamento entre agentes de IA e humanos, por projeto e task.",
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"ok": True, "agora": agora()}
+    return {"ok": True, "agora": agora(), "versao": app.version}
 
 
 app.include_router(autores_router)
@@ -54,8 +54,8 @@ app.include_router(eventos_router)
 app.include_router(realtime_router)
 
 # DNS-rebinding protection do MCP so aceita Host: localhost por padrao - quebraria
-# o Alex acessando por IP de rede. A autenticacao real ja e o token (mesmo modelo
-# do REST), entao essa camada extra fica redundante aqui.
+# acesso por IP de rede. A autenticacao real ja e o token (mesmo modelo do REST),
+# entao essa camada extra fica redundante aqui.
 mcp_app = mcp.streamable_http_app(
     streamable_http_path="/",
     transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),

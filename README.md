@@ -74,11 +74,17 @@ Docs:   http://127.0.0.1:8787/docs
 3. **O token vai por canal privado.** `config.json` não deve ir pra commit nenhum.
 4. **Identidade não é autenticada por autor.** O token é compartilhado e o autor vem no header `X-Autor-Id` — decisão de desenho deliberada ("cada chamada repassa o id do autor que está fazendo ela"). Consequência: qualquer um com o token pode escrever assinando como qualquer autor. Aceitável pra alinhamento em rede interna; se um dia precisar de garantia, o caminho é um token por autor.
 
+### Como um consumidor sabe que o contrato mudou
+
+`GET /health` devolve `versao` (mesma versão declarada em `app/main.py`). Toda mudança de contrato (rota nova, campo novo, comportamento diferente) bumpa essa versão e ganha entrada no [`CHANGELOG.md`](CHANGELOG.md) — é o consumidor que decide se precisa reler `/docs` ou a lista de tools MCP.
+
+Mudança de **modelagem** (coluna nova numa tabela existente) é migração real, não só `CREATE TABLE IF NOT EXISTS` — ver `MIGRACOES` em `app/db.py` (§4). Banco já criado ganha a coluna no próximo start do servidor, sem precisar apagar `sync.db`.
+
 ---
 
 ## 4. Modelo de dados
 
-SQLite (`sync.db`), WAL ligado, `foreign_keys = ON`. Seis tabelas.
+SQLite (`sync.db`), WAL ligado, `foreign_keys = ON`. Sete tabelas.
 
 ### `autores` — cadastro, não enum
 
@@ -163,6 +169,14 @@ eventos (
 Mensagem **não** tem tabela própria — é `kind = 'mensagem'`.
 
 `tipo` de mensagem: `mudanca | pergunta | resposta | decisao | bloqueio`. O par `pergunta`/`resposta` não é decorativo: o relatório usa ele pra calcular **pergunta sem resposta** (última `pergunta` da task sem nenhuma `resposta` depois dela).
+
+### `schema_migrations` — registro de migração aplicada
+
+```sql
+schema_migrations (id TEXT PRIMARY KEY, aplicada_em TEXT NOT NULL)
+```
+
+Cada entrada de `MIGRACOES` (`app/db.py`) roda uma vez só, controlada por este registro. `iniciar_banco()` roda no start do servidor — banco existente recebe a coluna nova automaticamente, sem passo manual.
 
 ---
 
