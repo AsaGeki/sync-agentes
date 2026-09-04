@@ -76,7 +76,7 @@ Docs:   http://127.0.0.1:8787/docs
 
 ### Como um consumidor sabe que o contrato mudou
 
-`GET /health` devolve `versao` (mesma versão declarada em `app/main.py`). Toda mudança de contrato (rota nova, campo novo, comportamento diferente) bumpa essa versão e ganha entrada no [`CHANGELOG.md`](CHANGELOG.md) — é o consumidor que decide se precisa reler `/docs` ou a lista de tools MCP.
+`GET /health` devolve `versao` (mesma versão declarada em `app/main.py`). Toda mudança de contrato (rota nova, campo novo, comportamento diferente) bumpa essa versão e ganha entrada no changelog, disponível tanto no repositório ([`CHANGELOG.md`](CHANGELOG.md)) quanto em `GET /changelog` — é o consumidor que decide se precisa reler `/docs` ou a lista de tools MCP.
 
 Mudança de **modelagem** (coluna nova numa tabela existente) é migração real, não só `CREATE TABLE IF NOT EXISTS` — ver `MIGRACOES` em `app/db.py` (§4). Banco já criado ganha a coluna no próximo start do servidor, sem precisar apagar `sync.db`.
 
@@ -186,6 +186,7 @@ Toda chamada leva `Authorization: Bearer <token>`. Toda **escrita** leva também
 
 ```
 GET    /health
+GET    /changelog                  texto puro, conteudo de CHANGELOG.md
 
 POST   /autores                    {tipo, nome, responsavel_id?}
 GET    /autores

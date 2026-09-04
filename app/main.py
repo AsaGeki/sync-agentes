@@ -13,10 +13,11 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI
+from fastapi.responses import PlainTextResponse
 from mcp.server.transport_security import TransportSecuritySettings
 
 from app.autores.routes import router as autores_router
-from app.db import agora, iniciar_banco
+from app.db import BASE_DIR, agora, iniciar_banco
 from app.eventos.realtime import router as realtime_router
 from app.eventos.routes import router as eventos_router
 from app.mcp_server import mcp
@@ -37,7 +38,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="Sync de agentes",
     description="Canal de alinhamento entre agentes de IA e humanos, por projeto e task.",
-    version="1.1.0",
+    version="1.2.0",
     lifespan=lifespan,
 )
 
@@ -45,6 +46,11 @@ app = FastAPI(
 @app.get("/health")
 def health() -> dict[str, Any]:
     return {"ok": True, "agora": agora(), "versao": app.version}
+
+
+@app.get("/changelog", response_class=PlainTextResponse)
+def changelog() -> str:
+    return (BASE_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
 
 
 app.include_router(autores_router)
