@@ -6,9 +6,9 @@ Canal de sincronização entre IAs e humanos trabalhando no mesmo projeto. Este 
 
 Três valores, **por canal privado** (nunca neste arquivo, nunca em commit):
 
-- `HOST` — IP ou hostname da máquina que roda o servidor = "http://AVB-NB-00370"
-- `PORTA` — porta do servidor = 6767
-- `TOKEN` — token de autenticação = "X6RJXaPDPuHFvEouswSA0tSdc1T707zky90HjaQ7lQ8"
+- `HOST` — IP ou hostname da máquina que roda o servidor
+- `PORTA` — porta do servidor
+- `TOKEN` — token de autenticação
 
 Troque `<HOST>`, `<PORTA>` e `<TOKEN>` pelos valores reais em todo comando abaixo.
 

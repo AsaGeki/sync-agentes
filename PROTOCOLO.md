@@ -23,12 +23,12 @@ Você **nunca** escreve assinando como outro autor. Se o seu autor não existe n
 # humano primeiro (o responsável)
 curl -X POST http://$HOST:8787/autores \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"tipo":"humano","nome":"Alexandro"}'
+  -d '{"tipo":"humano","nome":"SeuNome"}'
 
 # depois a IA, apontando pro humano
 curl -X POST http://$HOST:8787/autores \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"tipo":"ia","nome":"Chefe","responsavel_id":2}'
+  -d '{"tipo":"ia","nome":"SuaIA","responsavel_id":<ID_DO_HUMANO>}'
 ```
 
 ## Via MCP (alternativa ao curl)
@@ -49,8 +49,8 @@ Uma chamada no começo da sessão, e as mudanças do outro lado chegam como noti
 
 ```
 Monitor({
-  ws: { url: 'ws://<host>:8787/ws?projeto=gases&token=<token>&autor_id=<seu id>' },
-  description: 'mudanças do outro lado no projeto gases',
+  ws: { url: 'ws://<host>:8787/ws?projeto=exemplo&token=<token>&autor_id=<seu id>' },
+  description: 'mudanças do outro lado no projeto exemplo',
   persistent: true,
 })
 ```
@@ -61,7 +61,7 @@ Se o WebSocket não estiver disponível, o fallback é polling por cursor:
 
 ```bash
 curl -s -H "Authorization: Bearer $TOKEN" \
-  "http://$HOST:8787/projetos/gases/mudancas?desde=$ULTIMO_CURSOR"
+  "http://$HOST:8787/projetos/exemplo/mudancas?desde=$ULTIMO_CURSOR"
 ```
 
 Guarde o `cursor` da resposta e mande ele no `desde` da próxima.
@@ -71,7 +71,7 @@ Guarde o `cursor` da resposta e mande ele no `desde` da próxima.
 **Mensagem** — quando você quer dizer algo, não mudar o estado:
 
 ```bash
-curl -X POST "http://$HOST:8787/projetos/gases/tasks/T-002/mensagens" \
+curl -X POST "http://$HOST:8787/projetos/exemplo/tasks/T-002/mensagens" \
   -H "Authorization: Bearer $TOKEN" -H "X-Autor-Id: $EU" -H 'Content-Type: application/json' \
   -d '{"tipo":"mudanca","texto":"detectarPassagens no UpdateService da OC. FATURADO sem gatilho."}'
 ```
@@ -89,7 +89,7 @@ curl -X POST "http://$HOST:8787/projetos/gases/tasks/T-002/mensagens" \
 **Corpo da task** — o texto de referência da task, versionado. É daqui que sai o diff:
 
 ```bash
-curl -X PUT "http://$HOST:8787/projetos/gases/tasks/T-002/corpo" \
+curl -X PUT "http://$HOST:8787/projetos/exemplo/tasks/T-002/corpo" \
   -H "Authorization: Bearer $TOKEN" -H "X-Autor-Id: $EU" -H 'Content-Type: application/json' \
   -d '{"texto":"OC_RECEBIDA -> TARA_REGISTRADA -> CARREGADO\n"}'
 ```
@@ -99,7 +99,7 @@ Devolve `{versao, diff}` — o diff unificado contra a versão anterior, já pro
 **Campo da task** — status, dono, etiquetas, título:
 
 ```bash
-curl -X PATCH "http://$HOST:8787/projetos/gases/tasks/T-002" \
+curl -X PATCH "http://$HOST:8787/projetos/exemplo/tasks/T-002" \
   -H "Authorization: Bearer $TOKEN" -H "X-Autor-Id: $EU" -H 'Content-Type: application/json' \
   -d '{"status":"feito"}'
 ```
@@ -119,13 +119,13 @@ Cada campo alterado gera um evento próprio com `valor_de → valor_para`.
 
 ```bash
 # relatório completo, markdown
-curl -s -H "Authorization: Bearer $TOKEN" "http://$HOST:8787/projetos/gases/relatorio"
+curl -s -H "Authorization: Bearer $TOKEN" "http://$HOST:8787/projetos/exemplo/relatorio"
 
 # só o que mudou desde o cursor que você tinha
-curl -s -H "Authorization: Bearer $TOKEN" "http://$HOST:8787/projetos/gases/relatorio?desde=$ULTIMO_CURSOR"
+curl -s -H "Authorization: Bearer $TOKEN" "http://$HOST:8787/projetos/exemplo/relatorio?desde=$ULTIMO_CURSOR"
 
 # estruturado, pra processar sem parsear markdown
-curl -s -H "Authorization: Bearer $TOKEN" "http://$HOST:8787/projetos/gases/relatorio?formato=json"
+curl -s -H "Authorization: Bearer $TOKEN" "http://$HOST:8787/projetos/exemplo/relatorio?formato=json"
 ```
 
 Contrato inteiro, navegável: `http://<host>:8787/docs`.
