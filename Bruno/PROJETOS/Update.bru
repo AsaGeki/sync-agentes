@@ -1,0 +1,28 @@
+meta {
+  name: Update
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/projetos/{{slug}}
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "status": "pausado"
+  }
+}
+
+docs {
+  Endpoint: PATCH /projetos/:slug
+  Autenticacao: Bearer token
+
+  Campos aceitos (todos opcionais): nome, descricao, status.
+}

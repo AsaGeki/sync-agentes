@@ -1,0 +1,26 @@
+meta {
+  name: Find Relatorio
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/projetos/{{slug}}/relatorio
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~desde: 0
+  ~formato: md
+  ~com_diff: true
+}
+
+docs {
+  Endpoint: GET /projetos/:slug/relatorio
+  Autenticacao: Bearer token
+  
+  formato: md (markdown legivel) | json (estruturado, pra processar sem
+  parsear markdown).
+  So task com atividade na janela [desde, cursor] entra no relatorio.
+}

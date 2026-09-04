@@ -1,0 +1,30 @@
+meta {
+  name: Create Dependencia
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{codigo}}/dependencias
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+  X-Autor-Id: {{autorId}}
+}
+
+body:json {
+  {
+    "depende_de": "T-001"
+  }
+}
+
+docs {
+  Endpoint: POST /projetos/:slug/tasks/:codigo/dependencias
+  Autenticacao: Bearer token + X-Autor-Id
+
+  Marca que a task do path passa a depender de "depende_de" (mesmo projeto).
+  "bloqueia" e so a query reversa disso - nao existe endpoint separado.
+}

@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Ambiente e segredos
+.env
+config.json
+
+# Banco local
+sync.db
+sync.db-shm
+sync.db-wal
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

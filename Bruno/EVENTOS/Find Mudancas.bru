@@ -1,0 +1,24 @@
+meta {
+  name: Find Mudancas
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/projetos/{{slug}}/mudancas
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~desde: 0
+  ~limite: 200
+}
+
+docs {
+  Endpoint: GET /projetos/:slug/mudancas
+  Autenticacao: Bearer token
+  
+  desde: cursor (seq) da ultima vez que voce olhou. Guarde o "cursor" da
+  resposta pro "desde" da proxima chamada.
+}

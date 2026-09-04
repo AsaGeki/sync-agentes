@@ -1,0 +1,32 @@
+meta {
+  name: Create
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/projetos
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "slug": "{{slug}}",
+    "nome": "Venda de gases",
+    "descricao": "",
+    "status": "ativo"
+  }
+}
+
+docs {
+  Endpoint: POST /projetos
+  Autenticacao: Bearer token
+
+  slug: unico, casa com ^[a-z0-9][a-z0-9-]*$ - e ele que aparece na URL.
+  status: ativo | pausado | concluido | arquivado (default ativo).
+}

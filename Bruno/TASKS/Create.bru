@@ -1,0 +1,33 @@
+meta {
+  name: Create
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/projetos/{{slug}}/tasks
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+  X-Autor-Id: {{autorId}}
+}
+
+body:json {
+  {
+    "titulo": "Passagens entre areas",
+    "etiquetas": ["backend"],
+    "corpo": "OC_RECEBIDA -> TARA_REGISTRADA -> CARREGADO\n"
+  }
+}
+
+docs {
+  Endpoint: POST /projetos/:slug/tasks
+  Autenticacao: Bearer token + X-Autor-Id
+
+  codigo: opcional - gerado automatico (T-001, T-002...) se omitido.
+  status: ideia | parcial | feito | bloqueado | aguardando_decisao (default ideia).
+  corpo: opcional - se enviado, ja vira a v1 (entra no diff das proximas atualizacoes).
+}

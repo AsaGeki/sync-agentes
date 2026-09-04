@@ -1,0 +1,18 @@
+meta {
+  name: Find All
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/projetos
+  body: none
+  auth: inherit
+}
+
+docs {
+  Endpoint: GET /projetos
+  Autenticacao: Bearer token
+  
+  Cada projeto vem com "tasks" (contagem) e "cursor" (ultimo seq de evento).
+}

@@ -1,0 +1,31 @@
+meta {
+  name: Update
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{codigo}}
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+  X-Autor-Id: {{autorId}}
+}
+
+body:json {
+  {
+    "status": "feito"
+  }
+}
+
+docs {
+  Endpoint: PATCH /projetos/:slug/tasks/:codigo
+  Autenticacao: Bearer token + X-Autor-Id
+
+  Campos aceitos (todos opcionais): titulo, status, etiquetas, dono_id.
+  Gera 1 evento por campo que de fato mudou (campo sem mudanca real nao
+  gera evento - retorno vem com cursor: null).
+}

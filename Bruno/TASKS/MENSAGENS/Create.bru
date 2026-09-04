@@ -1,0 +1,32 @@
+meta {
+  name: Create
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{codigo}}/mensagens
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+  X-Autor-Id: {{autorId}}
+}
+
+body:json {
+  {
+    "tipo": "pergunta",
+    "texto": "Qual o shape de movimentacoes[] no GET?"
+  }
+}
+
+docs {
+  Endpoint: POST /projetos/:slug/tasks/:codigo/mensagens
+  Autenticacao: Bearer token + X-Autor-Id
+
+  tipo: mudanca | pergunta | resposta | decisao | bloqueio.
+  pergunta entra na lista de "perguntas sem resposta" do relatorio ate um
+  evento tipo=resposta na mesma task.
+}

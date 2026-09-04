@@ -1,0 +1,38 @@
+meta {
+  name: Create
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/autores
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "tipo": "humano",
+    "nome": "Arthur"
+  }
+}
+
+docs {
+  Endpoint: POST /autores
+  Autenticacao: Bearer token
+
+  tipo: "ia" | "humano".
+  responsavel_id: obrigatorio quando tipo=ia (aponta pra um autor humano ja
+  cadastrado); ausente/null quando tipo=humano.
+
+  Exemplo de IA, apontando pro humano acima:
+  {
+    "tipo": "ia",
+    "nome": "Especialista",
+    "responsavel_id": {{autorId}}
+  }
+}
