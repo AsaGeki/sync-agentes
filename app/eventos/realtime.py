@@ -5,7 +5,7 @@ import secrets
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 
-from app.auth import CONFIG
+from app.config import TOKEN
 from app.db import conectar
 from app.eventos.bus import INSCRITOS
 from app.eventos.service import resumir_evento
@@ -20,7 +20,7 @@ async def websocket_eventos(
     token: str,
     autor_id: int | None = None,
 ) -> None:
-    if not secrets.compare_digest(token, CONFIG["token"]):
+    if not secrets.compare_digest(token, TOKEN):
         await websocket.close(code=4401)
         return
     conn = conectar()
@@ -50,7 +50,7 @@ async def websocket_eventos(
 
 @router.get("/stream")
 async def sse_eventos(projeto: str, token: str, autor_id: int | None = None):
-    if not secrets.compare_digest(token, CONFIG["token"]):
+    if not secrets.compare_digest(token, TOKEN):
         raise HTTPException(401, "Token invalido")
 
     async def gerar():

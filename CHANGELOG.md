@@ -2,6 +2,11 @@
 
 Formato livre, mais recente no topo. Versao segue `app/main.py` (`FastAPI(version=...)`), exposta em `GET /health` e este arquivo em `GET /changelog`.
 
+## 1.4.0 — 2026-09-04
+
+- **Token deixou de ser auto-gerado (breaking).** Antes: servidor gerava um token na 1ª execução e gravava em `config.json`. Agora: `TOKEN` vem do `.env` (veja `.env.example`) — obrigatório, servidor não sobe sem ele.
+- `config.json` não existe mais. Removido do `.gitignore` (nada mais escreve nesse arquivo).
+
 ## 1.3.0 — 2026-09-04
 
 - **`GET /health` mudou de formato (breaking).** Antes: `{ok, agora, versao}`. Agora: `status`, `online`, `versao`, `agora`, `iniciadoEm`, `tempoLigadoSegundos`, `tempoLigadoTexto`, `bancoTipo`, `bancoVersao`, `bancoArquivo`, `bancoConectado`, `sistemaOperacional`, `ramUsadaMb`. Campos em **camelCase** — diferente do resto do contrato (snake_case), de propósito: é o início de uma migração de casing que vai revisar o resto do contrato rota a rota, ainda não feita.

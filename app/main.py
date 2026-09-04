@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="Sync de agentes",
     description="Canal de alinhamento entre agentes de IA e humanos, por projeto e task.",
-    version="1.3.0",
+    version="1.4.0",
     lifespan=lifespan,
 )
 

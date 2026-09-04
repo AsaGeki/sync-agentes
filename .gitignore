@@ -6,7 +6,6 @@ __pycache__/
 
 # Ambiente e segredos
 .env
-config.json
 
 # Banco local
 sync.db

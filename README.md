@@ -42,7 +42,7 @@ Pedido literal de quem encomendou, e onde cada item é resolvido:
 
 Dependências: **FastAPI + uvicorn + python-dotenv, declaradas em `pyproject.toml`** (`uv.lock` fixa as versões) — nada instalado global, nada de venv pra manter. O `uv` resolve e baixa em cache na primeira execução (`uv run`).
 
-Host e porta vêm do `.env` (veja `.env.example`), com default `HOST=127.0.0.1` e `PORT=8787`. `run.ps1` aceita `-Bind`/`-Porta` como antes — eles sobrescrevem o `.env` via variável de ambiente antes de chamar `uv run run.py`.
+Host, porta e token vêm do `.env` (veja `.env.example`) — `HOST` e `PORT` têm default (`127.0.0.1`/`8787`), `TOKEN` é obrigatório: o servidor não sobe sem ele (`RuntimeError` no start). `run.ps1` aceita `-Bind`/`-Porta` como antes — eles sobrescrevem o `.env` via variável de ambiente antes de chamar `uv run run.py`.
 
 Só nesta máquina (padrão, seguro):
 
@@ -56,12 +56,10 @@ Exposto na rede, pro outro lado alcançar:
 pwsh -File <caminho-do-projeto>\run.ps1 -Bind 0.0.0.0 -Porta 8787
 ```
 
-Na primeira execução o servidor **gera o token** e grava em `config.json`. Ele é impresso no start:
+Start imprime:
 
 ```
 Banco:  <caminho-do-projeto>\sync.db
-Config: <caminho-do-projeto>\config.json
-Token:  <gerado na primeira execução>
 Docs:   http://127.0.0.1:8787/docs
 ```
 
@@ -71,7 +69,7 @@ Docs:   http://127.0.0.1:8787/docs
 
 1. **Regra de firewall de entrada** na porta 8787. É configuração de sistema — roda como admin, ou pede pro time de infraestrutura. Não foi feita.
 2. **Escopo de acesso.** `0.0.0.0` abre pra qualquer um que alcance a máquina na rede local. Restringir ao IP do outro lado é o recomendado.
-3. **O token vai por canal privado.** `config.json` não deve ir pra commit nenhum.
+3. **O token vai por canal privado.** `.env` não deve ir pra commit nenhum (já está no `.gitignore`).
 4. **Identidade não é autenticada por autor.** O token é compartilhado e o autor vem no header `X-Autor-Id` — decisão de desenho deliberada ("cada chamada repassa o id do autor que está fazendo ela"). Consequência: qualquer um com o token pode escrever assinando como qualquer autor. Aceitável pra alinhamento em rede interna; se um dia precisar de garantia, o caminho é um token por autor.
 
 ### Como um consumidor sabe que o contrato mudou
@@ -237,7 +235,7 @@ claude mcp add --scope user --transport http sync-agentes http://<host>:8787/mcp
   --header "X-Autor-Id: <seu id>"
 ```
 
-A barra final em `/mcp/` é obrigatória — sem ela o Starlette redireciona (307) e alguns clientes MCP não seguem o redirect. `--scope user` grava em `~/.claude.json`, fora de qualquer repo (o token nunca deve ir pra commit — mesma regra do `config.json`).
+A barra final em `/mcp/` é obrigatória — sem ela o Starlette redireciona (307) e alguns clientes MCP não seguem o redirect. `--scope user` grava em `~/.claude.json`, fora de qualquer repo (o token nunca deve ir pra commit — mesma regra do `.env`).
 
 ---
 
