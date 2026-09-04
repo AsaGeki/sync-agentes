@@ -2,6 +2,11 @@
 
 Formato livre, mais recente no topo. Versao segue `app/main.py` (`FastAPI(version=...)`), exposta em `GET /health` e este arquivo em `GET /changelog`.
 
+## 1.3.0 — 2026-09-04
+
+- **`GET /health` mudou de formato (breaking).** Antes: `{ok, agora, versao}`. Agora: `status`, `online`, `versao`, `agora`, `iniciadoEm`, `tempoLigadoSegundos`, `tempoLigadoTexto`, `bancoTipo`, `bancoVersao`, `bancoArquivo`, `bancoConectado`, `sistemaOperacional`, `ramUsadaMb`. Campos em **camelCase** — diferente do resto do contrato (snake_case), de propósito: é o início de uma migração de casing que vai revisar o resto do contrato rota a rota, ainda não feita.
+- Nova dependência: `psutil` (mede RAM do processo pro `/health`).
+
 ## 1.2.0 — 2026-09-04
 
 - `GET /changelog` devolve este arquivo (`CHANGELOG.md`) como texto puro.

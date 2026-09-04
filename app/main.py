@@ -8,16 +8,20 @@ Alem da API REST, o mesmo contrato fica disponivel como servidor MCP em
 `/mcp/` (ver `app/mcp_server.py`) - mesma porta, mesmo token.
 """
 
+import platform
+import sqlite3
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
+import psutil
 from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
 from mcp.server.transport_security import TransportSecuritySettings
 
 from app.autores.routes import router as autores_router
-from app.db import BASE_DIR, agora, iniciar_banco
+from app.db import BASE_DIR, DB_PATH, agora, conectar, iniciar_banco
 from app.eventos.realtime import router as realtime_router
 from app.eventos.routes import router as eventos_router
 from app.mcp_server import mcp
@@ -25,6 +29,34 @@ from app.projetos.routes import router as projetos_router
 from app.tasks.routes import router as tasks_router
 
 iniciar_banco()
+
+INICIADO_EM = agora()
+_INICIO_MONOTONICO = time.monotonic()
+_PROCESSO = psutil.Process()
+
+
+def formatar_duracao(segundos: int) -> str:
+    dias, resto = divmod(segundos, 86400)
+    horas, resto = divmod(resto, 3600)
+    minutos, seg = divmod(resto, 60)
+    partes = []
+    if dias:
+        partes.append(f"{dias}d")
+    if horas or dias:
+        partes.append(f"{horas}h")
+    if minutos or horas or dias:
+        partes.append(f"{minutos}min")
+    partes.append(f"{seg}s")
+    return " ".join(partes)
+
+
+def banco_conectado() -> bool:
+    try:
+        with conectar() as conn:
+            conn.execute("SELECT 1")
+        return True
+    except sqlite3.Error:
+        return False
 
 
 @asynccontextmanager
@@ -38,14 +70,30 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="Sync de agentes",
     description="Canal de alinhamento entre agentes de IA e humanos, por projeto e task.",
-    version="1.2.0",
+    version="1.3.0",
     lifespan=lifespan,
 )
 
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"ok": True, "agora": agora(), "versao": app.version}
+    tempo_ligado_segundos = int(time.monotonic() - _INICIO_MONOTONICO)
+    ram_usada_mb = _PROCESSO.memory_info().rss / (1024 * 1024)
+    return {
+        "status": "ONLINE",
+        "online": True,
+        "versao": app.version,
+        "agora": agora(),
+        "iniciadoEm": INICIADO_EM,
+        "tempoLigadoSegundos": tempo_ligado_segundos,
+        "tempoLigadoTexto": formatar_duracao(tempo_ligado_segundos),
+        "bancoTipo": "sqlite",
+        "bancoVersao": sqlite3.sqlite_version,
+        "bancoArquivo": DB_PATH.name,
+        "bancoConectado": banco_conectado(),
+        "sistemaOperacional": f"{platform.system()} {platform.release()}",
+        "ramUsadaMb": round(ram_usada_mb, 1),
+    }
 
 
 @app.get("/changelog", response_class=PlainTextResponse)

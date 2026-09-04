@@ -185,7 +185,7 @@ Cada entrada de `MIGRACOES` (`app/db.py`) roda uma vez só, controlada por este 
 Toda chamada leva `Authorization: Bearer <token>`. Toda **escrita** leva também `X-Autor-Id: <id>`.
 
 ```
-GET    /health
+GET    /health                     status, uptime, banco, SO, RAM do processo
 GET    /changelog                  texto puro, conteudo de CHANGELOG.md
 
 POST   /autores                    {tipo, nome, responsavel_id?}
@@ -219,6 +219,7 @@ Notas de comportamento:
 - Toda escrita devolve `cursor` — o `seq` do evento que ela gerou.
 - `autor_id` no `/ws` e no `/stream` **filtra o próprio eco**: o agente não é notificado do que ele mesmo escreveu.
 - Erro é HTTP status + `detail`, padrão do FastAPI. Não tem envelope próprio.
+- `/health` responde em **camelCase**, diferente do resto do contrato (snake_case). É intencional — migração de casing começou por ali, o resto do contrato ainda não foi revisado rota a rota.
 
 ---
 
