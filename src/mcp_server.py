@@ -39,25 +39,27 @@ mcp = MCPServer(
         "Voce já sabe quem voce e - o autor foi fixado no header X-Autor-Id na "
         "hora em que este servidor MCP foi registrado (`claude mcp add ... "
         "--header X-Autor-Id`). Nenhuma tool pede id de autor como parametro "
-        "nem aceita voce escrever assinando como outro autor. Se autor_listar "
+        "nem aceita voce escrever assinando como outro autor. Se list_authors "
         "não mostrar seu nome, quem esta configurando a conexao precisa rodar "
-        "autor_criar (dev primeiro, IA depois apontando responsible_id pro "
+        "create_author (dev primeiro, IA depois apontando responsible_id pro "
         "dev) e refazer o registro do MCP com o id novo - não da pra "
         "resolver isso de dentro de uma sessao já conectada.\n\n"
         ""
         "MODELO DE DADOS (resumo - use as tools pra ver o dado de verdade)\n"
-        "- projeto (`projeto_*`): raiz, enderecado por slug. name/description/"
-        "git_repositories (lista de repo git)/status. created_by e automatico "
-        "(vem do seu X-Autor-Id) - projeto_criar exige que voce tenha autor.\n"
-        "- task (`task_*`): pendura em projeto, enderecada por code (T-001, "
-        "unico no projeto, gerado sozinho se omitido). title/status/tags/"
-        "owner_id (pode ser IA ou dev) + um corpo versionado.\n"
-        "- corpo (dentro de task_criar/task_ler/task_corpo_atualizar/"
-        "task_diff_ler): texto de referencia da task, não e um campo solto - "
+        "- projeto (`create_project`/`list_projects`/`update_project`): raiz, "
+        "enderecado por slug. name/description/git_repositories (lista de repo "
+        "git)/status. created_by e automatico (vem do seu X-Autor-Id) - "
+        "create_project exige que voce tenha autor.\n"
+        "- task (`create_task`/`list_tasks`/`read_task`/`update_task`): pendura "
+        "em projeto, enderecada por code (T-001, unico no projeto, gerado "
+        "sozinho se omitido). title/status/tags/owner_id (pode ser IA ou dev) "
+        "+ um corpo versionado.\n"
+        "- corpo (dentro de create_task/read_task/update_task_corpo/"
+        "read_task_diff): texto de referencia da task, não e um campo solto - "
         "cada atualizacao vira uma versao nova e o servidor calcula o diff "
         "contra a anterior sozinho.\n"
-        "- evento (dentro de task_ler/projeto_mudancas_ler/"
-        "projeto_relatorio_ler): trilha unica de tudo que aconteceu numa task "
+        "- evento (dentro de read_task/read_project_mudancas/"
+        "read_project_relatorio): trilha unica de tudo que aconteceu numa task "
         "(criada, mensagem, campo mudou, corpo novo). Nao existe dependencia "
         "formal entre tasks (foi removido do modelo) - se precisar registrar "
         "que uma task depende de outra, isso vira mensagem ou fica escrito no "
@@ -68,12 +70,12 @@ mcp = MCPServer(
         "type, name, status, created_at, owner_id, responsible_id, code, "
         "title, tags. Campo de conteudo livre (o que alguem escreveu) continua "
         "portugues: texto, corpo, diff, versao, campo, valor_de, valor_para. "
-        "As duas coisas aparecem juntas na mesma tool (ex: task_criar recebe "
+        "As duas coisas aparecem juntas na mesma tool (ex: create_task recebe "
         "`title`/`tags` em ingles e `corpo` em portugues) - não e "
         "inconsistencia, e o criterio: estrutura vira ingles, prosa fica "
         "portugues.\n\n"
         ""
-        "TIPO DE MENSAGEM (task_mensagem_criar), quando usar cada um:\n"
+        "TIPO DE MENSAGEM (create_task_message), quando usar cada um:\n"
         "- mudanca: 'fiz/mudei isso'.\n"
         "- pergunta: precisa de resposta do outro lado ou de um humano - entra "
         "na lista de 'perguntas sem resposta' do relatorio ate ser respondida. "
@@ -88,7 +90,7 @@ mcp = MCPServer(
         "1. Nao reescreva o corpo do outro lado sem avisar. Se discorda, manda "
         "pergunta ou bloqueio primeiro. Corpo e versionado, mas discussao por "
         "sobrescrita e ruim de ler no diff.\n"
-        "2. Antes de responder, leia a task inteira (task_ler) - não responda "
+        "2. Antes de responder, leia a task inteira (read_task) - não responda "
         "so pelo resumo de um evento isolado ou de um frame de tempo real, que "
         "e so uma linha resumida.\n"
         "3. Uma task por assunto. Se a conversa numa task virou outro assunto, "
@@ -97,21 +99,21 @@ mcp = MCPServer(
         "4. status reflete o estado real, não a intencao - 'feito' e feito e "
         "verificado; 'bloqueado' exige owner_id dev, senao ninguem sabe de "
         "quem cobrar.\n"
-        "5. task_corpo_atualizar sempre leva o texto COMPLETO da task, nunca "
+        "5. update_task_corpo sempre leva o texto COMPLETO da task, nunca "
         "um fragmento - o que voce manda vira a versao integra.\n"
         "6. Pra saber o que mudou desde a ultima vez que voce olhou, use "
-        "projeto_mudancas_ler(desde=<ultimo cursor>) ou "
-        "projeto_relatorio_ler pro resumo narrado (quem mexeu, perguntas em "
+        "read_project_mudancas(desde=<ultimo cursor>) ou "
+        "read_project_relatorio pro resumo narrado (quem mexeu, perguntas em "
         "aberto, diff de corpo) - não releia todas as tasks uma por uma."
     ),
 )
 
 
-def _token_do_contexto(ctx: Context) -> None:
+def _context_token(ctx: Context) -> None:
     validate_token((ctx.headers or {}).get("authorization"))
 
 
-def _autor_do_contexto(ctx: Context) -> sqlite3.Row:
+def _context_author(ctx: Context) -> sqlite3.Row:
     bruto = (ctx.headers or {}).get("x-autor-id")
     autor_id = int(bruto) if bruto is not None else None
     return resolve_author(autor_id)
@@ -121,12 +123,12 @@ def _autor_do_contexto(ctx: Context) -> sqlite3.Row:
 
 
 @mcp.tool()
-def autor_criar(
+def create_author(
     ctx: Context, type: ETypeAuthor, name: str, responsible_id: int | None = None
 ) -> dict[str, Any]:
     """Cadastra um autor. 'ia' exige responsible_id de um autor 'dev' já
     cadastrado; 'dev' não tem responsible_id."""
-    _token_do_contexto(ctx)
+    _context_token(ctx)
     conn = conectar()
     try:
         dados = AutorIn(type=type, name=name, responsible_id=responsible_id)
@@ -136,9 +138,9 @@ def autor_criar(
 
 
 @mcp.tool()
-def autor_listar(ctx: Context) -> list[dict[str, Any]]:
+def list_authors(ctx: Context) -> list[dict[str, Any]]:
     """Lista todos os autores cadastrados (IA e dev)."""
-    _token_do_contexto(ctx)
+    _context_token(ctx)
     conn = conectar()
     try:
         return autores_service.list_authors(conn)
@@ -150,7 +152,7 @@ def autor_listar(ctx: Context) -> list[dict[str, Any]]:
 
 
 @mcp.tool()
-def projeto_criar(
+def create_project(
     ctx: Context,
     slug: str,
     name: str,
@@ -160,8 +162,8 @@ def projeto_criar(
 ) -> dict[str, Any]:
     """Cria um projeto. `slug` casa com ^[a-z0-9][a-z0-9-]*$ e e usado pra
     enderecar tudo dentro dele. `created_by` vem do X-Autor-Id de quem chama."""
-    _token_do_contexto(ctx)
-    autor = _autor_do_contexto(ctx)
+    _context_token(ctx)
+    autor = _context_author(ctx)
     conn = conectar()
     try:
         dados = ProjetoIn(
@@ -177,9 +179,9 @@ def projeto_criar(
 
 
 @mcp.tool()
-def projeto_listar(ctx: Context) -> list[dict[str, Any]]:
+def list_projects(ctx: Context) -> list[dict[str, Any]]:
     """Lista projetos, com contagem de tasks e o cursor atual de eventos de cada um."""
-    _token_do_contexto(ctx)
+    _context_token(ctx)
     conn = conectar()
     try:
         return projetos_service.list_projects(conn)
@@ -188,7 +190,7 @@ def projeto_listar(ctx: Context) -> list[dict[str, Any]]:
 
 
 @mcp.tool()
-def projeto_atualizar(
+def update_project(
     ctx: Context,
     slug: str,
     name: str | None = None,
@@ -197,7 +199,7 @@ def projeto_atualizar(
     status: EStatusProject | None = None,
 ) -> dict[str, Any]:
     """Atualiza campos de um projeto existente. So os campos informados mudam."""
-    _token_do_contexto(ctx)
+    _context_token(ctx)
     conn = conectar()
     try:
         dados = ProjetoPatch(
@@ -212,7 +214,7 @@ def projeto_atualizar(
 
 
 @mcp.tool()
-async def task_criar(
+async def create_task(
     ctx: Context,
     slug: str,
     title: str,
@@ -224,8 +226,8 @@ async def task_criar(
 ) -> dict[str, Any]:
     """Cria uma task no projeto. `code` (ex: T-001) e gerado automatico se
     omitido. `corpo`, se enviado, já vira a v1."""
-    _token_do_contexto(ctx)
-    autor = _autor_do_contexto(ctx)
+    _context_token(ctx)
+    autor = _context_author(ctx)
     conn = conectar()
     try:
         dados = TaskIn(
@@ -242,11 +244,11 @@ async def task_criar(
 
 
 @mcp.tool()
-def task_listar(
+def list_tasks(
     ctx: Context, slug: str, status: EStatusTask | None = None, tag: str | None = None
 ) -> list[dict[str, Any]]:
     """Lista tasks do projeto, com filtro opcional por status e/ou tag."""
-    _token_do_contexto(ctx)
+    _context_token(ctx)
     conn = conectar()
     try:
         return tasks_service.list_tasks(conn, slug, status, tag)
@@ -255,9 +257,9 @@ def task_listar(
 
 
 @mcp.tool()
-def task_ler(ctx: Context, slug: str, code: str, com_corpo: bool = True) -> dict[str, Any]:
+def read_task(ctx: Context, slug: str, code: str, com_corpo: bool = True) -> dict[str, Any]:
     """Le 1 task por code, com corpo atual e a trilha completa de eventos dela."""
-    _token_do_contexto(ctx)
+    _context_token(ctx)
     conn = conectar()
     try:
         return tasks_service.read_task(conn, slug, code, com_corpo)
@@ -266,7 +268,7 @@ def task_ler(ctx: Context, slug: str, code: str, com_corpo: bool = True) -> dict
 
 
 @mcp.tool()
-async def task_atualizar(
+async def update_task(
     ctx: Context,
     slug: str,
     code: str,
@@ -277,8 +279,8 @@ async def task_atualizar(
 ) -> dict[str, Any]:
     """Atualiza campos da task (title/status/tags/owner). Gera 1 evento
     por campo que de fato mudou."""
-    _token_do_contexto(ctx)
-    autor = _autor_do_contexto(ctx)
+    _context_token(ctx)
+    autor = _context_author(ctx)
     conn = conectar()
     try:
         dados = TaskPatch(title=title, status=status, tags=tags, owner_id=owner_id)
@@ -291,13 +293,13 @@ async def task_atualizar(
 
 
 @mcp.tool()
-async def task_mensagem_criar(
+async def create_task_message(
     ctx: Context, slug: str, code: str, type: ETypeMessage, texto: str
 ) -> dict[str, Any]:
     """Manda uma mensagem na task (mudanca/pergunta/resposta/decisao/bloqueio)
     - não muda estado, so registra."""
-    _token_do_contexto(ctx)
-    autor = _autor_do_contexto(ctx)
+    _context_token(ctx)
+    autor = _context_author(ctx)
     conn = conectar()
     try:
         dados = MensagemIn(type=type, texto=texto)
@@ -307,11 +309,11 @@ async def task_mensagem_criar(
 
 
 @mcp.tool()
-async def task_corpo_atualizar(ctx: Context, slug: str, code: str, texto: str) -> dict[str, Any]:
+async def update_task_corpo(ctx: Context, slug: str, code: str, texto: str) -> dict[str, Any]:
     """Grava uma versao nova do corpo da task e devolve o diff contra a
     anterior. Mande sempre o texto completo, nunca um fragmento."""
-    _token_do_contexto(ctx)
-    autor = _autor_do_contexto(ctx)
+    _context_token(ctx)
+    autor = _context_author(ctx)
     conn = conectar()
     try:
         dados = CorpoIn(texto=texto)
@@ -321,9 +323,9 @@ async def task_corpo_atualizar(ctx: Context, slug: str, code: str, texto: str) -
 
 
 @mcp.tool()
-def task_diff_ler(ctx: Context, slug: str, code: str, desde: int = 0) -> dict[str, Any]:
+def read_task_diff(ctx: Context, slug: str, code: str, desde: int = 0) -> dict[str, Any]:
     """Diff unificado do corpo da task, da versao `desde` ate a mais recente."""
-    _token_do_contexto(ctx)
+    _context_token(ctx)
     conn = conectar()
     try:
         return tasks_service.read_diff(conn, slug, code, desde)
@@ -335,12 +337,12 @@ def task_diff_ler(ctx: Context, slug: str, code: str, desde: int = 0) -> dict[st
 
 
 @mcp.tool()
-def projeto_mudancas_ler(
+def read_project_mudancas(
     ctx: Context, slug: str, desde: int = 0, limite: int = 200
 ) -> dict[str, Any]:
     """O que mudou no projeto desde o cursor `desde` (use o `cursor` da
     ultima resposta na proxima chamada)."""
-    _token_do_contexto(ctx)
+    _context_token(ctx)
     conn = conectar()
     try:
         projeto = projetos_repositorio.find_by_slug(conn, slug)
@@ -353,7 +355,7 @@ def projeto_mudancas_ler(
 
 
 @mcp.tool()
-def projeto_relatorio_ler(
+def read_project_relatorio(
     ctx: Context,
     slug: str,
     desde: int = 0,
@@ -362,7 +364,7 @@ def projeto_relatorio_ler(
 ) -> dict[str, Any] | str:
     """Relatorio consolidado do projeto (resumo geral, atividade por task,
     diffs). `formato=json` pra processar sem parsear markdown."""
-    _token_do_contexto(ctx)
+    _context_token(ctx)
     conn = conectar()
     try:
         rel = montar_relatorio(conn, slug, desde)
