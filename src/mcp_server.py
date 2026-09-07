@@ -1,7 +1,7 @@
 # Servidor compartilhado (1 processo, N IAs): quem fixa Authorization/X-Autor-Id
-# e cada cliente MCP na hora de registrar (`claude mcp add ... --header`), nao
-# o servidor - autenticacao acontece por chamada, lendo o mesmo header que o
-# REST le via `Header()` do FastAPI (ver `src/shared/auth.py`).
+# é cada cliente MCP na hora de registrar (`claude mcp add ... --header`), não
+# o servidor - autenticação acontece por chamada, lendo o mesmo header que o
+# REST lê via `Header()` do FastAPI (ver `src/shared/auth.py`).
 
 from __future__ import annotations
 
@@ -28,83 +28,83 @@ mcp = MCPServer(
     instructions=(
         "SYNC-AGENTES - canal de alinhamento entre agentes de IA e humanos, por "
         "projeto e task. Pensado pra 2 lados (2 pessoas, cada uma com sua IA) "
-        "trabalhando na mesma coisa de maquinas diferentes: as duas IAs leem e "
-        "escrevem pelas mesmas tools e recebem a mudanca do outro lado em tempo "
-        "real, sem depender de arquivo markdown passado na mao. Este texto e a "
-        "unica fonte de instrucao operacional do canal - não existe .md do "
-        "projeto com regra de conduta, elas moram aqui porque e o que voce "
-        "efetivamente le ao conectar.\n\n"
+        "trabalhando na mesma coisa de máquinas diferentes: as duas IAs leem e "
+        "escrevem pelas mesmas tools e recebem a mudança do outro lado em tempo "
+        "real, sem depender de arquivo markdown passado na mão. Este texto é a "
+        "única fonte de instrução operacional do canal - não existe .md do "
+        "projeto com regra de conduta, elas moram aqui porque é o que você "
+        "efetivamente lê ao conectar.\n\n"
         ""
         "IDENTIDADE\n"
-        "Voce já sabe quem voce e - o autor foi fixado no header X-Autor-Id na "
+        "Você já sabe quem você é - o autor foi fixado no header X-Autor-Id na "
         "hora em que este servidor MCP foi registrado (`claude mcp add ... "
-        "--header X-Autor-Id`). Nenhuma tool pede id de autor como parametro "
-        "nem aceita voce escrever assinando como outro autor. Se list_authors "
-        "não mostrar seu nome, quem esta configurando a conexao precisa rodar "
+        "--header X-Autor-Id`). Nenhuma tool pede id de autor como parâmetro "
+        "nem aceita você escrever assinando como outro autor. Se list_authors "
+        "não mostrar seu nome, quem está configurando a conexão precisa rodar "
         "create_author (dev primeiro, IA depois apontando responsible_id pro "
-        "dev) e refazer o registro do MCP com o id novo - não da pra "
-        "resolver isso de dentro de uma sessao já conectada.\n\n"
+        "dev) e refazer o registro do MCP com o id novo - não dá pra "
+        "resolver isso de dentro de uma sessão já conectada.\n\n"
         ""
         "MODELO DE DADOS (resumo - use as tools pra ver o dado de verdade)\n"
         "- projeto (`create_project`/`list_projects`/`update_project`): raiz, "
-        "enderecado por slug. name/description/git_repositories (lista de repo "
-        "git)/status. created_by e automatico (vem do seu X-Autor-Id) - "
-        "create_project exige que voce tenha autor.\n"
+        "endereçado por slug. name/description/git_repositories (lista de repo "
+        "git)/status. created_by é automático (vem do seu X-Autor-Id) - "
+        "create_project exige que você tenha autor.\n"
         "- task (`create_task`/`list_tasks`/`read_task`/`update_task`): pendura "
-        "em projeto, enderecada por code (T-001, unico no projeto, gerado "
+        "em projeto, endereçada por code (T-001, único no projeto, gerado "
         "sozinho se omitido). title/status/tags/owner_id (pode ser IA ou dev) "
         "+ um corpo versionado.\n"
         "- corpo (dentro de create_task/read_task/update_task_corpo/"
-        "read_task_diff): texto de referencia da task, não e um campo solto - "
-        "cada atualizacao vira uma versao nova e o servidor calcula o diff "
+        "read_task_diff): texto de referência da task, não é um campo solto - "
+        "cada atualização vira uma versão nova e o servidor calcula o diff "
         "contra a anterior sozinho.\n"
         "- evento (dentro de read_task/read_project_mudancas/"
-        "read_project_relatorio): trilha unica de tudo que aconteceu numa task "
-        "(criada, mensagem, campo mudou, corpo novo). Nao existe dependencia "
+        "read_project_relatorio): trilha única de tudo que aconteceu numa task "
+        "(criada, mensagem, campo mudou, corpo novo). Não existe dependência "
         "formal entre tasks (foi removido do modelo) - se precisar registrar "
         "que uma task depende de outra, isso vira mensagem ou fica escrito no "
-        "proprio corpo, não uma tool separada.\n\n"
+        "próprio corpo, não uma tool separada.\n\n"
         ""
         "NOMENCLATURA DE CAMPO - IMPORTANTE PRA CHAMAR AS TOOLS CERTO\n"
-        "Campo estrutural (id, tipo, nome, data, quem-e-dono) e em ingles: "
+        "Campo estrutural (id, tipo, nome, data, quem-é-dono) é em inglês: "
         "type, name, status, created_at, owner_id, responsible_id, code, "
-        "title, tags. Campo de conteudo livre (o que alguem escreveu) continua "
-        "portugues: texto, corpo, diff, versao, campo, valor_de, valor_para. "
+        "title, tags. Campo de conteúdo livre (o que alguém escreveu) continua "
+        "português: texto, corpo, diff, versao, campo, valor_de, valor_para. "
         "As duas coisas aparecem juntas na mesma tool (ex: create_task recebe "
-        "`title`/`tags` em ingles e `corpo` em portugues) - não e "
-        "inconsistencia, e o criterio: estrutura vira ingles, prosa fica "
-        "portugues.\n\n"
+        "`title`/`tags` em inglês e `corpo` em português) - não é "
+        "inconsistência, é o critério: estrutura vira inglês, prosa fica "
+        "português.\n\n"
         ""
         "TIPO DE MENSAGEM (create_task_message), quando usar cada um:\n"
         "- mudanca: 'fiz/mudei isso'.\n"
         "- pergunta: precisa de resposta do outro lado ou de um humano - entra "
-        "na lista de 'perguntas sem resposta' do relatorio ate ser respondida. "
-        "So use quando realmente travou, não pra conversa fiada.\n"
-        "- resposta: responde a ultima pergunta daquela task - e o que tira ela "
+        "na lista de 'perguntas sem resposta' do relatório até ser respondida. "
+        "Só use quando realmente travou, não pra conversa fiada.\n"
+        "- resposta: responde a última pergunta daquela task - é o que tira ela "
         "da lista de abertas.\n"
         "- decisao: ficou decidido assim - use isto, não prosa dentro do corpo, "
-        "pra decisao ficar rastreavel a autor e horario.\n"
-        "- bloqueio: não da pra seguir, e por que.\n\n"
+        "pra decisão ficar rastreável a autor e horário.\n"
+        "- bloqueio: não dá pra seguir, e por quê.\n\n"
         ""
         "REGRAS DE CONDUTA\n"
-        "1. Nao reescreva o corpo do outro lado sem avisar. Se discorda, manda "
-        "pergunta ou bloqueio primeiro. Corpo e versionado, mas discussao por "
-        "sobrescrita e ruim de ler no diff.\n"
+        "1. Não reescreva o corpo do outro lado sem avisar. Se discorda, manda "
+        "pergunta ou bloqueio primeiro. Corpo é versionado, mas discussão por "
+        "sobrescrita é ruim de ler no diff.\n"
         "2. Antes de responder, leia a task inteira (read_task) - não responda "
-        "so pelo resumo de um evento isolado ou de um frame de tempo real, que "
-        "e so uma linha resumida.\n"
+        "só pelo resumo de um evento isolado ou de um frame de tempo real, que "
+        "é só uma linha resumida.\n"
         "3. Uma task por assunto. Se a conversa numa task virou outro assunto, "
-        "crie task nova (não existe tool de dependencia formal entre tasks - "
+        "crie task nova (não existe tool de dependência formal entre tasks - "
         "ver Modelo de dados acima).\n"
-        "4. status reflete o estado real, não a intencao - 'feito' e feito e "
-        "verificado; 'bloqueado' exige owner_id dev, senao ninguem sabe de "
+        "4. status reflete o estado real, não a intenção - 'feito' é feito e "
+        "verificado; 'bloqueado' exige owner_id dev, senão ninguém sabe de "
         "quem cobrar.\n"
         "5. update_task_corpo sempre leva o texto COMPLETO da task, nunca "
-        "um fragmento - o que voce manda vira a versao integra.\n"
-        "6. Pra saber o que mudou desde a ultima vez que voce olhou, use "
-        "read_project_mudancas(desde=<ultimo cursor>) ou "
-        "read_project_relatorio pro resumo narrado (quem mexeu, perguntas em "
-        "aberto, diff de corpo) - não releia todas as tasks uma por uma."
+        "um fragmento - o que você manda vira a versão íntegra.\n"
+        "6. Pra saber o que mudou desde a última vez que você olhou, use "
+        "read_project_mudancas(desde=<ultimo cursor>) ou read_project_relatorio "
+        "pro resumo técnico do estado atual (status, campos alterados, diff de "
+        "corpo) - não releia todas as tasks uma por uma."
     ),
 )
 
@@ -160,8 +160,8 @@ def create_project(
     git_repositories: list[str] | None = None,
     status: EStatusProject = EStatusProject.ativo,
 ) -> dict[str, Any]:
-    """Cria um projeto. `slug` casa com ^[a-z0-9][a-z0-9-]*$ e e usado pra
-    enderecar tudo dentro dele. `created_by` vem do X-Autor-Id de quem chama."""
+    """Cria um projeto. `slug` casa com ^[a-z0-9][a-z0-9-]*$ e é usado pra
+    endereçar tudo dentro dele. `created_by` vem do X-Autor-Id de quem chama."""
     _context_token(ctx)
     autor = _context_author(ctx)
     conn = conectar()
@@ -198,7 +198,7 @@ def update_project(
     git_repositories: list[str] | None = None,
     status: EStatusProject | None = None,
 ) -> dict[str, Any]:
-    """Atualiza campos de um projeto existente. So os campos informados mudam."""
+    """Atualiza campos de um projeto existente. Só os campos informados mudam."""
     _context_token(ctx)
     conn = conectar()
     try:
@@ -224,7 +224,7 @@ async def create_task(
     owner_id: int | None = None,
     corpo: str | None = None,
 ) -> dict[str, Any]:
-    """Cria uma task no projeto. `code` (ex: T-001) e gerado automatico se
+    """Cria uma task no projeto. `code` (ex: T-001) é gerado automático se
     omitido. `corpo`, se enviado, já vira a v1."""
     _context_token(ctx)
     autor = _context_author(ctx)
@@ -258,7 +258,7 @@ def list_tasks(
 
 @mcp.tool()
 def read_task(ctx: Context, slug: str, code: str, com_corpo: bool = True) -> dict[str, Any]:
-    """Le 1 task por code, com corpo atual e a trilha completa de eventos dela."""
+    """Lê 1 task por code, com corpo atual e a trilha completa de eventos dela."""
     _context_token(ctx)
     conn = conectar()
     try:
@@ -297,7 +297,7 @@ async def create_task_message(
     ctx: Context, slug: str, code: str, type: ETypeMessage, texto: str
 ) -> dict[str, Any]:
     """Manda uma mensagem na task (mudanca/pergunta/resposta/decisao/bloqueio)
-    - não muda estado, so registra."""
+    - não muda estado, só registra."""
     _context_token(ctx)
     autor = _context_author(ctx)
     conn = conectar()
@@ -310,7 +310,7 @@ async def create_task_message(
 
 @mcp.tool()
 async def update_task_corpo(ctx: Context, slug: str, code: str, texto: str) -> dict[str, Any]:
-    """Grava uma versao nova do corpo da task e devolve o diff contra a
+    """Grava uma versão nova do corpo da task e devolve o diff contra a
     anterior. Mande sempre o texto completo, nunca um fragmento."""
     _context_token(ctx)
     autor = _context_author(ctx)
@@ -324,7 +324,7 @@ async def update_task_corpo(ctx: Context, slug: str, code: str, texto: str) -> d
 
 @mcp.tool()
 def read_task_diff(ctx: Context, slug: str, code: str, desde: int = 0) -> dict[str, Any]:
-    """Diff unificado do corpo da task, da versao `desde` ate a mais recente."""
+    """Diff unificado do corpo da task, da versão `desde` até a mais recente."""
     _context_token(ctx)
     conn = conectar()
     try:
@@ -341,7 +341,7 @@ def read_project_mudancas(
     ctx: Context, slug: str, desde: int = 0, limite: int = 200
 ) -> dict[str, Any]:
     """O que mudou no projeto desde o cursor `desde` (use o `cursor` da
-    ultima resposta na proxima chamada)."""
+    última resposta na próxima chamada)."""
     _context_token(ctx)
     conn = conectar()
     try:
@@ -362,8 +362,9 @@ def read_project_relatorio(
     formato: Literal["md", "json"] = "md",
     com_diff: bool = True,
 ) -> dict[str, Any] | str:
-    """Relatorio consolidado do projeto (resumo geral, atividade por task,
-    diffs). `formato=json` pra processar sem parsear markdown."""
+    """Relatório consolidado do projeto (resumo geral, estado atual por task,
+    diffs). `formato=md` é técnico e sem narração de mensagens - pra ver
+    autoria/conversa por evento, use `formato=json`."""
     _context_token(ctx)
     conn = conectar()
     try:

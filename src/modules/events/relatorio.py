@@ -14,7 +14,7 @@ ROTULO_STATUS = {
     "parcial": "parcial",
     "ideia": "ideia",
     "bloqueado": "bloqueado",
-    "aguardando_decisao": "aguardando decisao",
+    "aguardando_decisao": "aguardando decisão",
 }
 
 
@@ -40,7 +40,7 @@ def montar_relatorio(conn: sqlite3.Connection, slug: str, desde: int) -> dict[st
     for evento in eventos:
         contagem_autor[eventos_service.assinatura(evento)] += 1
 
-    # Pergunta em aberto: ultima mensagem type=pergunta sem nenhuma resposta depois dela.
+    # Pergunta em aberto: última mensagem type=pergunta sem nenhuma resposta depois dela.
     perguntas_abertas: list[dict[str, Any]] = []
     for task in tasks:
         linhas = eventos_repositorio.mensagens_da_task(conn, projeto["id"], task["code"])
@@ -67,9 +67,13 @@ def montar_relatorio(conn: sqlite3.Connection, slug: str, desde: int) -> dict[st
 
 
 def relatorio_markdown(conn: sqlite3.Connection, rel: dict[str, Any], com_diff: bool) -> str:
+    """Resumo técnico do estado do projeto - por task, mostra status/tags/dono
+    atuais, campos que mudaram na janela e diff acumulado do corpo. Não narra
+    mensagens (mudanca/pergunta/resposta/decisao/bloqueio) nem autoria por
+    evento - quem quiser isso usa `formato=json`, que carrega os eventos crus."""
     projeto = rel["projeto"]
     linhas: list[str] = [
-        f"# Relatorio — {projeto['name']} (`{projeto['slug']}`)",
+        f"# Relatório — {projeto['name']} (`{projeto['slug']}`)",
         "",
         f"Gerado em {now()} · janela de eventos {rel['desde']} → {rel['cursor']}",
         "",
@@ -82,11 +86,6 @@ def relatorio_markdown(conn: sqlite3.Connection, rel: dict[str, Any], com_diff: 
         f"{n} {ROTULO_STATUS.get(s, s)}" for s, n in sorted(rel["contagem_status"].items())
     )
     linhas.append(f"- **{total} tasks**: {resumo}" if total else "- Nenhuma task cadastrada")
-    linhas.append(f"- **{len(rel['eventos'])} eventos** na janela")
-
-    if rel["contagem_autor"]:
-        autores = " · ".join(f"{nome} {n}" for nome, n in sorted(rel["contagem_autor"].items()))
-        linhas.append(f"- Quem mexeu: {autores}")
 
     bloqueadas = [t for t in rel["tasks"] if t["status"] == "bloqueado"]
     if bloqueadas:
@@ -96,15 +95,7 @@ def relatorio_markdown(conn: sqlite3.Connection, rel: dict[str, Any], com_diff: 
     aguardando = [t for t in rel["tasks"] if t["status"] == "aguardando_decisao"]
     if aguardando:
         alvos = ", ".join(f"{t['code']} (dono: {t['owner'] or 'sem dono'})" for t in aguardando)
-        linhas.append(f"- **Aguardando decisao:** {alvos}")
-
-    if rel["perguntas_abertas"]:
-        linhas.append("- **Perguntas sem resposta:**")
-        for pergunta in rel["perguntas_abertas"]:
-            primeira = pergunta["texto"].splitlines()[0]
-            linhas.append(
-                f"  - {pergunta['code']} · {eventos_service.assinatura(pergunta)}: {primeira}"
-            )
+        linhas.append(f"- **Aguardando decisão:** {alvos}")
 
     linhas += ["", "---", ""]
 
@@ -123,22 +114,11 @@ def relatorio_markdown(conn: sqlite3.Connection, rel: dict[str, Any], com_diff: 
             "",
         ]
 
-        linhas += ["### Atividade", ""]
         for evento in atividade:
-            hora = evento["created_at"][11:16]
-            quem = eventos_service.assinatura(evento)
-            if evento["kind"] == "mensagem":
-                linhas.append(f"- `{hora}` **{quem}** · {evento['type']}")
-                for texto in evento["texto"].splitlines():
-                    linhas.append(f"    {texto}")
-            elif evento["kind"] == "campo":
+            if evento["kind"] == "campo":
                 de = evento.get("valor_de", "vazio")
                 para = evento.get("valor_para", "vazio")
-                linhas.append(f"- `{hora}` **{quem}** · campo `{evento['campo']}`: {de} → {para}")
-            elif evento["kind"] == "corpo":
-                linhas.append(f"- `{hora}` **{quem}** · corpo atualizado (v{evento['version']})")
-            elif evento["kind"] == "task_criada":
-                linhas.append(f"- `{hora}` **{quem}** · task criada")
+                linhas.append(f"- `{evento['campo']}`: {de} → {para}")
         linhas.append("")
 
         if com_diff:

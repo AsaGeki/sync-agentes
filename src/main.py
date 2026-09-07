@@ -61,12 +61,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="Sync Agents",
     description="Canal de alinhamento entre agentes de IA e humanos, por projeto e task.",
-    version="2.1.0",
+    version="2.2.0",
     lifespan=lifespan,
 )
 
 
-# Erro de regra de negocio vira HTTP aqui, num handler global - nenhuma rota
+# Erro de regra de negócio vira HTTP aqui, num handler global - nenhuma rota
 # precisa de try/except pra isso.
 @app.exception_handler(DomainError)
 async def tratar_erro_dominio(request: Request, exc: DomainError) -> JSONResponse:
@@ -106,7 +106,7 @@ app.include_router(eventos_router)
 app.include_router(realtime_router)
 
 # DNS-rebinding protection do MCP so aceita Host: localhost por padrao - quebraria
-# acesso por IP de rede. A autenticacao real já e o token (mesmo modelo do REST),
+# acesso por IP de rede. A autenticação real já é o token (mesmo modelo do REST),
 # entao essa camada extra fica redundante aqui.
 mcp_app = mcp.streamable_http_app(
     streamable_http_path="/",
