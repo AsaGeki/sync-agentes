@@ -33,7 +33,7 @@ def mudancas_do_projeto(
 
 
 def assinatura(evento: dict[str, Any]) -> str:
-    """Quem escreveu: nome + tipo, e o responsavel dev quando o autor e IA."""
+    """Quem escreveu: nome + tipo, e o responsável dev quando o autor é IA."""
     if evento.get("author_type") == "ia" and evento.get("author_responsible"):
         return f"{evento['author_name']} (IA · {evento['author_responsible']})"
     tipo = "IA" if evento.get("author_type") == "ia" else "dev"
@@ -41,7 +41,7 @@ def assinatura(evento: dict[str, Any]) -> str:
 
 
 def resumir(evento: dict[str, Any]) -> str:
-    """Linha curta: e isso que o Monitor mostra como notificacao no chat do agente."""
+    """Linha curta: é isso que o Monitor mostra como notificação no chat do agente."""
     alvo = evento.get("task_code", "-")
     quem = assinatura(evento)
     prefixo = f"[{evento['project_slug']}] {alvo} · {quem}"

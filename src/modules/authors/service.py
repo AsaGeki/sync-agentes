@@ -11,14 +11,14 @@ def create_author(conn: sqlite3.Connection, dados: AutorIn) -> dict[str, Any]:
     if dados.responsible_id is not None:
         resp = repositorio.find_by_id(conn, dados.responsible_id)
         if resp is None:
-            raise NotFound(f"Responsavel {dados.responsible_id} não cadastrado")
+            raise NotFound(f"Responsável {dados.responsible_id} não cadastrado")
         if resp["type"] != ETypeAuthor.dev.value:
-            raise Invalid(f"Responsavel de uma IA tem que ser autor do tipo '{ETypeAuthor.dev}'")
+            raise Invalid(f"Responsável de uma IA tem que ser autor do tipo '{ETypeAuthor.dev}'")
     try:
         with conn:
             autor_id = repositorio.insert(conn, dados)
     except sqlite3.IntegrityError:
-        raise AlreadyExists(f"Ja existe autor com o nome '{dados.name}'") from None
+        raise AlreadyExists(f"Já existe autor com o nome '{dados.name}'") from None
     return {"id": autor_id, **dados.model_dump(mode="json")}
 
 

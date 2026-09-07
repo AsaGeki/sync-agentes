@@ -1,4 +1,4 @@
-# `events` e a trilha unica do projeto - nao existe tabela por tipo de evento.
+# `events` é a trilha única do projeto - não existe tabela por tipo de evento.
 
 import sqlite3
 from typing import Any

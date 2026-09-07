@@ -1,5 +1,5 @@
 param(
-    # 127.0.0.1 = so esta maquina. 0.0.0.0 = exposto na rede (precisa de regra de firewall).
+    # 127.0.0.1 = só esta máquina. 0.0.0.0 = exposto na rede (precisa de regra de firewall).
     [string]$Bind = "127.0.0.1",
     [int]$Porta = 8787
 )

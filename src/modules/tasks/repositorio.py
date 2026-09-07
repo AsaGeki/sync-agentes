@@ -1,5 +1,5 @@
-# Corpo versionado nao tem tabela propria - e evento kind='corpo' em `events`
-# (ver ultimo_corpo/todos_corpos). find_by_code tambem e usado por outros dominios.
+# Corpo versionado não tem tabela própria - é evento kind='corpo' em `events`
+# (ver ultimo_corpo/todos_corpos). find_by_code também é usado por outros domínios.
 
 import json
 import sqlite3

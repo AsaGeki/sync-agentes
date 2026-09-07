@@ -1,4 +1,4 @@
-# find_by_slug tambem e usado por tasks/eventos/mcp_server pra enderecar um projeto.
+# find_by_slug também é usado por tasks/eventos/mcp_server pra endereçar um projeto.
 
 import json
 import sqlite3

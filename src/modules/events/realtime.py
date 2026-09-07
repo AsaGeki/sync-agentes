@@ -1,4 +1,4 @@
-# `autor_id` filtra o proprio eco - o agente nao e notificado do que ele mesmo escreveu.
+# `autor_id` filtra o próprio eco - o agente não é notificado do que ele mesmo escreveu.
 
 import asyncio
 import json

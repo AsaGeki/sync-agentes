@@ -42,8 +42,8 @@ def _gravar_corpo_evento(
     conn: sqlite3.Connection, task: sqlite3.Row, texto: str, author_id: int, project_id: int
 ) -> tuple[int, int, str]:
     """Grava o corpo como evento kind='corpo' e devolve (seq, versao, diff
-    contra a anterior). Nao publica - quem decide isso e o chamador:
-    `create_task` não publica o corpo inicial em separado (so o
+    contra a anterior). Não publica - quem decide isso é o chamador:
+    `create_task` não publica o corpo inicial em separado (só o
     task_criada), `update_corpo` publica logo depois de commitar."""
     anterior = repositorio.ultimo_corpo(conn, task["id"])
     versao = (anterior["version"] if anterior else 0) + 1

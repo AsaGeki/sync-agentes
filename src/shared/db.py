@@ -1,4 +1,4 @@
-"""Schema SQLite e conexao. `sync.db` fica na raiz do projeto, WAL ligado,
+"""Schema SQLite e conexão. `sync.db` fica na raiz do projeto, WAL ligado,
 `foreign_keys = ON`.
 """
 
@@ -80,10 +80,10 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 """
 
 # Mudou modelagem (coluna nova numa tabela existente)? `CREATE TABLE IF NOT EXISTS`
-# acima não alcanca banco já criado - ele pula a tabela inteira. Adicione aqui:
-# (id unico e permanente, tabela, coluna, "ALTER TABLE ... ADD COLUMN ...").
-# Bancos novos já nascem com a coluna via SCHEMA (adicione la tambem) - a checagem
-# de coluna existente abaixo garante que a migracao não tenta duplicar.
+# acima não alcança banco já criado - ele pula a tabela inteira. Adicione aqui:
+# (id único e permanente, tabela, coluna, "ALTER TABLE ... ADD COLUMN ...").
+# Bancos novos já nascem com a coluna via SCHEMA (adicione lá também) - a checagem
+# de coluna existente abaixo garante que a migração não tenta duplicar.
 MIGRACOES: list[tuple[str, str, str, str]] = []
 
 
@@ -113,13 +113,13 @@ def _coluna_existe(conn: sqlite3.Connection, tabela: str, coluna: str) -> bool:
 
 
 def _migrar_para_ingles(conn: sqlite3.Connection) -> None:
-    """Migracao unica: renomeia tabela/coluna estrutural pro ingles (mantem
-    `texto`/`campo`/`valor_de`/`valor_para` em portugues - sao conteudo livre,
+    """Migração única: renomeia tabela/coluna estrutural pro inglês (mantém
+    `texto`/`campo`/`valor_de`/`valor_para` em português - são conteúdo livre,
     não estrutura), funde `corpos` em `events` (evento kind='corpo' passa a
-    carregar o texto direto em `texto`) e remove `dependencias`. So roda se o
-    banco ainda tiver o schema antigo - auto-guardada pela existencia da
+    carregar o texto direto em `texto`) e remove `dependencias`. Só roda se o
+    banco ainda tiver o schema antigo - auto-guardada pela existência da
     tabela `autores`, idempotente sem precisar de registro em
-    `schema_migrations` (schema_migrations so existe depois que SCHEMA roda,
+    `schema_migrations` (schema_migrations só existe depois que SCHEMA roda,
     e isto tem que rodar antes do SCHEMA).
     """
     if not _tabela_existe(conn, "autores"):
@@ -137,9 +137,9 @@ def _migrar_para_ingles(conn: sqlite3.Connection) -> None:
     conn.execute("ALTER TABLE projects RENAME COLUMN criado_em TO created_at")
     conn.execute("ALTER TABLE projects RENAME COLUMN atualizado_em TO updated_at")
 
-    # git_repositories/created_by sao colunas novas - `created_by NOT NULL REFERENCES`
-    # não da pra ADD COLUMN direto (SQLite proibe REFERENCES com default não-nulo em
-    # ALTER TABLE ADD COLUMN), entao reconstroi a tabela já com a forma final.
+    # git_repositories/created_by são colunas novas - `created_by NOT NULL REFERENCES`
+    # não dá pra ADD COLUMN direto (SQLite proíbe REFERENCES com default não-nulo em
+    # ALTER TABLE ADD COLUMN), então reconstrói a tabela já com a forma final.
     # Banco existente não tem como saber quem criou projeto já existente - preenche
     # com o primeiro autor humano cadastrado, nunca com uma IA (IA não responde por si).
     primeiro_humano = conn.execute(
@@ -147,7 +147,7 @@ def _migrar_para_ingles(conn: sqlite3.Connection) -> None:
     ).fetchone()
     if primeiro_humano is None:
         raise RuntimeError(
-            "Migracao de projects precisa de 1 autor humano existente pra preencher "
+            "Migração de projects precisa de 1 autor humano existente pra preencher "
             "created_by dos projetos já cadastrados - nenhum encontrado."
         )
     conn.execute(
@@ -191,7 +191,7 @@ def _migrar_para_ingles(conn: sqlite3.Connection) -> None:
 
     # corpos -> events: cada linha de `corpos` casa 1:1 com o evento kind='corpo'
     # do mesmo task_id+version (gravar_corpo()+registrar_evento() escrevem as
-    # duas linhas juntas, na mesma transacao) - so falta copiar o texto.
+    # duas linhas juntas, na mesma transação) - só falta copiar o texto.
     conn.execute(
         """UPDATE events
               SET texto = (
@@ -203,13 +203,13 @@ def _migrar_para_ingles(conn: sqlite3.Connection) -> None:
     )
     conn.execute("DROP TABLE corpos")
     conn.execute("DROP TABLE dependencias")
-    # Feature de dependencia foi cortada, não so escondida - o evento historico
+    # Feature de dependência foi cortada, não só escondida - o evento histórico
     # (kind='dependencia') não tem mais tabela nem CHECK que o aceite.
     conn.execute("DELETE FROM events WHERE kind = 'dependencia'")
 
     # 'dependencia' sai do CHECK de kind e o UNIQUE parcial de corpo entra -
-    # SQLite não altera CHECK/index de tabela existente com ALTER TABLE, only
-    # jeito e recriar a tabela.
+    # SQLite não altera CHECK/index de tabela existente com ALTER TABLE, único
+    # jeito é recriar a tabela.
     conn.execute(
         """CREATE TABLE events_novo (
              seq        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -244,10 +244,10 @@ def _authors_tem_check_antigo(conn: sqlite3.Connection) -> bool:
 
 
 def _migrar_humano_para_dev(conn: sqlite3.Connection) -> None:
-    """Migracao unica: authors.type usa 'dev' no lugar de 'humano'. Guardada
-    pelo texto do CHECK (nao por contagem de linha - tabela sem nenhum autor
-    'humano' ainda tem o CHECK antigo se nunca foi reconstruida) porque
-    SQLite nao altera CHECK de tabela existente com ALTER TABLE.
+    """Migração única: authors.type usa 'dev' no lugar de 'humano'. Guardada
+    pelo texto do CHECK (não por contagem de linha - tabela sem nenhum autor
+    'humano' ainda tem o CHECK antigo se nunca foi reconstruída) porque
+    SQLite não altera CHECK de tabela existente com ALTER TABLE.
     """
     if not _authors_tem_check_antigo(conn):
         return
@@ -278,11 +278,11 @@ def _migrar_humano_para_dev(conn: sqlite3.Connection) -> None:
 def iniciar_banco() -> None:
     conn = conectar()
 
-    # DROP TABLE com foreign_keys=ON dispara DELETE implicito em cascata nas
-    # tabelas filhas (documentado no proprio SQLite) - a migracao recria
-    # tabela (DROP + rename), entao teria apagado tasks/events junto ao
-    # recriar projects. PRAGMA foreign_keys so tem efeito fora de transacao,
-    # por isso roda antes do `with conn` (que abre a transacao principal).
+    # DROP TABLE com foreign_keys=ON dispara DELETE implícito em cascata nas
+    # tabelas filhas (documentado no próprio SQLite) - a migração recria
+    # tabela (DROP + rename), então teria apagado tasks/events junto ao
+    # recriar projects. PRAGMA foreign_keys só tem efeito fora de transação,
+    # por isso roda antes do `with conn` (que abre a transação principal).
     conn.execute("PRAGMA foreign_keys = OFF")
     with conn:
         _migrar_para_ingles(conn)
@@ -290,7 +290,7 @@ def iniciar_banco() -> None:
     conn.execute("PRAGMA foreign_keys = ON")
     problemas = conn.execute("PRAGMA foreign_key_check").fetchall()
     if problemas:
-        raise RuntimeError(f"Inconsistencia de FK apos migracao: {[dict(p) for p in problemas]}")
+        raise RuntimeError(f"Inconsistência de FK após migração: {[dict(p) for p in problemas]}")
 
     with conn:
         conn.execute("PRAGMA journal_mode = WAL")
