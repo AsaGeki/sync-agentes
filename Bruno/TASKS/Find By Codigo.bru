@@ -5,7 +5,7 @@ meta {
 }
 
 get {
-  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{codigo}}
+  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{code}}
   body: none
   auth: inherit
 }
@@ -15,7 +15,7 @@ params:query {
 }
 
 docs {
-  Endpoint: GET /projetos/:slug/tasks/:codigo
+  Endpoint: GET /projetos/:slug/tasks/:code
   Autenticacao: Bearer token
 
   com_corpo (default true): inclui o texto do corpo atual na resposta.

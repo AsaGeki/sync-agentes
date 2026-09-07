@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: {{baseUrl}}/autores
+  url: {{baseUrl}}/authors
   body: json
   auth: inherit
 }
@@ -16,23 +16,23 @@ headers {
 
 body:json {
   {
-    "tipo": "humano",
-    "nome": "SeuNome"
+    "type": "dev",
+    "name": "SeuNome"
   }
 }
 
 docs {
-  Endpoint: POST /autores
+  Endpoint: POST /authors
   Autenticacao: Bearer token
 
-  tipo: "ia" | "humano".
-  responsavel_id: obrigatorio quando tipo=ia (aponta pra um autor humano ja
-  cadastrado); ausente/null quando tipo=humano.
+  type: "ia" | "dev".
+  responsible_id: obrigatório quando type=ia (aponta pra um autor dev já
+  cadastrado); ausente/null quando type=dev.
 
-  Exemplo de IA, apontando pro humano acima:
+  Exemplo de IA, apontando pro dev acima:
   {
-    "tipo": "ia",
-    "nome": "SuaIA",
-    "responsavel_id": {{autorId}}
+    "type": "ia",
+    "name": "SuaIA",
+    "responsible_id": {{autorId}}
   }
 }

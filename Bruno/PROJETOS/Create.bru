@@ -12,21 +12,24 @@ post {
 
 headers {
   Content-Type: application/json
+  X-Autor-Id: {{autorId}}
 }
 
 body:json {
   {
     "slug": "{{slug}}",
-    "nome": "Projeto exemplo",
-    "descricao": "",
+    "name": "Projeto exemplo",
+    "description": "",
+    "git_repositories": ["org/repo-exemplo"],
     "status": "ativo"
   }
 }
 
 docs {
   Endpoint: POST /projetos
-  Autenticacao: Bearer token
+  Autenticacao: Bearer token + X-Autor-Id (vira created_by)
 
   slug: unico, casa com ^[a-z0-9][a-z0-9-]*$ - e ele que aparece na URL.
+  git_repositories: array livre de nome exato de repo git (default []).
   status: ativo | pausado | concluido | arquivado (default ativo).
 }

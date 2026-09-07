@@ -5,7 +5,7 @@ meta {
 }
 
 patch {
-  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{codigo}}
+  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{code}}
   body: json
   auth: inherit
 }
@@ -22,10 +22,10 @@ body:json {
 }
 
 docs {
-  Endpoint: PATCH /projetos/:slug/tasks/:codigo
+  Endpoint: PATCH /projetos/:slug/tasks/:code
   Autenticacao: Bearer token + X-Autor-Id
 
-  Campos aceitos (todos opcionais): titulo, status, etiquetas, dono_id.
-  Gera 1 evento por campo que de fato mudou (campo sem mudanca real nao
+  Campos aceitos (todos opcionais): title, status, tags, owner_id.
+  Gera 1 evento por campo que de fato mudou (campo sem mudanca real não
   gera evento - retorno vem com cursor: null).
 }

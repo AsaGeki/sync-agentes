@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "name": "sync-agentes",
+  "name": "sync-agents",
   "type": "collection",
   "ignore": [
     "node_modules",

@@ -5,7 +5,7 @@ meta {
 }
 
 get {
-  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{codigo}}/diff
+  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{code}}/diff
   body: none
   auth: inherit
 }
@@ -15,9 +15,9 @@ params:query {
 }
 
 docs {
-  Endpoint: GET /projetos/:slug/tasks/:codigo/diff
+  Endpoint: GET /projetos/:slug/tasks/:code/diff
   Autenticacao: Bearer token
-  
+
   desde: numero da versao de referencia (default 0). Diff unificado da
   versao "desde" ate a mais recente.
 }
