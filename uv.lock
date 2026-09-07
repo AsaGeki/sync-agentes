@@ -693,7 +693,7 @@ wheels = [
 ]
 
 [[package]]
-name = "sync-agentes"
+name = "sync-agents"
 version = "1.0.0"
 source = { virtual = "." }
 dependencies = [

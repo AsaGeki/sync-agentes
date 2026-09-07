@@ -1,5 +1,5 @@
 [project]
-name = "sync-agentes"
+name = "sync-agents"
 version = "1.0.0"
 description = "API local de sincronizacao entre agentes (IAs e humanos) trabalhando no mesmo projeto"
 requires-python = ">=3.13"
@@ -17,12 +17,12 @@ dev = [
 ]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.ruff.lint.flake8-bugbear]
-# Depends()/Query()/Header() em default de argumento e o padrao idiomatico do FastAPI, nao um bug.
+# Depends()/Query()/Header() em default de argumento e o padrao idiomatico do FastAPI, não um bug.
 extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header"]

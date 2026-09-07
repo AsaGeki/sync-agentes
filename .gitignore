@@ -11,6 +11,7 @@ __pycache__/
 sync.db
 sync.db-shm
 sync.db-wal
+sync.db.bak-*
 
 # Editor / OS
 .vscode/
