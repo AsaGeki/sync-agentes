@@ -17,7 +17,7 @@ headers {
 
 body:json {
   {
-    "title": "Passagens entre areas",
+    "title": "Passagens entre áreas",
     "tags": ["backend"],
     "corpo": "OC_RECEBIDA -> TARA_REGISTRADA -> CARREGADO\n"
   }
@@ -25,9 +25,9 @@ body:json {
 
 docs {
   Endpoint: POST /projetos/:slug/tasks
-  Autenticacao: Bearer token + X-Autor-Id
+  Autenticação: Bearer token + X-Autor-Id
 
-  code: opcional - gerado automatico (T-001, T-002...) se omitido.
+  code: opcional - gerado automático (T-001, T-002...) se omitido.
   status: ideia | parcial | feito | bloqueado | aguardando_decisao (default ideia).
-  corpo: opcional - se enviado, já vira a v1 (entra no diff das proximas atualizacoes).
+  corpo: opcional - se enviado, já vira a v1 (entra no diff das próximas atualizações).
 }

@@ -18,15 +18,15 @@ headers {
 body:json {
   {
     "type": "pergunta",
-    "texto": "Qual o shape de movimentacoes[] no GET?"
+    "texto": "Qual o shape de movimentações[] no GET?"
   }
 }
 
 docs {
   Endpoint: POST /projetos/:slug/tasks/:code/mensagens
-  Autenticacao: Bearer token + X-Autor-Id
+  Autenticação: Bearer token + X-Autor-Id
 
   type: mudanca | pergunta | resposta | decisao | bloqueio.
-  pergunta entra na lista de "perguntas sem resposta" do relatorio ate um
+  pergunta entra na lista de "perguntas sem resposta" do relatório até um
   evento type=resposta na mesma task.
 }

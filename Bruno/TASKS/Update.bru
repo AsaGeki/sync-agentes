@@ -23,9 +23,9 @@ body:json {
 
 docs {
   Endpoint: PATCH /projetos/:slug/tasks/:code
-  Autenticacao: Bearer token + X-Autor-Id
+  Autenticação: Bearer token + X-Autor-Id
 
   Campos aceitos (todos opcionais): title, status, tags, owner_id.
-  Gera 1 evento por campo que de fato mudou (campo sem mudanca real não
+  Gera 1 evento por campo que de fato mudou (campo sem mudança real não
   gera evento - retorno vem com cursor: null).
 }
