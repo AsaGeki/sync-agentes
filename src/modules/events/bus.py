@@ -7,7 +7,7 @@ from typing import Any
 INSCRITOS: dict[str, set[asyncio.Queue]] = defaultdict(set)
 
 
-async def publicar(slug: str, evento: dict[str, Any]) -> None:
+async def publish(slug: str, evento: dict[str, Any]) -> None:
     for fila in list(INSCRITOS[slug]):
         try:
             fila.put_nowait(evento)

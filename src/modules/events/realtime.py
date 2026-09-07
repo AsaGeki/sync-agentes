@@ -1,3 +1,5 @@
+# `autor_id` filtra o proprio eco - o agente nao e notificado do que ele mesmo escreveu.
+
 import asyncio
 import json
 import secrets
@@ -5,16 +7,18 @@ import secrets
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 
-from app.config import TOKEN
-from app.db import conectar
-from app.eventos.bus import INSCRITOS
-from app.eventos.service import resumir_evento
+from src.modules.events.bus import INSCRITOS
+from src.modules.events.service import resumir
+from src.modules.projects import repositorio as projetos_repositorio
+from src.shared.config import TOKEN
+from src.shared.db import conectar
+from src.shared.erros import NotFound
 
 router = APIRouter()
 
 
 @router.websocket("/ws")
-async def websocket_eventos(
+async def websocket_events(
     websocket: WebSocket,
     projeto: str,
     token: str,
@@ -25,12 +29,12 @@ async def websocket_eventos(
         return
     conn = conectar()
     try:
-        existe = conn.execute("SELECT 1 FROM projetos WHERE slug = ?", (projeto,)).fetchone()
-    finally:
-        conn.close()
-    if existe is None:
+        projetos_repositorio.find_by_slug(conn, projeto)
+    except NotFound:
         await websocket.close(code=4404)
         return
+    finally:
+        conn.close()
 
     await websocket.accept()
     fila: asyncio.Queue = asyncio.Queue(maxsize=500)
@@ -38,10 +42,9 @@ async def websocket_eventos(
     try:
         while True:
             evento = await fila.get()
-            # autor_id filtra o proprio eco: o agente nao e notificado do que ele mesmo escreveu.
             if autor_id is not None and evento.get("autor_id") == autor_id:
                 continue
-            await websocket.send_text(resumir_evento(evento))
+            await websocket.send_text(resumir(evento))
     except WebSocketDisconnect:
         pass
     finally:
@@ -51,7 +54,7 @@ async def websocket_eventos(
 @router.get("/stream")
 async def sse_eventos(projeto: str, token: str, autor_id: int | None = None):
     if not secrets.compare_digest(token, TOKEN):
-        raise HTTPException(401, "Token invalido")
+        raise HTTPException(401, "Token inválido")
 
     async def gerar():
         fila: asyncio.Queue = asyncio.Queue(maxsize=500)
@@ -65,7 +68,7 @@ async def sse_eventos(projeto: str, token: str, autor_id: int | None = None):
                     continue
                 if autor_id is not None and evento.get("autor_id") == autor_id:
                     continue
-                yield f"data: {json.dumps(resumir_evento(evento), ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps(resumir(evento), ensure_ascii=False)}\n\n"
         finally:
             INSCRITOS[projeto].discard(fila)
 

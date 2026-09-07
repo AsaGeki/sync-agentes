@@ -9,4 +9,4 @@ PORT = int(os.environ.get("PORT", "8787"))
 
 TOKEN = os.environ.get("TOKEN")
 if not TOKEN:
-    raise RuntimeError("TOKEN nao definido no .env - veja .env.example")
+    raise RuntimeError("TOKEN não definido no .env - veja .env.example")

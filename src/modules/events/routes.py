@@ -3,11 +3,11 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import PlainTextResponse
 
-from app.auth import exigir_token
-from app.db import conectar
-from app.eventos.relatorio import montar_relatorio, relatorio_markdown
-from app.eventos.service import hidratar_evento
-from app.projetos.service import buscar_projeto
+from src.modules.events import service as eventos_service
+from src.modules.events.relatorio import montar_relatorio, relatorio_markdown
+from src.modules.projects import repositorio as projetos_repositorio
+from src.shared.auth import exigir_token
+from src.shared.db import conectar
 
 router = APIRouter()
 
@@ -18,18 +18,10 @@ def ler_mudancas(
 ) -> dict[str, Any]:
     conn = conectar()
     try:
-        projeto = buscar_projeto(conn, slug)
-        linhas = conn.execute(
-            "SELECT seq FROM eventos WHERE projeto_id = ? AND seq > ? ORDER BY seq LIMIT ?",
-            (projeto["id"], desde, limite),
-        ).fetchall()
-        eventos = [hidratar_evento(conn, r["seq"]) for r in linhas]
+        projeto = projetos_repositorio.find_by_slug(conn, slug)
         return {
             "projeto": slug,
-            "desde": desde,
-            "cursor": eventos[-1]["seq"] if eventos else desde,
-            "total": len(eventos),
-            "eventos": eventos,
+            **eventos_service.mudancas_do_projeto(conn, projeto["id"], desde, limite),
         }
     finally:
         conn.close()

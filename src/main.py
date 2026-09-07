@@ -1,13 +1,3 @@
-"""Canal de sincronizacao entre agentes (IA e humanos) sobre projetos e tasks.
-
-Nao e especifico de nenhum projeto: `projetos` e a raiz, `tasks` pendura em projeto,
-e toda escrita registra um evento na trilha unica (`eventos`), que serve de cursor
-para "o que mudou desde X", de fonte do relatorio e de payload do tempo real.
-
-Alem da API REST, o mesmo contrato fica disponivel como servidor MCP em
-`/mcp/` (ver `app/mcp_server.py`) - mesma porta, mesmo token.
-"""
-
 import platform
 import sqlite3
 import time
@@ -16,21 +6,22 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import psutil
-from fastapi import FastAPI
-from fastapi.responses import PlainTextResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, PlainTextResponse
 from mcp.server.transport_security import TransportSecuritySettings
 
-from app.autores.routes import router as autores_router
-from app.db import BASE_DIR, DB_PATH, agora, conectar, iniciar_banco
-from app.eventos.realtime import router as realtime_router
-from app.eventos.routes import router as eventos_router
-from app.mcp_server import mcp
-from app.projetos.routes import router as projetos_router
-from app.tasks.routes import router as tasks_router
+from src.mcp_server import mcp
+from src.modules.authors.routes import router as autores_router
+from src.modules.events.realtime import router as realtime_router
+from src.modules.events.routes import router as eventos_router
+from src.modules.projects.routes import router as projetos_router
+from src.modules.tasks.routes import router as tasks_router
+from src.shared.db import BASE_DIR, DB_PATH, conectar, iniciar_banco, now
+from src.shared.erros import DomainError
 
 iniciar_banco()
 
-INICIADO_EM = agora()
+INICIADO_EM = now()
 _INICIO_MONOTONICO = time.monotonic()
 _PROCESSO = psutil.Process()
 
@@ -61,18 +52,25 @@ def banco_conectado() -> bool:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # Starlette nao roda o lifespan de uma sub-app montada com app.mount() -
+    # Starlette não roda o lifespan de uma sub-app montada com app.mount() -
     # sem isto, a 1a chamada MCP falha (session manager nunca sobe).
     async with mcp.session_manager.run():
         yield
 
 
 app = FastAPI(
-    title="Sync de agentes",
+    title="Sync Agents",
     description="Canal de alinhamento entre agentes de IA e humanos, por projeto e task.",
-    version="1.4.0",
+    version="2.1.0",
     lifespan=lifespan,
 )
+
+
+# Erro de regra de negocio vira HTTP aqui, num handler global - nenhuma rota
+# precisa de try/except pra isso.
+@app.exception_handler(DomainError)
+async def tratar_erro_dominio(request: Request, exc: DomainError) -> JSONResponse:
+    return JSONResponse(status_code=exc.status, content={"detail": str(exc)})
 
 
 @app.get("/health")
@@ -83,7 +81,7 @@ def health() -> dict[str, Any]:
         "status": "ONLINE",
         "online": True,
         "versao": app.version,
-        "agora": agora(),
+        "now": now(),
         "iniciadoEm": INICIADO_EM,
         "tempoLigadoSegundos": tempo_ligado_segundos,
         "tempoLigadoTexto": formatar_duracao(tempo_ligado_segundos),
@@ -108,7 +106,7 @@ app.include_router(eventos_router)
 app.include_router(realtime_router)
 
 # DNS-rebinding protection do MCP so aceita Host: localhost por padrao - quebraria
-# acesso por IP de rede. A autenticacao real ja e o token (mesmo modelo do REST),
+# acesso por IP de rede. A autenticacao real já e o token (mesmo modelo do REST),
 # entao essa camada extra fica redundante aqui.
 mcp_app = mcp.streamable_http_app(
     streamable_http_path="/",

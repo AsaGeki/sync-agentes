@@ -1,12 +1,12 @@
 from enum import StrEnum
 
 
-class ETipoAutor(StrEnum):
+class ETypeAuthor(StrEnum):
     ia = "ia"
-    humano = "humano"
+    dev = "dev"
 
 
-class ETipoMensagem(StrEnum):
+class ETypeMessage(StrEnum):
     mudanca = "mudanca"
     pergunta = "pergunta"
     resposta = "resposta"
@@ -22,16 +22,15 @@ class EStatusTask(StrEnum):
     aguardando_decisao = "aguardando_decisao"
 
 
-class EStatusProjeto(StrEnum):
+class EStatusProject(StrEnum):
     ativo = "ativo"
     pausado = "pausado"
     concluido = "concluido"
     arquivado = "arquivado"
 
 
-class EKindEvento(StrEnum):
+class EKindEvent(StrEnum):
     task_criada = "task_criada"
     mensagem = "mensagem"
     campo = "campo"
     corpo = "corpo"
-    dependencia = "dependencia"
