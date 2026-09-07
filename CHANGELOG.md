@@ -1,6 +1,21 @@
 # Changelog
 
-Formato livre, mais recente no topo. Versao segue `app/main.py` (`FastAPI(version=...)`), exposta em `GET /health` e este arquivo em `GET /changelog`.
+Formato livre, mais recente no topo. Versao segue `src/main.py` (`FastAPI(version=...)`), exposta em `GET /health` e este arquivo em `GET /changelog`.
+
+## 2.0.0 — 2026-09-07
+
+- **Modelagem de dados renomeada pro ingles (breaking).** Toda coluna/tabela estrutural virou ingles - `autores`→`authors` (`tipo`→`type`, `nome`→`name`, `responsavel_id`→`responsible_id`, `criado_em`→`created_at`), `projetos`→`projects` (`nome`→`name`, `descricao`→`description`, `criado_em`/`atualizado_em`→`created_at`/`updated_at`), `tasks` (`projeto_id`→`project_id`, `codigo`→`code`, `titulo`→`title`, `etiquetas`→`tags`, `dono_id`→`owner_id`), `eventos`→`events` (`projeto_id`→`project_id`, `autor_id`→`author_id`, `tipo`→`type`, `versao`→`version`). Campo de conteudo livre continua portugues (`texto`, `campo`, `valor_de`, `valor_para`, `corpo`, `diff`, `versao_corpo`, `versao_de`, `versao_para`). Migracao real ja rodou no proximo start (`src/shared/db.py`) - renomeia tabela/coluna preservando dado, nao apaga nada.
+- **`corpos` deixou de ser tabela propria - fundida em `eventos`/`events` (breaking).** Evento `kind='corpo'` agora carrega o texto direto (`events.texto`); `GET tasks/{code}` e o diff leem de la. Migracao copia o texto de `corpos` pro evento correspondente antes de derrubar a tabela.
+- **`dependencias` removida (breaking).** Tabela, rota `POST tasks/{codigo}/dependencias`, tool MCP `task_dependencia_criar`, campos `depende`/`bloqueia` na task e a secao de relatorio correspondente - tudo cortado. Evento historico `kind='dependencia'` e apagado na migracao (feature removida, nao so escondida).
+- **`projetos`/`projects` ganhou `git_repositories`** (array json, `nome exato do repo`, mesmo padrao de `etiquetas`/`tags`) **e `created_by`** (autor de quem criou o projeto). `POST /projetos` passa a exigir `X-Autor-Id` (antes nao exigia).
+- Filtro de task por etiqueta mudou de `?etiqueta=` pra `?tag=`, acompanhando o rename de `etiquetas` pra `tags`.
+- `timeout_graceful_shutdown=5` no uvicorn (`run.py`) - sessao MCP Streamable HTTP mantinha conexao aberta e o shutdown gracioso esperava ela fechar pra sempre; agora tem teto.
+- **Documentacao consolidada em 2 arquivos.** `docs/` (`ARQUITETURA.md`/`DECISOES.md`/`CONTRATO.md`), `PROTOCOLO.md` e `CONECTAR.md` foram removidos - nenhuma IA conectada lia esses `.md`. Ficou `README.md` (enxuto) e `CONECTAR_MCP.md` (novo - modelo de dados e como conectar). Regra de conduta do canal (tipo de mensagem, como versionar corpo) saiu de `.md` e foi pras `instructions` do proprio `src/mcp_server.py` - e o unico texto que todo cliente MCP mostra pra IA sozinho ao conectar.
+
+## 2.1.0 — 2026-09-07
+
+- **`authors.type` usa `'dev'` no lugar de `'humano'` (breaking).** Migracao real reconstroi a tabela preservando dado (`'humano'` vira `'dev'`). Prosa geral do projeto ("canal entre IA e humanos") nao mudou - so o valor do campo.
+- **Projeto renomeado pra `sync-agents`** (`pyproject.toml`, titulo do FastAPI/MCP, nome de registro `claude mcp add`, pasta local).
 
 ## 1.4.0 — 2026-09-04
 
