@@ -1,0 +1,29 @@
+meta {
+  name: Add Member
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/projetos/{{slug}}/membros
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "email": "bia.souza@empresa.com"
+  }
+}
+
+docs {
+  Endpoint: POST /projetos/{slug}/membros
+  Autenticacao: token pessoal (owner).
+
+  Da acesso pra alguem ja cadastrado no servidor. E assim que se entra num
+  projeto `private`, que nao aceita entrada sozinho.
+}

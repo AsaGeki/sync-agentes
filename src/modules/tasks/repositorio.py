@@ -1,4 +1,4 @@
-# Corpo versionado não tem tabela própria - é evento kind='corpo' em `events`
+# Corpo versionado não tem tabela própria - é evento kind='body.updated' em `events`
 # (ver ultimo_corpo/todos_corpos). find_by_code também é usado por outros domínios.
 
 import json
@@ -72,21 +72,32 @@ def tocar(conn: sqlite3.Connection, task_id: int) -> None:
 def owner_name(conn: sqlite3.Connection, owner_id: int | None) -> str | None:
     if owner_id is None:
         return None
-    linha = conn.execute("SELECT name FROM authors WHERE id = ?", (owner_id,)).fetchone()
+    linha = conn.execute("SELECT name FROM people WHERE id = ?", (owner_id,)).fetchone()
     return linha["name"] if linha else None
 
 
 def ultimo_corpo(conn: sqlite3.Connection, task_id: int) -> sqlite3.Row | None:
     return conn.execute(
         """SELECT version, texto FROM events
-            WHERE task_id = ? AND kind = 'corpo' ORDER BY version DESC LIMIT 1""",
+            WHERE task_id = ? AND kind = 'body.updated' ORDER BY version DESC LIMIT 1""",
         (task_id,),
     ).fetchone()
+
+
+def seqs_de_diff(conn: sqlite3.Connection, task_id: int) -> list[int]:
+    return [
+        linha["seq"]
+        for linha in conn.execute(
+            """SELECT seq FROM events
+                WHERE task_id = ? AND kind = 'diff.published' ORDER BY seq""",
+            (task_id,),
+        )
+    ]
 
 
 def todos_corpos(conn: sqlite3.Connection, task_id: int) -> list[sqlite3.Row]:
     return conn.execute(
         """SELECT version, texto FROM events
-            WHERE task_id = ? AND kind = 'corpo' ORDER BY version""",
+            WHERE task_id = ? AND kind = 'body.updated' ORDER BY version""",
         (task_id,),
     ).fetchall()

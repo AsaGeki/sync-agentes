@@ -1,0 +1,37 @@
+meta {
+  name: Create
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/projetos/{{slug}}/tasks
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+  X-Agent: human
+  X-Git-Branch: main
+}
+
+body:json {
+  {
+    "title": "Titulo da task",
+    "status": "ideia",
+    "tags": ["auth"],
+    "corpo": "Texto de referencia da task."
+  }
+}
+
+docs {
+  Endpoint: POST /projetos/{slug}/tasks
+  Autenticacao: token pessoal (membro).
+
+  code (T-001) e gerado sozinho se omitido. corpo, se enviado, vira a v1.
+  status: ideia | parcial | feito | bloqueado | aguardando_decisao.
+
+  Headers opcionais de contexto, que ficam carimbados no evento:
+  X-Agent (claude|codex|cursor|copilot|human), X-Git-Branch, X-Git-Commit.
+}

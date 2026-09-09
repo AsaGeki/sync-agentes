@@ -1,0 +1,20 @@
+meta {
+  name: Find All
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{code}}/diffs
+  body: none
+  auth: inherit
+}
+
+docs {
+  Endpoint: GET /projetos/{slug}/tasks/{code}/diffs
+  Autenticacao: token pessoal (membro).
+
+  Os diffs publicados na task, do mais antigo pro mais novo, sem o patch. Pra
+  ver o patch, leia a task (GET .../tasks/{code}) - o evento diff.published
+  carrega ele.
+}

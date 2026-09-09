@@ -10,6 +10,10 @@ class MissingRequirement(DomainError):
     status = 400
 
 
+class Forbidden(DomainError):
+    status = 403
+
+
 class NotFound(DomainError):
     status = 404
 

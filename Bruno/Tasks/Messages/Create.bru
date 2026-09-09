@@ -1,0 +1,33 @@
+meta {
+  name: Create
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{code}}/mensagens
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+  X-Agent: human
+}
+
+body:json {
+  {
+    "type": "mudanca",
+    "texto": "Fiz o endpoint de login."
+  }
+}
+
+docs {
+  Endpoint: POST /projetos/{slug}/tasks/{code}/mensagens
+  Autenticacao: token pessoal (membro).
+
+  type: mudanca | pergunta | resposta | decisao | bloqueio.
+
+  pergunta entra na lista de perguntas abertas do relatorio ate uma resposta
+  na mesma task tirar ela de la.
+}

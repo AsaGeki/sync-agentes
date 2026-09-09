@@ -1,0 +1,16 @@
+meta {
+  name: Find Members
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/projetos/{{slug}}/membros
+  body: none
+  auth: inherit
+}
+
+docs {
+  Endpoint: GET /projetos/{slug}/membros
+  Autenticacao: token pessoal (membro).
+}

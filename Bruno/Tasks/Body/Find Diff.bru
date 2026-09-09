@@ -1,0 +1,22 @@
+meta {
+  name: Find Diff
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{code}}/diff
+  body: none
+  auth: inherit
+}
+
+params:query {
+  desde: 0
+}
+
+docs {
+  Endpoint: GET /projetos/{slug}/tasks/{code}/diff
+  Autenticacao: token pessoal (membro).
+
+  Diff do corpo da versao `desde` ate a mais recente.
+}

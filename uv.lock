@@ -694,32 +694,36 @@ wheels = [
 
 [[package]]
 name = "sync-agents"
-version = "1.0.0"
-source = { virtual = "." }
+version = "3.0.0"
+source = { editable = "." }
 dependencies = [
-    { name = "fastapi" },
     { name = "mcp" },
-    { name = "psutil" },
-    { name = "python-dotenv" },
-    { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.dev-dependencies]
 dev = [
     { name = "ruff" },
 ]
+server = [
+    { name = "fastapi" },
+    { name = "psutil" },
+    { name = "python-dotenv" },
+    { name = "uvicorn", extra = ["standard"] },
+    { name = "websockets" },
+]
 
 [package.metadata]
-requires-dist = [
-    { name = "fastapi", specifier = ">=0.141.1" },
-    { name = "mcp", specifier = ">=2.1.1" },
-    { name = "psutil", specifier = ">=7.2.2" },
-    { name = "python-dotenv", specifier = ">=1.2.3" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.4" },
-]
+requires-dist = [{ name = "mcp", specifier = ">=2.1.1" }]
 
 [package.metadata.requires-dev]
 dev = [{ name = "ruff", specifier = ">=0.16.4" }]
+server = [
+    { name = "fastapi", specifier = ">=0.141.1" },
+    { name = "psutil", specifier = ">=7.2.2" },
+    { name = "python-dotenv", specifier = ">=1.2.3" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.4" },
+    { name = "websockets", specifier = ">=15.0" },
+]
 
 [[package]]
 name = "truststore"

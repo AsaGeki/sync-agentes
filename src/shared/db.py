@@ -4,36 +4,58 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+from src.shared import migracao_v3
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-DB_PATH = BASE_DIR / "sync.db"
+# SYNC_AGENTS_DB aponta o banco pra outro arquivo - é o que permite rodar um
+# smoke test ponta a ponta sem encostar no `sync.db` de verdade.
+DB_PATH = Path(os.environ.get("SYNC_AGENTS_DB") or BASE_DIR / "sync.db")
 
 SCHEMA = """
-CREATE TABLE IF NOT EXISTS authors (
-  id             INTEGER PRIMARY KEY AUTOINCREMENT,
-  type           TEXT NOT NULL CHECK (type IN ('ia','dev')),
-  name           TEXT NOT NULL UNIQUE,
-  responsible_id INTEGER REFERENCES authors(id),
-  created_at     TEXT NOT NULL,
-  CHECK (
-    (type = 'ia'  AND responsible_id IS NOT NULL) OR
-    (type = 'dev' AND responsible_id IS NULL)
-  )
+CREATE TABLE IF NOT EXISTS people (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  email      TEXT NOT NULL UNIQUE,
+  alias      TEXT NOT NULL,
+  name       TEXT NOT NULL,
+  token_hash TEXT UNIQUE,
+  created_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS projects (
-  id               INTEGER PRIMARY KEY AUTOINCREMENT,
-  slug             TEXT NOT NULL UNIQUE,
-  name             TEXT NOT NULL,
-  description      TEXT,
-  git_repositories TEXT NOT NULL DEFAULT '[]',
-  status           TEXT NOT NULL CHECK (status IN ('ativo','pausado','concluido','arquivado')),
-  created_by       INTEGER NOT NULL REFERENCES authors(id),
-  created_at       TEXT NOT NULL,
-  updated_at       TEXT NOT NULL
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  slug        TEXT NOT NULL UNIQUE,
+  name        TEXT NOT NULL,
+  description TEXT,
+  status      TEXT NOT NULL CHECK (status IN ('ativo','pausado','concluido','arquivado')),
+  visibility  TEXT NOT NULL DEFAULT 'team' CHECK (visibility IN ('team','private')),
+  created_by  INTEGER NOT NULL REFERENCES people(id),
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+
+-- Vinculo repo git -> projeto. `root_sha` (sha do commit raiz) e a chave: e igual
+-- em todo clone, sobrevive a rename de pasta e a troca de remote. Um projeto pode
+-- ter varios repos (frontend + backend no mesmo canal); um repo pertence a 1 projeto.
+CREATE TABLE IF NOT EXISTS project_repos (
+  root_sha   TEXT PRIMARY KEY,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  remote     TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS memberships (
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  person_id  INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+  role       TEXT NOT NULL CHECK (role IN ('owner','member')),
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (project_id, person_id)
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
@@ -44,7 +66,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   status     TEXT NOT NULL
              CHECK (status IN ('ideia','parcial','feito','bloqueado','aguardando_decisao')),
   tags       TEXT NOT NULL DEFAULT '[]',
-  owner_id   INTEGER REFERENCES authors(id),
+  owner_id   INTEGER REFERENCES people(id),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   UNIQUE (project_id, code)
@@ -54,24 +76,34 @@ CREATE TABLE IF NOT EXISTS events (
   seq        INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   task_id    INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
-  author_id  INTEGER NOT NULL REFERENCES authors(id),
-  kind       TEXT NOT NULL CHECK (kind IN ('task_criada','mensagem','campo','corpo')),
+  author_id  INTEGER NOT NULL REFERENCES people(id),
+  agent      TEXT NOT NULL DEFAULT 'outro'
+             CHECK (agent IN ('claude','codex','cursor','copilot','human','outro')),
+  branch     TEXT,
+  commit_sha TEXT,
+  kind       TEXT NOT NULL CHECK (kind IN (
+               'task.created','task.field_changed','body.updated',
+               'message.created','diff.published')),
   type       TEXT,
   texto      TEXT,
   campo      TEXT,
   valor_de   TEXT,
   valor_para TEXT,
   version    INTEGER,
+  -- Só em diff.published: `commit_sha` é o head do diff, `base_sha` a base, e
+  -- `arquivos` a lista de caminhos tocados (json).
+  base_sha   TEXT,
+  arquivos   TEXT,
   created_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_events_project ON events (project_id, seq);
 CREATE INDEX IF NOT EXISTS idx_events_task    ON events (task_id, seq);
+CREATE INDEX IF NOT EXISTS idx_repos_project  ON project_repos (project_id);
 
--- Garante 1 corpo por versao por task, mesma garantia que a tabela `corpos`
--- (removida - ver `_migrar_para_ingles`) dava com seu UNIQUE(task_id, versao).
+-- Garante 1 corpo por versao por task.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_events_corpo_version
-  ON events (task_id, version) WHERE kind = 'corpo';
+  ON events (task_id, version) WHERE kind = 'body.updated';
 
 CREATE TABLE IF NOT EXISTS schema_migrations (
   id          TEXT PRIMARY KEY,
@@ -275,7 +307,19 @@ def _migrar_humano_para_dev(conn: sqlite3.Connection) -> None:
     conn.execute("ALTER TABLE authors_novo RENAME TO authors")
 
 
+def _backup_antes_de_migrar() -> None:
+    """Cópia do banco antes de qualquer migração que reconstrói tabela. As
+    migrações fazem DROP TABLE - se alguma quebrar no meio, sem isto não há
+    volta. Guarda só a mais recente por dia."""
+    if not DB_PATH.exists():
+        return
+    destino = DB_PATH.with_name(f"{DB_PATH.name}.bak-{datetime.now():%Y%m%d}")
+    if not destino.exists():
+        shutil.copy2(DB_PATH, destino)
+
+
 def iniciar_banco() -> None:
+    _backup_antes_de_migrar()
     conn = conectar()
 
     # DROP TABLE com foreign_keys=ON dispara DELETE implícito em cascata nas
@@ -287,6 +331,7 @@ def iniciar_banco() -> None:
     with conn:
         _migrar_para_ingles(conn)
         _migrar_humano_para_dev(conn)
+        migracao_v3.migrar(conn, _tabela_existe, now())
     conn.execute("PRAGMA foreign_keys = ON")
     problemas = conn.execute("PRAGMA foreign_key_check").fetchall()
     if problemas:

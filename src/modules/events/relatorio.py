@@ -4,10 +4,11 @@ from typing import Any
 
 from src.modules.events import repositorio as eventos_repositorio
 from src.modules.events import service as eventos_service
-from src.modules.projects import repositorio as projetos_repositorio
+from src.modules.projects.service import exigir_acesso
 from src.modules.tasks import repositorio as tasks_repositorio
 from src.modules.tasks import service as tasks_service
 from src.shared.db import now
+from src.shared.enums import EKindEvent
 
 ROTULO_STATUS = {
     "feito": "feito",
@@ -18,27 +19,30 @@ ROTULO_STATUS = {
 }
 
 
-def montar_relatorio(conn: sqlite3.Connection, slug: str, desde: int) -> dict[str, Any]:
-    projeto = projetos_repositorio.find_by_slug(conn, slug)
+def montar_relatorio(
+    conn: sqlite3.Connection, slug: str, person_id: int, desde: int
+) -> dict[str, Any]:
+    projeto = exigir_acesso(conn, slug, person_id)
     tasks = [
         tasks_service.serializar(conn, t)
         for t in tasks_repositorio.find_all(conn, projeto["id"], None)
     ]
     seqs = eventos_repositorio.seqs_do_projeto(conn, projeto["id"], desde)
-    eventos = [eventos_service.hidratar(conn, seq) for seq in seqs]
+    crus = [eventos_service.hidratar(conn, seq) for seq in seqs]
+    eventos = [eventos_service.envelope(cru) for cru in crus]
 
     por_task: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for evento in eventos:
-        if evento.get("task_code"):
-            por_task[evento["task_code"]].append(evento)
+        if evento.get("task"):
+            por_task[evento["task"]].append(evento)
 
     contagem_status: dict[str, int] = defaultdict(int)
     for task in tasks:
         contagem_status[task["status"]] += 1
 
     contagem_autor: dict[str, int] = defaultdict(int)
-    for evento in eventos:
-        contagem_autor[eventos_service.assinatura(evento)] += 1
+    for cru in crus:
+        contagem_autor[eventos_service.assinatura(cru)] += 1
 
     # Pergunta em aberto: última mensagem type=pergunta sem nenhuma resposta depois dela.
     perguntas_abertas: list[dict[str, Any]] = []
@@ -64,6 +68,22 @@ def montar_relatorio(conn: sqlite3.Connection, slug: str, desde: int) -> dict[st
         "desde": desde,
         "cursor": eventos[-1]["seq"] if eventos else desde,
     }
+
+
+def _pontos_git(eventos: list[dict[str, Any]]) -> str:
+    """Onde no git a atividade da task aconteceu: branches tocadas e o intervalo
+    de commit entre o primeiro e o último evento da janela."""
+    branches = sorted({e["git"]["branch"] for e in eventos if e["git"].get("branch")})
+    commits = [e["git"]["commit"] for e in eventos if e["git"].get("commit")]
+    if not branches and not commits:
+        return ""
+    partes = []
+    if branches:
+        partes.append(", ".join(f"`{b}`" for b in branches))
+    if commits:
+        primeiro, ultimo = commits[0][:7], commits[-1][:7]
+        partes.append(primeiro if primeiro == ultimo else f"{primeiro}..{ultimo}")
+    return " · ".join(partes)
 
 
 def relatorio_markdown(conn: sqlite3.Connection, rel: dict[str, Any], com_diff: bool) -> str:
@@ -115,14 +135,32 @@ def relatorio_markdown(conn: sqlite3.Connection, rel: dict[str, Any], com_diff: 
         ]
 
         for evento in atividade:
-            if evento["kind"] == "campo":
-                de = evento.get("valor_de", "vazio")
-                para = evento.get("valor_para", "vazio")
-                linhas.append(f"- `{evento['campo']}`: {de} → {para}")
+            if evento["kind"] == EKindEvent.task_field_changed:
+                dados = evento["payload"]
+                de = dados.get("valor_de") or "vazio"
+                para = dados.get("valor_para") or "vazio"
+                linhas.append(f"- `{dados['campo']}`: {de} → {para}")
+            elif evento["kind"] == EKindEvent.diff_published:
+                dados = evento["payload"]
+                arquivos = ", ".join(f"`{a}`" for a in dados["arquivos"][:6])
+                sobra = len(dados["arquivos"]) - 6
+                if sobra > 0:
+                    arquivos += f" (+{sobra})"
+                base = (dados.get("base_sha") or "")[:7]
+                head = (dados.get("head_sha") or "")[:7]
+                linhas.append(f"- diff `{base}..{head}`: {arquivos or 'nenhum arquivo'}")
+
+        pontos = _pontos_git(atividade)
+        if pontos:
+            linhas.append(f"- git: {pontos}")
         linhas.append("")
 
         if com_diff:
-            versoes = [e["version"] for e in atividade if e["kind"] == "corpo"]
+            versoes = [
+                e["payload"]["versao"]
+                for e in atividade
+                if e["kind"] == EKindEvent.body_updated
+            ]
             if versoes:
                 task_row = tasks_repositorio.find_by_code(conn, projeto["id"], task["code"])
                 dados = tasks_service.task_diff(

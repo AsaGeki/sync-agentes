@@ -1,7 +1,7 @@
 meta {
   name: Update
   type: http
-  seq: 3
+  seq: 2
 }
 
 patch {
@@ -16,13 +16,17 @@ headers {
 
 body:json {
   {
-    "status": "pausado"
+    "description": "Descricao do projeto"
   }
 }
 
 docs {
-  Endpoint: PATCH /projetos/:slug
-  Autenticação: Bearer token
+  Endpoint: PATCH /projetos/{slug}
+  Autenticacao: token pessoal (membro).
 
-  Campos aceitos (todos opcionais): name, description, git_repositories, status.
+  Campos: name, description, status (ativo|pausado|concluido|arquivado),
+  visibility (team|private). So os campos enviados mudam.
+
+  visibility so pode ser mudada por um owner:
+  { "visibility": "private" }
 }

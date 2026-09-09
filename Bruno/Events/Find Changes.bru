@@ -1,0 +1,28 @@
+meta {
+  name: Find Changes
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/projetos/{{slug}}/mudancas
+  body: none
+  auth: inherit
+}
+
+params:query {
+  desde: 0
+  ~limite: 200
+  ~de_outros: true
+}
+
+docs {
+  Endpoint: GET /projetos/{slug}/mudancas
+  Autenticacao: token pessoal (membro).
+
+  Cursor global: passe o `cursor` da resposta anterior em `desde` na proxima
+  chamada. Cada evento ja vem com `resumo` pronto - a mesma linha que o
+  WebSocket manda.
+
+  de_outros=true corta o proprio eco (so o que as outras pessoas escreveram).
+}

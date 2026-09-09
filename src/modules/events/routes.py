@@ -1,3 +1,4 @@
+import sqlite3
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -5,38 +6,45 @@ from fastapi.responses import PlainTextResponse
 
 from src.modules.events import service as eventos_service
 from src.modules.events.relatorio import montar_relatorio, relatorio_markdown
-from src.modules.projects import repositorio as projetos_repositorio
-from src.shared.auth import exigir_token
+from src.modules.projects.service import exigir_acesso
+from src.shared.auth import pessoa_atual
 from src.shared.db import conectar
 
 router = APIRouter()
 
 
-@router.get("/projetos/{slug}/mudancas", dependencies=[Depends(exigir_token)])
+@router.get("/projetos/{slug}/mudancas")
 def ler_mudancas(
-    slug: str, desde: int = Query(0, ge=0), limite: int = Query(200, ge=1, le=2000)
+    slug: str,
+    desde: int = Query(0, ge=0),
+    limite: int = Query(200, ge=1, le=2000),
+    de_outros: bool = False,
+    pessoa: sqlite3.Row = Depends(pessoa_atual),
 ) -> dict[str, Any]:
     conn = conectar()
     try:
-        projeto = projetos_repositorio.find_by_slug(conn, slug)
+        projeto = exigir_acesso(conn, slug, pessoa["id"])
         return {
             "projeto": slug,
-            **eventos_service.mudancas_do_projeto(conn, projeto["id"], desde, limite),
+            **eventos_service.mudancas_do_projeto(
+                conn, projeto["id"], desde, limite, pessoa["id"] if de_outros else None
+            ),
         }
     finally:
         conn.close()
 
 
-@router.get("/projetos/{slug}/relatorio", dependencies=[Depends(exigir_token)])
+@router.get("/projetos/{slug}/relatorio")
 def ler_relatorio(
     slug: str,
     desde: int = Query(0, ge=0),
     formato: str = Query("md", pattern="^(md|json)$"),
     com_diff: bool = True,
+    pessoa: sqlite3.Row = Depends(pessoa_atual),
 ):
     conn = conectar()
     try:
-        rel = montar_relatorio(conn, slug, desde)
+        rel = montar_relatorio(conn, slug, pessoa["id"], desde)
         if formato == "json":
             return rel
         return PlainTextResponse(

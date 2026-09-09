@@ -1,7 +1,7 @@
 meta {
   name: Find All
   type: http
-  seq: 2
+  seq: 1
 }
 
 get {
@@ -12,7 +12,8 @@ get {
 
 docs {
   Endpoint: GET /projetos
-  Autenticação: Bearer token
+  Autenticacao: token pessoal.
 
-  Cada projeto vem com "tasks" (contagem) e "cursor" (último seq de evento).
+  So os projetos em que voce e membro, com seu `role`, os repos vinculados, a
+  contagem de tasks e o cursor de eventos.
 }

@@ -16,13 +16,11 @@ def insert(conn: sqlite3.Connection, **campos: Any) -> int:
 def buscar_por_seq(conn: sqlite3.Connection, seq: int) -> sqlite3.Row:
     return conn.execute(
         """
-        SELECT e.*, a.name AS author_name, a.type AS author_type,
-               r.name AS author_responsible, t.code AS task_code,
-               t.title AS task_title, p.slug AS project_slug
+        SELECT e.*, pe.alias AS author_alias, pe.name AS author_name,
+               t.code AS task_code, t.title AS task_title, p.slug AS project_slug
           FROM events e
-          JOIN authors  a ON a.id = e.author_id
-          LEFT JOIN authors r ON r.id = a.responsible_id
-          LEFT JOIN tasks   t ON t.id = e.task_id
+          JOIN people   pe ON pe.id = e.author_id
+          LEFT JOIN tasks t ON t.id = e.task_id
           JOIN projects p ON p.id = e.project_id
          WHERE e.seq = ?
         """,
@@ -40,10 +38,18 @@ def seqs_da_task(conn: sqlite3.Connection, task_id: int) -> list[int]:
 
 
 def seqs_do_projeto(
-    conn: sqlite3.Connection, projeto_id: int, desde: int, limite: int | None = None
+    conn: sqlite3.Connection,
+    projeto_id: int,
+    desde: int,
+    limite: int | None = None,
+    exceto_autor: int | None = None,
 ) -> list[int]:
-    sql = "SELECT seq FROM events WHERE project_id = ? AND seq > ? ORDER BY seq"
+    sql = "SELECT seq FROM events WHERE project_id = ? AND seq > ?"
     params: list[Any] = [projeto_id, desde]
+    if exceto_autor is not None:
+        sql += " AND author_id != ?"
+        params.append(exceto_autor)
+    sql += " ORDER BY seq"
     if limite is not None:
         sql += " LIMIT ?"
         params.append(limite)
@@ -52,13 +58,11 @@ def seqs_do_projeto(
 
 def mensagens_da_task(conn: sqlite3.Connection, projeto_id: int, code: str) -> list[sqlite3.Row]:
     return conn.execute(
-        """SELECT e.seq, e.type, e.texto, e.created_at, a.name AS author_name,
-                  a.type AS author_type, r.name AS author_responsible
+        """SELECT e.seq, e.type, e.texto, e.agent, e.created_at, pe.alias AS author_alias
              FROM events e
-             JOIN authors a ON a.id = e.author_id
-             LEFT JOIN authors r ON r.id = a.responsible_id
-             JOIN tasks t ON t.id = e.task_id
-            WHERE t.code = ? AND t.project_id = ? AND e.kind = 'mensagem'
+             JOIN people pe ON pe.id = e.author_id
+             JOIN tasks  t  ON t.id = e.task_id
+            WHERE t.code = ? AND t.project_id = ? AND e.kind = 'message.created'
             ORDER BY e.seq""",
         (code, projeto_id),
     ).fetchall()

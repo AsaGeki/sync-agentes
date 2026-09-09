@@ -1,0 +1,26 @@
+meta {
+  name: Find Report
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/projetos/{{slug}}/relatorio
+  body: none
+  auth: inherit
+}
+
+params:query {
+  desde: 0
+  formato: md
+  ~com_diff: true
+}
+
+docs {
+  Endpoint: GET /projetos/{slug}/relatorio
+  Autenticacao: token pessoal (membro).
+
+  formato=md: resumo tecnico do estado - status/tags/dono por task, campos que
+  mudaram na janela, onde no git aquilo aconteceu e o diff acumulado do corpo.
+  formato=json: os dados crus (eventos, contagens, perguntas em aberto).
+}

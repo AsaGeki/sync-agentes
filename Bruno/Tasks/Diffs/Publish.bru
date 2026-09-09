@@ -1,0 +1,43 @@
+meta {
+  name: Publish
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{code}}/diffs
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+  X-Agent: human
+  X-Git-Branch: feat/T-001-login
+  X-Git-Commit: 0000000000000000000000000000000000000000
+}
+
+body:json {
+  {
+    "base_sha": "1111111111111111111111111111111111111111",
+    "arquivos": ["src/auth.py", "src/routes.py"],
+    "patch": "--- a/src/auth.py
++++ b/src/auth.py
++linha nova
+",
+    "resumo": "auth por token pessoal",
+    "pedir_revisao": true
+  }
+}
+
+docs {
+  Endpoint: POST /projetos/{slug}/tasks/{code}/diffs
+  Autenticacao: token pessoal (membro).
+
+  Publica o diff de codigo entre base_sha e o commit de quem publica - o head
+  vem do header X-Git-Commit, nao do corpo. Patch acima de 100 KB e cortado, e
+  a resposta marca `truncado`.
+
+  pedir_revisao=true registra tambem uma pergunta na task, entao o diff entra
+  nas perguntas em aberto do relatorio ate alguem responder.
+}

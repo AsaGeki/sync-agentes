@@ -1,0 +1,30 @@
+meta {
+  name: Update
+  type: http
+  seq: 1
+}
+
+put {
+  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{code}}/corpo
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+  X-Agent: human
+}
+
+body:json {
+  {
+    "texto": "Texto completo da task, nao um fragmento."
+  }
+}
+
+docs {
+  Endpoint: PUT /projetos/{slug}/tasks/{code}/corpo
+  Autenticacao: token pessoal (membro).
+
+  Cada chamada vira uma versao nova e a resposta traz o diff unificado contra
+  a anterior. Mande sempre o texto integro - o que voce envia vira a versao.
+}

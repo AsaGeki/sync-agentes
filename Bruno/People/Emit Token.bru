@@ -1,0 +1,35 @@
+meta {
+  name: Emit Token
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/people
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{adminToken}}
+}
+
+body:json {
+  {
+    "email": "arthur.macedo@empresa.com",
+    "name": "Arthur"
+  }
+}
+
+docs {
+  Endpoint: POST /people
+  Autenticacao: ADMIN_TOKEN (o do .env), nao token pessoal.
+
+  Cadastra a pessoa e devolve o token pessoal dela. O token em texto puro
+  aparece so nesta resposta - o banco guarda o hash. Chamar de novo com o
+  mesmo email emite outro e invalida o anterior.
+
+  email: use o mesmo do `git config user.email` de quem vai conectar. A parte
+  antes do @ vira o `alias`, que e como a assinatura aparece no canal.
+}

@@ -1,0 +1,22 @@
+meta {
+  name: Find By Code
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{code}}
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~com_corpo: true
+}
+
+docs {
+  Endpoint: GET /projetos/{slug}/tasks/{code}
+  Autenticacao: token pessoal (membro).
+
+  Traz a task, o corpo atual e a trilha completa de eventos dela.
+}

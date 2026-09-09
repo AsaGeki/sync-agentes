@@ -1,0 +1,30 @@
+meta {
+  name: Update
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{code}}
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+  X-Agent: human
+}
+
+body:json {
+  {
+    "status": "parcial"
+  }
+}
+
+docs {
+  Endpoint: PATCH /projetos/{slug}/tasks/{code}
+  Autenticacao: token pessoal (membro).
+
+  Campos: title, status, tags, owner_id. Gera 1 evento por campo que de fato
+  mudou - mandar o mesmo valor nao gera evento.
+}

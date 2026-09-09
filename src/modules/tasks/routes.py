@@ -4,8 +4,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 
 from src.modules.tasks import service
-from src.modules.tasks.models import CorpoIn, MensagemIn, TaskIn, TaskPatch
-from src.shared.auth import autor_atual, exigir_token
+from src.modules.tasks.models import CorpoIn, DiffIn, MensagemIn, TaskIn, TaskPatch
+from src.shared.auth import ContextoGit, contexto_git, pessoa_atual
 from src.shared.db import conectar
 from src.shared.enums import EStatusTask
 
@@ -15,46 +15,59 @@ router = APIRouter()
 # ---------- tasks ---------- #
 
 
-@router.post("/projetos/{slug}/tasks", status_code=201, dependencies=[Depends(exigir_token)])
+@router.post("/projetos/{slug}/tasks", status_code=201)
 async def create_task(
-    slug: str, dados: TaskIn, autor: sqlite3.Row = Depends(autor_atual)
+    slug: str,
+    dados: TaskIn,
+    pessoa: sqlite3.Row = Depends(pessoa_atual),
+    ctx: ContextoGit = Depends(contexto_git),
 ) -> dict[str, Any]:
     conn = conectar()
     try:
-        return await service.create_task(conn, slug, autor["id"], dados)
+        return await service.create_task(conn, slug, pessoa["id"], ctx, dados)
     finally:
         conn.close()
 
 
-@router.get("/projetos/{slug}/tasks", dependencies=[Depends(exigir_token)])
+@router.get("/projetos/{slug}/tasks")
 def list_tasks(
     slug: str,
     status: EStatusTask | None = None,
     tag: str | None = None,
+    pessoa: sqlite3.Row = Depends(pessoa_atual),
 ) -> list[dict[str, Any]]:
     conn = conectar()
     try:
-        return service.list_tasks(conn, slug, status, tag)
+        return service.list_tasks(conn, slug, pessoa["id"], status, tag)
     finally:
         conn.close()
 
 
-@router.get("/projetos/{slug}/tasks/{code}", dependencies=[Depends(exigir_token)])
-def read_task(slug: str, code: str, com_corpo: bool = True) -> dict[str, Any]:
-    conn = conectar()
-    try:
-        return service.read_task(conn, slug, code, com_corpo)
-    finally:
-        conn.close()
-
-
-@router.patch("/projetos/{slug}/tasks/{code}", dependencies=[Depends(exigir_token)])
-async def update_task(
-    slug: str, code: str, dados: TaskPatch, autor: sqlite3.Row = Depends(autor_atual)
+@router.get("/projetos/{slug}/tasks/{code}")
+def read_task(
+    slug: str,
+    code: str,
+    com_corpo: bool = True,
+    pessoa: sqlite3.Row = Depends(pessoa_atual),
 ) -> dict[str, Any]:
     conn = conectar()
     try:
-        return await service.update_task(conn, slug, code, autor["id"], dados)
+        return service.read_task(conn, slug, pessoa["id"], code, com_corpo)
+    finally:
+        conn.close()
+
+
+@router.patch("/projetos/{slug}/tasks/{code}")
+async def update_task(
+    slug: str,
+    code: str,
+    dados: TaskPatch,
+    pessoa: sqlite3.Row = Depends(pessoa_atual),
+    ctx: ContextoGit = Depends(contexto_git),
+) -> dict[str, Any]:
+    conn = conectar()
+    try:
+        return await service.update_task(conn, slug, code, pessoa["id"], ctx, dados)
     finally:
         conn.close()
 
@@ -62,36 +75,71 @@ async def update_task(
 # ---------- conversa ---------- #
 
 
-@router.post(
-    "/projetos/{slug}/tasks/{code}/mensagens",
-    status_code=201,
-    dependencies=[Depends(exigir_token)],
-)
+@router.post("/projetos/{slug}/tasks/{code}/mensagens", status_code=201)
 async def create_message(
-    slug: str, code: str, dados: MensagemIn, autor: sqlite3.Row = Depends(autor_atual)
+    slug: str,
+    code: str,
+    dados: MensagemIn,
+    pessoa: sqlite3.Row = Depends(pessoa_atual),
+    ctx: ContextoGit = Depends(contexto_git),
 ) -> dict[str, Any]:
     conn = conectar()
     try:
-        return await service.create_message(conn, slug, code, autor["id"], dados)
+        return await service.create_message(conn, slug, code, pessoa["id"], ctx, dados)
     finally:
         conn.close()
 
 
-@router.put("/projetos/{slug}/tasks/{code}/corpo", dependencies=[Depends(exigir_token)])
+@router.put("/projetos/{slug}/tasks/{code}/corpo")
 async def update_corpo(
-    slug: str, code: str, dados: CorpoIn, autor: sqlite3.Row = Depends(autor_atual)
+    slug: str,
+    code: str,
+    dados: CorpoIn,
+    pessoa: sqlite3.Row = Depends(pessoa_atual),
+    ctx: ContextoGit = Depends(contexto_git),
 ) -> dict[str, Any]:
     conn = conectar()
     try:
-        return await service.update_corpo(conn, slug, code, autor["id"], dados)
+        return await service.update_corpo(conn, slug, code, pessoa["id"], ctx, dados)
     finally:
         conn.close()
 
 
-@router.get("/projetos/{slug}/tasks/{code}/diff", dependencies=[Depends(exigir_token)])
-def read_diff(slug: str, code: str, desde: int = Query(0, ge=0)) -> dict[str, Any]:
+@router.post("/projetos/{slug}/tasks/{code}/diffs", status_code=201)
+async def publish_diff(
+    slug: str,
+    code: str,
+    dados: DiffIn,
+    pessoa: sqlite3.Row = Depends(pessoa_atual),
+    ctx: ContextoGit = Depends(contexto_git),
+) -> dict[str, Any]:
     conn = conectar()
     try:
-        return service.read_diff(conn, slug, code, desde)
+        return await service.publish_diff(conn, slug, code, pessoa["id"], ctx, dados)
+    finally:
+        conn.close()
+
+
+@router.get("/projetos/{slug}/tasks/{code}/diffs")
+def list_diffs(
+    slug: str, code: str, pessoa: sqlite3.Row = Depends(pessoa_atual)
+) -> list[dict[str, Any]]:
+    conn = conectar()
+    try:
+        return service.list_diffs(conn, slug, pessoa["id"], code)
+    finally:
+        conn.close()
+
+
+@router.get("/projetos/{slug}/tasks/{code}/diff")
+def read_diff(
+    slug: str,
+    code: str,
+    desde: int = Query(0, ge=0),
+    pessoa: sqlite3.Row = Depends(pessoa_atual),
+) -> dict[str, Any]:
+    conn = conectar()
+    try:
+        return service.read_diff(conn, slug, pessoa["id"], code, desde)
     finally:
         conn.close()

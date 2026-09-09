@@ -1,0 +1,37 @@
+meta {
+  name: Resolve
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/repos/resolve
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "root_sha": "{{rootSha}}",
+    "name": "meu-projeto",
+    "remote": "git@github.com:org/meu-projeto.git"
+  }
+}
+
+docs {
+  Endpoint: POST /repos/resolve
+  Autenticacao: token pessoal.
+
+  Troca um repositorio git pelo projeto dele - e o que o bridge MCP chama ao
+  abrir a sessao. Pegue o root_sha com:
+
+    git rev-list --max-parents=0 HEAD
+
+  Repo desconhecido cria o projeto e te faz owner. Repo conhecido devolve o
+  projeto; se voce ainda nao e membro, entra sozinho quando ele e `team` e
+  leva 403 quando e `private`.
+}

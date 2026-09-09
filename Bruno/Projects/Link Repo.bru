@@ -1,0 +1,32 @@
+meta {
+  name: Link Repo
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/projetos/{{slug}}/repos
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "root_sha": "{{rootSha}}",
+    "name": "meu-projeto-web",
+    "remote": null
+  }
+}
+
+docs {
+  Endpoint: POST /projetos/{slug}/repos
+  Autenticacao: token pessoal (membro).
+
+  Aponta mais um repositorio pro mesmo projeto - frontend e backend em repos
+  separados falando no mesmo canal. Repo ja vinculado a outro projeto e
+  recusado.
+}

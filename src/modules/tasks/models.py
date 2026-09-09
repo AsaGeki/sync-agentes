@@ -26,3 +26,14 @@ class MensagemIn(BaseModel):
 
 class CorpoIn(BaseModel):
     texto: str
+
+
+class DiffIn(BaseModel):
+    """Diff de código publicado numa task. O head é o commit do contexto git de
+    quem publica (header `X-Git-Commit`), não vem no corpo."""
+
+    base_sha: str = Field(min_length=7, max_length=40, pattern=r"^[0-9a-f]+$")
+    arquivos: list[str] = Field(default_factory=list)
+    patch: str | None = None
+    resumo: str | None = None
+    pedir_revisao: bool = False

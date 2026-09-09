@@ -11,13 +11,13 @@ get {
 }
 
 params:query {
-  ~status: 
-  ~tag: 
+  ~status: parcial
+  ~tag: auth
 }
 
 docs {
-  Endpoint: GET /projetos/:slug/tasks
-  Autenticação: Bearer token
-  
-  Query params (opcionais): status, tag.
+  Endpoint: GET /projetos/{slug}/tasks
+  Autenticacao: token pessoal (membro).
+
+  Filtros opcionais: status e tag.
 }
