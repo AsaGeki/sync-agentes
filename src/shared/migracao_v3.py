@@ -42,7 +42,7 @@ EVENTS_V3 = """CREATE TABLE events_v3 (
   task_id    INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
   author_id  INTEGER NOT NULL REFERENCES people(id),
   agent      TEXT NOT NULL DEFAULT 'outro'
-             CHECK (agent IN ('claude','codex','cursor','copilot','human','outro')),
+             CHECK (agent IN ('claude','codex','human','outro')),
   branch     TEXT,
   commit_sha TEXT,
   kind       TEXT NOT NULL CHECK (kind IN (
@@ -60,7 +60,6 @@ EVENTS_V3 = """CREATE TABLE events_v3 (
 )"""
 
 
-# 2.x nomeava o evento por entidade solta; 3.0 usa `<entidade>.<fato>`.
 KIND_V3 = {
     "task_criada": "task.created",
     "mensagem": "message.created",
@@ -152,8 +151,8 @@ def migrar(conn: sqlite3.Connection, tabela_existe, agora: str) -> None:
            )"""
     )
 
-    # Acesso no 2.x é total (token único compartilhado). A migração preserva isso:
-    # todo mundo entra em todo projeto, quem criou entra como owner.
+    # No 2.x o token era compartilhado e todo mundo alcançava tudo - a migração
+    # mantém esse acesso, com quem criou o projeto como owner.
     conn.execute(
         """CREATE TABLE memberships (
              project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

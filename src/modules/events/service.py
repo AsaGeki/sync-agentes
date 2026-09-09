@@ -1,8 +1,7 @@
-"""Trilha de eventos: gravação, envelope de leitura e resumo de uma linha.
+"""Trilha de eventos: gravação, leitura e resumo de uma linha.
 
-O **envelope** (`envelope()`) é o formato público de um evento - o mesmo em
-`/mudancas`, no WebSocket, no relatório e na leitura de task. Quem consome não
-precisa conhecer as colunas do banco: lê `kind`, `actor`, `git` e `payload`.
+`envelope()` é o formato público de um evento, igual em `/mudancas`, no
+WebSocket, no relatório e na leitura de task.
 """
 
 import json
@@ -16,9 +15,8 @@ from src.shared.enums import EKindEvent
 
 
 def registrar(conn: sqlite3.Connection, ctx: ContextoGit, **campos: Any) -> int:
-    """Grava um evento carimbando de onde ele saiu: qual ferramenta escreveu
-    (`agent`) e em que ponto do git (`branch`/`commit_sha`). É esse carimbo que
-    faz o relatório amarrar conversa a código."""
+    """Grava um evento carimbando qual ferramenta escreveu (`agent`) e em que
+    ponto do git (`branch`/`commit_sha`)."""
     campos.setdefault("created_at", now())
     campos.setdefault("agent", ctx.agent.value)
     campos.setdefault("branch", ctx.branch)
@@ -27,8 +25,7 @@ def registrar(conn: sqlite3.Connection, ctx: ContextoGit, **campos: Any) -> int:
 
 
 def hidratar(conn: sqlite3.Connection, seq: int) -> dict[str, Any]:
-    """Linha crua do evento mais quem assinou, task e projeto. Uso interno - o
-    que sai pra fora é `envelope()`."""
+    """Linha crua do evento mais quem assinou, task e projeto. Uso interno."""
     linha = repositorio.buscar_por_seq(conn, seq)
     return {k: linha[k] for k in linha.keys() if linha[k] is not None}
 
@@ -64,8 +61,8 @@ def _payload(evento: dict[str, Any], com_texto: bool) -> dict[str, Any]:
 
 
 def envelope(evento: dict[str, Any], com_texto: bool = False) -> dict[str, Any]:
-    """Formato público de um evento. `com_texto=False` deixa de fora o que é
-    volumoso (corpo inteiro, patch) - listagem não precisa carregar isso."""
+    """Formato público de um evento. `com_texto=False` omite o que é volumoso
+    (corpo inteiro, patch)."""
     return {
         "seq": evento["seq"],
         "kind": evento["kind"],
@@ -97,8 +94,7 @@ def mudancas_do_projeto(
     limite: int,
     exceto_autor: int | None = None,
 ) -> dict[str, Any]:
-    """`exceto_autor` corta o próprio eco: quem pergunta o que mudou quer saber
-    do outro lado, não do que acabou de escrever."""
+    """`exceto_autor` corta o próprio eco de quem está perguntando."""
     seqs = repositorio.seqs_do_projeto(conn, projeto_id, desde, limite, exceto_autor)
     eventos = [envelope(hidratar(conn, seq)) for seq in seqs]
     return {
@@ -110,8 +106,7 @@ def mudancas_do_projeto(
 
 
 def assinatura(evento: dict[str, Any]) -> str:
-    """Quem escreveu e por qual ferramenta. Autor é sempre uma pessoa - a IA é o
-    `agent`, não um autor separado."""
+    """Quem escreveu e por qual ferramenta."""
     agent = evento.get("agent", "outro")
     if agent == "human":
         return evento["author_alias"]
@@ -119,7 +114,7 @@ def assinatura(evento: dict[str, Any]) -> str:
 
 
 def resumir(evento: dict[str, Any]) -> str:
-    """Linha curta: é isso que o Monitor mostra como notificação no chat do agente."""
+    """Linha curta do evento, pronta pra mostrar como notificação."""
     alvo = evento.get("task_code", "-")
     prefixo = f"[{evento['project_slug']}] {alvo} · {assinatura(evento)}"
     if evento.get("branch"):

@@ -23,8 +23,10 @@ def emit_token(dados: PessoaIn) -> dict[str, Any]:
         conn.close()
 
 
-@router.get("/people")
-def list_people(pessoa: sqlite3.Row = Depends(pessoa_atual)) -> list[dict[str, Any]]:
+# Lista com o email de todo mundo é de administração. Quem só quer saber quem
+# está num projeto usa GET /projetos/{slug}/membros.
+@router.get("/people", dependencies=[Depends(exigir_admin)])
+def list_people() -> list[dict[str, Any]]:
     conn = conectar()
     try:
         return service.list_people(conn)

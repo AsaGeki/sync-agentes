@@ -21,9 +21,8 @@ def _serializar(conn: sqlite3.Connection, projeto: sqlite3.Row) -> dict[str, Any
 
 
 def exigir_acesso(conn: sqlite3.Connection, slug: str, person_id: int) -> sqlite3.Row:
-    """Porta única de todo acesso a projeto. Sem membership o projeto responde
-    404, não 403 - quem não é membro de um projeto privado não deve nem
-    descobrir que ele existe."""
+    """Porta única de todo acesso a projeto. Sem membership responde 404, não
+    403: quem não é membro não descobre que o projeto existe."""
     projeto = repositorio.find_by_slug(conn, slug)
     if repositorio.find_membership(conn, projeto["id"], person_id) is None:
         raise NotFound(f"Projeto '{slug}' não existe")
@@ -33,8 +32,7 @@ def exigir_acesso(conn: sqlite3.Connection, slug: str, person_id: int) -> sqlite
 def resolve_repo(
     conn: sqlite3.Connection, person_id: int, repo: RepoIn
 ) -> dict[str, Any]:
-    """Troca um repositório git pelo projeto correspondente - é o que amarra o
-    canal ao repo onde o chat foi aberto.
+    """Troca um repositório git pelo projeto correspondente.
 
     Repo desconhecido cria o projeto e faz de quem chamou o owner. Repo já
     vinculado devolve o projeto; se a pessoa ainda não é membro, entra sozinha
@@ -67,8 +65,8 @@ def resolve_repo(
 def vincular_repo(
     conn: sqlite3.Connection, slug: str, person_id: int, repo: RepoIn
 ) -> dict[str, Any]:
-    """Aponta mais um repositório pro mesmo projeto (frontend e backend no mesmo
-    canal). Repo já vinculado a outro projeto é recusado."""
+    """Aponta mais um repositório pro mesmo projeto. Repo já vinculado a outro
+    projeto é recusado."""
     projeto = exigir_acesso(conn, slug, person_id)
     dono = repositorio.find_by_root_sha(conn, repo.root_sha)
     if dono is not None and dono["id"] != projeto["id"]:
@@ -114,8 +112,8 @@ def list_members(conn: sqlite3.Connection, slug: str, person_id: int) -> list[di
 def add_member(
     conn: sqlite3.Connection, slug: str, person_id: int, email: str
 ) -> dict[str, Any]:
-    """Owner adiciona alguém ao projeto - é assim que se entra num projeto
-    `private`, que não aceita auto-join."""
+    """Owner adiciona alguém ao projeto. É o único jeito de entrar num projeto
+    `private`."""
     projeto = exigir_acesso(conn, slug, person_id)
     _exigir_owner(conn, projeto["id"], person_id)
     convidado = people_repositorio.find_by_email(conn, email)

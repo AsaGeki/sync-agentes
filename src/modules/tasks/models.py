@@ -26,6 +26,9 @@ class MensagemIn(BaseModel):
 
 class CorpoIn(BaseModel):
     texto: str
+    # Versão sobre a qual este texto foi escrito. Sem ela, gravar por cima de
+    # uma versão já alterada apaga o texto do outro lado sem aviso.
+    versao_base: int | None = None
 
 
 class DiffIn(BaseModel):

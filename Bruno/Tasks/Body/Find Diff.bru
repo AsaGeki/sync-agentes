@@ -5,7 +5,7 @@ meta {
 }
 
 get {
-  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{code}}/diff
+  url: {{baseUrl}}/projetos/{{slug}}/tasks/{{code}}/corpo/diff
   body: none
   auth: inherit
 }
@@ -15,7 +15,7 @@ params:query {
 }
 
 docs {
-  Endpoint: GET /projetos/{slug}/tasks/{code}/diff
+  Endpoint: GET /projetos/{slug}/tasks/{code}/corpo/diff
   Autenticacao: token pessoal (membro).
 
   Diff do corpo da versao `desde` ate a mais recente.

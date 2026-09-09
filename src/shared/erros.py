@@ -22,5 +22,12 @@ class AlreadyExists(DomainError):
     status = 409
 
 
+class Conflict(DomainError):
+    """Escrita baseada num estado que já mudou - quem chamou precisa reler antes
+    de tentar de novo."""
+
+    status = 409
+
+
 class Invalid(DomainError):
     status = 422

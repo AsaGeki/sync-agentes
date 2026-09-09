@@ -1,16 +1,13 @@
 """Bridge MCP local do sync-agents.
 
-Roda como processo na máquina de quem conecta, herda o cwd do chat e resolve
-sozinho três coisas que antes eram digitadas na mão:
+Roda como processo na máquina de quem conecta e resolve três coisas sozinho:
 
-- **escopo**: o repositório do cwd define o projeto. Nenhuma tool recebe `slug`,
-  então nenhum agente escreve no projeto errado nem enxerga o assunto de outro.
-- **identidade**: quem assina é a pessoa dona do token (`SYNC_AGENTS_TOKEN`); o
-  `git config user.email` só serve pra conferir que o token é da máquina certa.
-- **ferramenta**: qual IA está falando sai do `clientInfo` do handshake MCP.
+- escopo: o repositório do cwd define o projeto, e nenhuma tool recebe `slug`.
+- identidade: quem assina é a pessoa dona do `SYNC_AGENTS_TOKEN`.
+- ferramenta: sai do `clientInfo` do handshake MCP.
 
-Fora de um repositório git o canal não existe - as tools respondem instruindo a
-abrir o chat dentro do repo, e nada é escrito.
+Fora de um repositório git nada é escrito - as tools respondem pedindo pra abrir
+o chat dentro do repositório.
 """
 
 from __future__ import annotations
@@ -40,14 +37,14 @@ INSTRUCOES = (
     ""
     "IDENTIDADE\n"
     "Quem assina é a pessoa dona do token desta máquina, e a ferramenta que "
-    "escreveu (claude/codex/cursor...) vai junto automaticamente. Não existe "
+    "escreveu (claude ou codex) vai junto automaticamente. Não existe "
     "cadastro de IA e não dá pra assinar como outra pessoa.\n\n"
     ""
     "MODELO\n"
     "- task (`create_task`/`list_tasks`/`read_task`/`update_task`): unidade de "
     "assunto, endereçada por code (T-001, gerado sozinho se omitido). "
     "title/status/tags/owner_id + um corpo versionado.\n"
-    "- corpo (`read_task`/`update_body`/`read_diff`): texto de referência da "
+    "- corpo (`read_task`/`update_body`/`read_body_diff`): texto de referência da "
     "task. Cada atualização vira uma versão e o servidor calcula o diff.\n"
     "- evento: trilha do que aconteceu, com branch e commit de onde saiu. "
     "`read_changes(desde=<cursor>)` mostra o que mudou; `read_report` resume o "
@@ -91,10 +88,7 @@ class Sessao:
     """Estado do bridge nesta sessão: repo, projeto resolvido e cursor de eventos."""
 
     def __init__(self) -> None:
-        # O normal é herdar o cwd do chat (Claude Code, Cursor, VS Code, tudo que
-        # roda dentro de um projeto aberto). Cliente que não tem projeto aberto -
-        # Claude Desktop, por exemplo - aponta o repositório em SYNC_AGENTS_REPO
-        # ou em `--repo <caminho>`, e aí cada registro atende um repositório.
+        # Cwd do chat, ou o caminho declarado quando o cliente não abre projeto.
         self.repo: ContextoRepo | None = descobrir(_repo_declarado())
         self.base_url = os.environ.get("SYNC_AGENTS_URL", "http://127.0.0.1:8787")
         self.token = os.environ.get("SYNC_AGENTS_TOKEN")
@@ -173,15 +167,14 @@ def _chamar(ctx: Context, acao) -> Any:
     except ErroApi as erro:
         return {"erro": erro.detalhe, "status": erro.status}
 
-    # Buscar novidades é acessório e fica fora do try acima de propósito: se ele
-    # falhasse junto, uma escrita que deu certo voltaria como erro e o agente
-    # tentaria de novo - gravando duas vezes.
+    # Fora do try acima: falha aqui não pode transformar escrita bem-sucedida em
+    # erro, senão o agente repete a escrita.
     try:
         novidades = _novidades(SESSAO)
     except ErroApi:
         novidades = []
-    # Formato sempre igual: objeto na raiz. Lista crua viraria um content block
-    # por item no protocolo MCP, e aí o cliente não tem onde ler as novidades.
+    # Objeto na raiz sempre: lista crua vira um content block por item no MCP, e
+    # `novidades` não teria onde entrar.
     envelope = resultado if isinstance(resultado, dict) else {"resultado": resultado}
     return {**envelope, "novidades": novidades} if novidades else envelope
 
@@ -313,13 +306,19 @@ def send_message(ctx: Context, code: str, type: ETypeMessage, texto: str) -> Any
 
 
 @mcp.tool()
-def update_body(ctx: Context, code: str, texto: str) -> Any:
+def update_body(ctx: Context, code: str, texto: str, versao_base: int | None = None) -> Any:
     """Grava uma versão nova do corpo da task e devolve o diff contra a anterior.
-    Mande sempre o texto completo, nunca um fragmento."""
+    Mande sempre o texto completo, nunca um fragmento.
+
+    `versao_base` é o `versao_corpo` que veio do `read_task` que você usou pra
+    escrever este texto. Informando, o servidor recusa (409) se o outro lado
+    tiver gravado nesse meio tempo, em vez de apagar o que ele escreveu."""
     return _chamar(
         ctx,
         lambda api, slug: api.request(
-            "PUT", f"/projetos/{slug}/tasks/{code}/corpo", {"texto": texto}
+            "PUT",
+            f"/projetos/{slug}/tasks/{code}/corpo",
+            {"texto": texto, "versao_base": versao_base},
         ),
     )
 
@@ -332,14 +331,13 @@ def publish_diff(
     resumo: str | None = None,
     pedir_revisao: bool = False,
 ) -> Any:
-    """Publica na task o que voce mudou no codigo: arquivos tocados e o patch,
-    entre `base` e o commit atual do repo. O diff e calculado aqui, voce nao
-    precisa montar nada.
+    """Publica na task o que você mudou no código: arquivos tocados e o patch,
+    entre `base` e o commit atual do repositório. O diff é calculado aqui.
 
-    `base` omitido usa o head do ultimo diff publicado nesta task; se nao houver
-    nenhum, usa o ponto em que a branch atual saiu da principal.
-    `pedir_revisao=True` registra tambem uma pergunta na task, entao o diff
-    aparece nas perguntas em aberto do relatorio ate alguem responder.
+    `base` omitido usa o head do último diff publicado nesta task; não havendo
+    nenhum, o ponto em que a branch atual saiu da principal.
+    `pedir_revisao=True` registra também uma pergunta na task, então o diff
+    aparece nas perguntas em aberto do relatório até alguém responder.
     """
 
     def acao(api: Api, slug: str) -> Any:
@@ -349,8 +347,8 @@ def publish_diff(
         if not partida:
             return {
                 "erro": (
-                    "Nao deu pra descobrir de onde comparar - passe `base` com o sha "
-                    "do commit a partir do qual voce quer o diff."
+                    "Não deu pra descobrir de onde comparar - passe `base` com o sha "
+                    "do commit a partir do qual você quer o diff."
                 )
             }
         return api.request(
@@ -369,26 +367,27 @@ def publish_diff(
 
 
 def _base_do_ultimo_diff(api: Api, slug: str, code: str) -> str | None:
-    """Head do ultimo diff publicado na task - e dali que o proximo continua."""
+    """Head do último diff publicado na task, de onde o próximo continua."""
     publicados = api.request("GET", f"/projetos/{slug}/tasks/{code}/diffs")
     return publicados[-1]["payload"]["head_sha"] if publicados else None
 
 
 @mcp.tool()
 def list_diffs(ctx: Context, code: str) -> Any:
-    """Os diffs de codigo ja publicados numa task, sem o patch."""
+    """Os diffs de código já publicados numa task, sem o patch."""
     return _chamar(
         ctx, lambda api, slug: api.request("GET", f"/projetos/{slug}/tasks/{code}/diffs")
     )
 
 
 @mcp.tool()
-def read_diff(ctx: Context, code: str, desde: int = 0) -> Any:
-    """Diff unificado do corpo da task, da versão `desde` até a mais recente."""
+def read_body_diff(ctx: Context, code: str, desde: int = 0) -> Any:
+    """Diff do TEXTO da task (o corpo), da versão `desde` até a mais recente.
+    Pra diff de código é `list_diffs`/`publish_diff` - são coisas diferentes."""
     return _chamar(
         ctx,
         lambda api, slug: api.request(
-            "GET", f"/projetos/{slug}/tasks/{code}/diff", query={"desde": desde}
+            "GET", f"/projetos/{slug}/tasks/{code}/corpo/diff", query={"desde": desde}
         ),
     )
 

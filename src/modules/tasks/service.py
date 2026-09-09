@@ -10,7 +10,9 @@ from src.modules.tasks import repositorio
 from src.modules.tasks.models import CorpoIn, DiffIn, MensagemIn, TaskIn, TaskPatch
 from src.shared.auth import ContextoGit
 from src.shared.enums import EKindEvent, EStatusTask, ETypeMessage
-from src.shared.erros import AlreadyExists, Invalid, MissingRequirement
+from src.shared.erros import AlreadyExists, Conflict, Invalid, MissingRequirement
+
+TENTATIVAS_DE_CODIGO = 5
 
 
 def serializar(conn: sqlite3.Connection, task: sqlite3.Row) -> dict[str, Any]:
@@ -47,10 +49,9 @@ def _gravar_corpo_evento(
     project_id: int,
     ctx: ContextoGit,
 ) -> tuple[int, int, str]:
-    """Grava o corpo como evento kind='corpo' e devolve (seq, versao, diff
-    contra a anterior). Não publica - quem decide isso é o chamador:
-    `create_task` não publica o corpo inicial em separado (só o
-    task_criada), `update_corpo` publica logo depois de commitar."""
+    """Grava o corpo como evento `body.updated` e devolve (seq, versao, diff
+    contra a anterior). Publicar no tempo real é com o chamador: `create_task`
+    só publica o `task.created`, `update_corpo` publica após commitar."""
     anterior = repositorio.ultimo_corpo(conn, task["id"])
     versao = (anterior["version"] if anterior else 0) + 1
     diff = _make_diff(
@@ -92,24 +93,29 @@ async def create_task(
     conn: sqlite3.Connection, slug: str, author_id: int, ctx: ContextoGit, dados: TaskIn
 ) -> dict[str, Any]:
     projeto = exigir_acesso(conn, slug, author_id)
-    code = dados.code or f"T-{repositorio.count(conn, projeto['id']) + 1:03d}"
-    try:
-        with conn:
-            task_id = repositorio.insert(conn, projeto["id"], code, dados)
-            seq = eventos_service.registrar(
-                conn,
-                ctx,
-                project_id=projeto["id"],
-                task_id=task_id,
-                author_id=author_id,
-                kind=EKindEvent.task_created.value,
-                texto=dados.title,
-            )
-            task = repositorio.find_by_id(conn, task_id)
-            if dados.corpo is not None:
-                _gravar_corpo_evento(conn, task, dados.corpo, author_id, projeto["id"], ctx)
-    except sqlite3.IntegrityError:
-        raise AlreadyExists(f"Task '{code}' já existe neste projeto") from None
+    # Dois lados criando ao mesmo tempo chegam no mesmo código. Se ele foi gerado
+    # aqui, tenta o seguinte; se veio de quem chamou, o conflito é resposta.
+    for tentativa in range(TENTATIVAS_DE_CODIGO):
+        code = dados.code or repositorio.proximo_codigo(conn, projeto["id"])
+        try:
+            with conn:
+                task_id = repositorio.insert(conn, projeto["id"], code, dados)
+                seq = eventos_service.registrar(
+                    conn,
+                    ctx,
+                    project_id=projeto["id"],
+                    task_id=task_id,
+                    author_id=author_id,
+                    kind=EKindEvent.task_created.value,
+                    texto=dados.title,
+                )
+                task = repositorio.find_by_id(conn, task_id)
+                if dados.corpo is not None:
+                    _gravar_corpo_evento(conn, task, dados.corpo, author_id, projeto["id"], ctx)
+            break
+        except sqlite3.IntegrityError:
+            if dados.code or tentativa == TENTATIVAS_DE_CODIGO - 1:
+                raise AlreadyExists(f"Task '{code}' já existe neste projeto") from None
     await publish(slug, eventos_service.hidratar(conn, seq))
     return {"cursor": seq, **serializar(conn, task)}
 
@@ -219,6 +225,17 @@ async def update_corpo(
     projeto = exigir_acesso(conn, slug, author_id)
     task = repositorio.find_by_code(conn, projeto["id"], code)
     with conn:
+        # Lock de escrita já na abertura: sem ele, os dois lados leem a mesma
+        # versão atual e tentam gravar a seguinte.
+        conn.execute("BEGIN IMMEDIATE")
+        atual = repositorio.ultimo_corpo(conn, task["id"])
+        versao_atual = atual["version"] if atual else 0
+        if dados.versao_base is not None and dados.versao_base != versao_atual:
+            raise Conflict(
+                f"O corpo desta task está na v{versao_atual}, não na v{dados.versao_base} "
+                "que você leu - releia a task antes de gravar, senão você apaga o que o "
+                "outro lado escreveu."
+            )
         seq, versao, diff = _gravar_corpo_evento(
             conn, task, dados.texto, author_id, projeto["id"], ctx
         )
@@ -226,8 +243,8 @@ async def update_corpo(
     return {"cursor": seq, "code": code, "versao": versao, "diff": diff}
 
 
-# Patch inteiro de um refactor grande passa fácil de 1 MB - o canal guarda o
-# suficiente pra entender o que mudou, não o repositório.
+# Teto do patch guardado por diff. Acima disso o texto é cortado e o evento
+# marca `truncado`.
 LIMITE_PATCH = 100_000
 
 
@@ -242,9 +259,8 @@ async def publish_diff(
     """Publica um diff de código na task: quais arquivos mudaram entre `base_sha`
     e o commit de quem publica, com o patch junto.
 
-    `pedir_revisao` registra também uma pergunta na task - assim o diff entra na
-    lista de perguntas em aberto do relatório e o outro lado sabe que precisa
-    olhar, sem inventar uma máquina de estado de review.
+    `pedir_revisao` registra também uma pergunta na task, colocando o diff na
+    lista de perguntas em aberto do relatório.
     """
     projeto = exigir_acesso(conn, slug, author_id)
     task = repositorio.find_by_code(conn, projeto["id"], code)
@@ -296,8 +312,8 @@ async def publish_diff(
 def list_diffs(
     conn: sqlite3.Connection, slug: str, person_id: int, code: str
 ) -> list[dict[str, Any]]:
-    """Os diffs publicados numa task, do mais antigo pro mais novo, sem o patch -
-    quem quiser o patch lê o evento em `read_task`."""
+    """Os diffs publicados numa task, do mais antigo pro mais novo, sem o patch.
+    O patch vem no evento correspondente em `read_task`."""
     projeto = exigir_acesso(conn, slug, person_id)
     task = repositorio.find_by_code(conn, projeto["id"], code)
     return [

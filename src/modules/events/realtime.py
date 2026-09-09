@@ -3,9 +3,9 @@
 O frame é o mesmo envelope de evento que `/mudancas` devolve - quem consome os
 dois não tem dois formatos pra tratar.
 
-Autenticação é a mesma do REST: token pessoal. O WebSocket aceita `Authorization`
-como header (é o que o bridge usa) ou `?token=` na query, pra cliente que não
-consegue mandar header. Quem não é membro do projeto não conecta.
+Autenticação é a mesma do REST: token pessoal, no header `Authorization` ou em
+`?token=` para cliente que não manda header. Token inválido ou projeto onde a
+pessoa não é membro recusam o handshake com 403.
 """
 
 import asyncio
@@ -44,8 +44,10 @@ async def websocket_events(
 ) -> None:
     try:
         person_id = _autenticar(authorization, token, projeto)
-    except DomainError as erro:
-        await websocket.close(code=4401 if erro.status == 401 else 4404)
+    except DomainError:
+        # Fechar antes do accept faz o Starlette recusar o handshake com 403 - o
+        # cliente não chega a ver código de close, então não adianta detalhar aqui.
+        await websocket.close()
         return
 
     await websocket.accept()

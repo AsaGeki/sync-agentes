@@ -1,10 +1,9 @@
 """Autenticação por token pessoal.
 
-Token não é mais compartilhado: cada pessoa tem o seu, emitido por `POST /people`
-(protegido pelo `ADMIN_TOKEN` do `.env`). Quem assina um evento é a pessoa dona do
-token que veio no `Authorization` - não um header que o cliente escolhe. A
-ferramenta usada (`X-Agent`) e o ponto do git (`X-Git-Branch`/`X-Git-Commit`) são
-metadado do evento, não identidade.
+Cada pessoa tem o seu, emitido por `POST /people` (protegido pelo `ADMIN_TOKEN`).
+Quem assina um evento é a dona do token que veio no `Authorization`. A ferramenta
+(`X-Agent`) e o ponto do git (`X-Git-Branch`/`X-Git-Commit`) são metadado do
+evento, não identidade.
 """
 
 from __future__ import annotations
@@ -76,14 +75,12 @@ def contexto_git(
 
 
 def normalizar_agent(bruto: str | None) -> EAgent:
-    """Casa o nome que o cliente MCP se dá (`clientInfo.name`: 'claude-code',
-    'Codex CLI', 'cursor-vscode'...) com um valor conhecido. Nome não
-    reconhecido vira 'outro' - o evento continua válido, só não sabemos a
-    ferramenta."""
+    """Casa o nome que o cliente MCP se dá ('claude-code', 'Codex CLI'...) com um
+    valor conhecido. Desconhecido vira 'outro'."""
     if not bruto:
         return EAgent.outro
     texto = bruto.lower()
-    for agent in (EAgent.claude, EAgent.codex, EAgent.cursor, EAgent.copilot):
+    for agent in (EAgent.claude, EAgent.codex):
         if agent.value in texto:
             return agent
     return EAgent.outro

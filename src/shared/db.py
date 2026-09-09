@@ -13,8 +13,7 @@ from pathlib import Path
 from src.shared import migracao_v3
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-# SYNC_AGENTS_DB aponta o banco pra outro arquivo - é o que permite rodar um
-# smoke test ponta a ponta sem encostar no `sync.db` de verdade.
+# SYNC_AGENTS_DB troca o arquivo do banco, pra rodar contra um descartável.
 DB_PATH = Path(os.environ.get("SYNC_AGENTS_DB") or BASE_DIR / "sync.db")
 
 SCHEMA = """
@@ -78,7 +77,7 @@ CREATE TABLE IF NOT EXISTS events (
   task_id    INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
   author_id  INTEGER NOT NULL REFERENCES people(id),
   agent      TEXT NOT NULL DEFAULT 'outro'
-             CHECK (agent IN ('claude','codex','cursor','copilot','human','outro')),
+             CHECK (agent IN ('claude','codex','human','outro')),
   branch     TEXT,
   commit_sha TEXT,
   kind       TEXT NOT NULL CHECK (kind IN (
@@ -235,8 +234,6 @@ def _migrar_para_ingles(conn: sqlite3.Connection) -> None:
     )
     conn.execute("DROP TABLE corpos")
     conn.execute("DROP TABLE dependencias")
-    # Feature de dependência foi cortada, não só escondida - o evento histórico
-    # (kind='dependencia') não tem mais tabela nem CHECK que o aceite.
     conn.execute("DELETE FROM events WHERE kind = 'dependencia'")
 
     # 'dependencia' sai do CHECK de kind e o UNIQUE parcial de corpo entra -
@@ -308,9 +305,7 @@ def _migrar_humano_para_dev(conn: sqlite3.Connection) -> None:
 
 
 def _backup_antes_de_migrar() -> None:
-    """Cópia do banco antes de qualquer migração que reconstrói tabela. As
-    migrações fazem DROP TABLE - se alguma quebrar no meio, sem isto não há
-    volta. Guarda só a mais recente por dia."""
+    """Cópia do banco antes das migrações, que fazem DROP TABLE. Uma por dia."""
     if not DB_PATH.exists():
         return
     destino = DB_PATH.with_name(f"{DB_PATH.name}.bak-{datetime.now():%Y%m%d}")

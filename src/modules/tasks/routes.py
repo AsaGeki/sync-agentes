@@ -131,8 +131,8 @@ def list_diffs(
         conn.close()
 
 
-@router.get("/projetos/{slug}/tasks/{code}/diff")
-def read_diff(
+@router.get("/projetos/{slug}/tasks/{code}/corpo/diff")
+def read_body_diff(
     slug: str,
     code: str,
     desde: int = Query(0, ge=0),

@@ -72,7 +72,7 @@ Se imprimiu uma versão, terminou. Se disser que o comando não existe, reabra o
 
 > **Já tem Python e prefere não instalar o `uv`?** Funciona também:
 > ```bash
-> pip install --user git+https://github.com/ORG/sync-agents
+> pip install --user git+https://github.com/AsaGeki/sync-agentes
 > ```
 > Depois, em toda configuração abaixo, troque `uvx` por `sync-agents-mcp` e apague a linha dos `args` que começa com `--from`.
 
@@ -80,14 +80,14 @@ Se imprimiu uma versão, terminou. Se disser que o comando não existe, reabra o
 
 ## Passo 2 — Ligar no seu app de IA
 
-Ache o seu caso abaixo. Troque **`ORG`** pela organização do repositório, **`http://SERVIDOR:8787`** pelo endereço que te passaram e **`SEU-TOKEN`** pelo seu token.
+Ache o seu caso abaixo. Troque **`http://SERVIDOR:8787`** pelo endereço que te passaram e **`SEU-TOKEN`** pelo seu token; o resto vai como está.
 
 ### Claude Code (terminal ou extensão de IDE)
 
 Uma linha, e serve pra todos os seus projetos:
 
 ```bash
-claude mcp add --scope user sync-agents --env SYNC_AGENTS_URL=http://SERVIDOR:8787 --env SYNC_AGENTS_TOKEN=SEU-TOKEN -- uvx --from git+https://github.com/ORG/sync-agents sync-agents-mcp
+claude mcp add --scope user sync-agents --env SYNC_AGENTS_URL=http://SERVIDOR:8787 --env SYNC_AGENTS_TOKEN=SEU-TOKEN -- uvx --from git+https://github.com/AsaGeki/sync-agentes sync-agents-mcp
 ```
 
 `--scope user` grava a configuração no seu perfil, fora de qualquer repositório — seu token não corre risco de ir pra um commit.
@@ -101,7 +101,7 @@ Crie ou edite `~/.cursor/mcp.json` (no Windows: `C:\Users\SEU-USUARIO\.cursor\mc
   "mcpServers": {
     "sync-agents": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/ORG/sync-agents", "sync-agents-mcp"],
+      "args": ["--from", "git+https://github.com/AsaGeki/sync-agentes", "sync-agents-mcp"],
       "env": {
         "SYNC_AGENTS_URL": "http://SERVIDOR:8787",
         "SYNC_AGENTS_TOKEN": "SEU-TOKEN"
@@ -131,7 +131,7 @@ Edite o arquivo de configuração:
   "mcpServers": {
     "sync-loja": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/ORG/sync-agents", "sync-agents-mcp"],
+      "args": ["--from", "git+https://github.com/AsaGeki/sync-agentes", "sync-agents-mcp"],
       "env": {
         "SYNC_AGENTS_URL": "http://SERVIDOR:8787",
         "SYNC_AGENTS_TOKEN": "SEU-TOKEN",
@@ -151,7 +151,7 @@ Reinicie o Claude Desktop.
 Qualquer cliente MCP serve. Ele precisa executar este comando:
 
 ```
-uvx --from git+https://github.com/ORG/sync-agents sync-agents-mcp
+uvx --from git+https://github.com/AsaGeki/sync-agentes sync-agents-mcp
 ```
 
 com as variáveis `SYNC_AGENTS_URL` e `SYNC_AGENTS_TOKEN` no ambiente, e — se o app não abre uma pasta de projeto — também `SYNC_AGENTS_REPO` apontando o repositório.
@@ -219,6 +219,7 @@ Volta um resumo por task: status atual, o que mudou, em que branch e entre quais
 | "é privado - peça a um owner pra te adicionar" | o projeto está fechado | peça pra alguém que já está nele te adicionar pelo seu email |
 | `uvx` não é reconhecido | terminal aberto antes da instalação do `uv`, ou instalação incompleta | feche e reabra o terminal (e o app de IA). Confira com `uv --version` |
 | a IA não sabe que o sync existe | o app não carregou o MCP | reinicie o app; no Claude Code, `claude mcp list` mostra se está registrado |
+| tempo real recusado com 403 | token inválido, ou você não é membro desse projeto | confira o token e peça acesso ao projeto se ele for privado |
 
 ---
 
@@ -228,7 +229,7 @@ Precisa de detalhe? Está tudo aqui.
 
 ### O que a IA consegue fazer
 
-`status` (onde estou) · `list_tasks` · `read_task` · `create_task` · `update_task` · `send_message` · `update_body` · `read_diff` · `publish_diff` · `list_diffs` · `read_changes` · `read_report` · `list_members` · `add_member` · `update_project` · `link_repo`
+`status` (onde estou) · `list_tasks` · `read_task` · `create_task` · `update_task` · `send_message` · `update_body` · `read_body_diff` · `publish_diff` · `list_diffs` · `read_changes` · `read_report` · `list_members` · `add_member` · `update_project` · `link_repo`
 
 Nenhuma delas recebe nome de projeto: o projeto é o repositório da sessão. Toda resposta traz `novidades` quando o outro lado escreveu algo desde a última chamada — é por isso que ninguém precisa mandar sincronizar.
 
@@ -258,7 +259,7 @@ Todo evento chega no mesmo formato, seja pela API, pelo tempo real ou pelo relat
 }
 ```
 
-`kind` é um destes: `task.created`, `task.field_changed`, `body.updated`, `message.created`, `diff.published`.
+`kind` é um destes: `task.created`, `task.field_changed`, `body.updated`, `message.created`, `diff.published`. O `agent` é `claude`, `codex`, `human` ou `outro`.
 
 ### Sem MCP, ou pra montar uma tela
 

@@ -7,13 +7,18 @@ meta {
 get {
   url: {{baseUrl}}/people
   body: none
-  auth: inherit
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
 }
 
 docs {
   Endpoint: GET /people
-  Autenticacao: token pessoal.
+  Autenticacao: ADMIN_TOKEN.
 
-  Lista todo mundo cadastrado. `tem_token` false = pessoa existe mas ainda nao
+  Lista todo mundo cadastrado. Pra saber quem esta num projeto especifico use
+  GET /projetos/{slug}/membros, que responde a qualquer membro. `tem_token` false = pessoa existe mas ainda nao
   consegue autenticar (caso tipico de quem veio da migracao 2.x).
 }

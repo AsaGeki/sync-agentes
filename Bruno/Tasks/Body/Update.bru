@@ -17,7 +17,8 @@ headers {
 
 body:json {
   {
-    "texto": "Texto completo da task, nao um fragmento."
+    "texto": "Texto completo da task, nao um fragmento.",
+    "versao_base": 1
   }
 }
 
@@ -27,4 +28,8 @@ docs {
 
   Cada chamada vira uma versao nova e a resposta traz o diff unificado contra
   a anterior. Mande sempre o texto integro - o que voce envia vira a versao.
+
+  versao_base (opcional): a versao sobre a qual voce escreveu este texto. Se o
+  outro lado gravou nesse meio tempo, a resposta e 409 em vez de sobrescrever o
+  que ele escreveu. Omitindo, grava por cima.
 }

@@ -43,8 +43,7 @@ def insert(conn: sqlite3.Connection, slug: str, name: str, created_by: int) -> i
 
 
 def find_all_de(conn: sqlite3.Connection, person_id: int) -> list[sqlite3.Row]:
-    """Só os projetos em que a pessoa é membro - é isto que impede um agente de
-    esbarrar no assunto de um projeto que não é dele."""
+    """Só os projetos em que a pessoa é membro."""
     return conn.execute(
         """SELECT p.*, m.role,
                   (SELECT COUNT(*) FROM tasks  t WHERE t.project_id = p.id) AS tasks,

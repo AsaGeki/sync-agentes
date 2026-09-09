@@ -8,22 +8,20 @@ from src.modules.people.models import PessoaIn
 
 
 def hash_token(token: str) -> str:
-    """Token é gerado por `secrets` (256 bits), não escolhido por humano - SHA-256
-    direto basta, KDF com salt aqui só protegeria contra dicionário, que não
-    existe nesse espaço de busca."""
+    """SHA-256 direto: o token tem 256 bits de entropia gerada por `secrets`,
+    não é senha escolhida por pessoa."""
     return hashlib.sha256(token.encode()).hexdigest()
 
 
 def alias_de(email: str) -> str:
-    """Assinatura curta da pessoa: a parte local do email do git
-    (`arthur.macedo@empresa.com` -> `arthur.macedo`)."""
+    """Parte local do email (`arthur.macedo@empresa.com` -> `arthur.macedo`)."""
     return email.split("@")[0].lower()
 
 
 def emit_token(conn: sqlite3.Connection, dados: PessoaIn) -> dict[str, Any]:
-    """Cadastra a pessoa (ou reaproveita quem já existe com esse email) e emite
-    um token novo pra ela. O token em texto puro só existe nesta resposta - o
-    banco guarda o hash; emitir de novo invalida o anterior."""
+    """Cadastra a pessoa, ou reaproveita quem já existe com esse email, e emite
+    um token novo. O texto puro só existe nesta resposta (o banco guarda o
+    hash), e emitir de novo invalida o anterior."""
     token = secrets.token_urlsafe(32)
     alias = alias_de(dados.email)
     existente = repositorio.find_by_email(conn, dados.email)

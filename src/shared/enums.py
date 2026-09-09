@@ -2,13 +2,11 @@ from enum import StrEnum
 
 
 class EAgent(StrEnum):
-    """Ferramenta pela qual a pessoa escreveu. Não é quem assina - quem assina é
-    sempre uma pessoa (`people`); isto é como ela escreveu."""
+    """Ferramenta pela qual a pessoa escreveu. Quem assina é sempre a pessoa
+    (`people`); isto diz por onde."""
 
     claude = "claude"
     codex = "codex"
-    cursor = "cursor"
-    copilot = "copilot"
     human = "human"
     outro = "outro"
 
@@ -47,8 +45,7 @@ class EStatusProject(StrEnum):
 
 
 class EKindEvent(StrEnum):
-    """Tipo do evento na trilha. `<entidade>.<fato no passado>` - é o que um
-    consumidor externo (tela, auditoria) lê sem conhecer o interno daqui."""
+    """Tipo do evento na trilha, no formato `<entidade>.<fato no passado>`."""
 
     task_created = "task.created"
     task_field_changed = "task.field_changed"

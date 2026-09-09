@@ -24,10 +24,15 @@ def find_by_id(conn: sqlite3.Connection, task_id: int) -> sqlite3.Row | None:
     return conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
 
 
-def count(conn: sqlite3.Connection, projeto_id: int) -> int:
-    return conn.execute(
-        "SELECT COUNT(*) AS n FROM tasks WHERE project_id = ?", (projeto_id,)
-    ).fetchone()["n"]
+def proximo_codigo(conn: sqlite3.Connection, projeto_id: int) -> str:
+    """Sempre acima do maior código já usado: contar tasks repetiria um código
+    caso alguma tenha sido removida."""
+    linha = conn.execute(
+        "SELECT MAX(CAST(SUBSTR(code, 3) AS INTEGER)) AS maior FROM tasks"
+        " WHERE project_id = ? AND code GLOB 'T-[0-9]*'",
+        (projeto_id,),
+    ).fetchone()
+    return f"T-{(linha['maior'] or 0) + 1:03d}"
 
 
 def insert(conn: sqlite3.Connection, projeto_id: int, code: str, dados: TaskIn) -> int:
