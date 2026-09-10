@@ -181,11 +181,17 @@ Se voltou isso, acabou — está conectado. `projetos` normalmente tem 1 item; s
 
 > Cria um projeto pra este repositório.
 
-Ela vai perguntar se é `team` (qualquer um com o repositório entra sozinho) ou `private` (só entra quem um owner aceitar) antes de criar. Se o projeto já existe mas é `private` e você ainda não é membro, peça:
+Ela vai perguntar se é `team` (qualquer um com o repositório entra sozinho) ou `private` (só entra quem um owner aceitar) antes de criar.
 
-> Pede acesso a este projeto.
+**O projeto já existe, mas este repositório ainda não está linkado a ele?** Se for `team`, peça pra IA linkar direto - ela já vira membro no mesmo ato, sem precisar de aprovação:
 
-Fica pendente até um owner aceitar.
+> Linka este repositório ao projeto X.
+
+Se for `private`, primeiro peça acesso:
+
+> Pede acesso ao projeto X.
+
+Fica pendente até um owner aceitar - só depois dá pra linkar.
 
 ---
 
@@ -228,6 +234,7 @@ Volta um resumo por task: status atual, o que mudou, em que branch e entre quais
 | "Token não corresponde a nenhuma pessoa cadastrada" | token errado, ou foi gerado outro pra você (gerar um novo cancela o anterior) | peça o token atual pra quem administra |
 | "Servidor inacessível" | o servidor está desligado, o endereço está errado, ou o firewall está bloqueando | confira abrindo `http://SERVIDOR:8787/health` no navegador. Se não abrir, o problema é do servidor ou da rede, não seu |
 | "é privado - peça a um owner pra te adicionar" | o projeto está fechado | peça pra alguém que já está nele te adicionar pelo seu email |
+| `link_repo`/tarefa numa task devolve "Projeto 'X' não existe" mesmo você sabendo que existe | você não é membro - a mensagem não distingue "não existe" de "existe mas você não tem acesso" (de propósito, pra `private` não vazar quem está fechado) | `list_projects` confirma se existe e mostra a visibility; se for `private`, `request_access(project=X)` pede acesso - funciona mesmo com o repositório desta sessão ainda sem nenhum projeto afiliado |
 | `uvx` não é reconhecido | terminal aberto antes da instalação do `uv`, ou instalação incompleta | feche e reabra o terminal (e o app de IA). Confira com `uv --version` |
 | a IA não sabe que o sync existe | o app não carregou o MCP | reinicie o app; no Claude Code, `claude mcp list` mostra se está registrado |
 | tempo real recusado com 403 | token inválido, ou você não é membro desse projeto | confira o token e peça acesso ao projeto se ele for privado |
@@ -240,7 +247,7 @@ Precisa de detalhe? Está tudo aqui.
 
 ### O que a IA consegue fazer
 
-`status` (onde estou) · `create_project` · `request_access` · `list_requests` · `approve_request` · `reject_request` · `list_tasks` · `read_task` · `create_task` · `update_task` · `send_message` · `update_body` · `read_body_diff` · `publish_diff` · `list_diffs` · `read_changes` · `read_report` · `list_members` · `add_member` · `update_project` · `link_repo`
+`status` (onde estou) · `list_projects` · `create_project` · `request_access` · `list_requests` · `approve_request` · `reject_request` · `list_tasks` · `read_task` · `create_task` · `update_task` · `send_message` · `update_body` · `read_body_diff` · `publish_diff` · `list_diffs` · `read_changes` · `read_report` · `list_members` · `add_member` · `update_project` · `link_repo`
 
 Todas aceitam `project` (slug) opcional. Com 1 projeto só afiliado ao repositório, pode omitir. Com mais de 1, é obrigatório — chamar sem devolve a lista de candidatos em vez de adivinhar. Toda resposta traz `novidades` quando o outro lado escreveu algo desde a última chamada — é por isso que ninguém precisa mandar sincronizar.
 

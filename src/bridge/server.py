@@ -38,16 +38,23 @@ INSTRUCOES = (
     "lista de candidatos em vez de adivinhar qual. Pergunte à pessoa qual "
     "projeto antes de escolher, nunca decida sozinho.\n\n"
     ""
-    "PROJETO NOVO\n"
-    "Se `status` não trouxer nenhum projeto pra este repositório, use "
-    "`create_project` - ele cria o projeto e já afilia o repositório desta "
-    "sessão (funciona mesmo se este repositório já tiver outro projeto - soma "
-    "mais um). SEMPRE pergunte à pessoa, antes de chamar, se o projeto deve "
-    "ser `team` (qualquer um com o repositório entra sozinho) ou `private` (só "
-    "entra quem um owner aceitar) - nunca decida isso sozinho. Se um projeto "
-    "já existe mas você não é membro (`private`), use `request_access` - fica "
-    "pendente até um owner aceitar (`list_requests` / aceitar / recusar, "
-    "ferramentas do owner).\n\n"
+    "PROJETO NOVO OU SEM ACESSO\n"
+    "Se `status` não trouxer nenhum projeto pra este repositório: `list_projects` "
+    "lista todo projeto que existe no servidor (independe do repositório desta "
+    "sessão - existência é pública, mesmo `private`), útil pra achar o slug "
+    "certo antes de agir. Repositório sem NENHUM projeto ainda: `create_project` "
+    "cria um e já afilia este repositório a ele (funciona mesmo se este "
+    "repositório já tiver outro - soma mais um). SEMPRE pergunte à pessoa, "
+    "antes de chamar, se o projeto deve ser `team` (qualquer um com o "
+    "repositório entra sozinho) ou `private` (só entra quem um owner aceitar) - "
+    "nunca decida isso sozinho. Projeto já existe (achou o slug via "
+    "`list_projects`) mas o repositório desta sessão ainda não está linkado a "
+    "ele: se for `team`, `link_repo(project=<slug>)` direto - linka e já vira "
+    "membro no mesmo ato, sem precisar de aprovação de ninguém. Se for "
+    "`private`, `link_repo` só funciona se você já for membro - nesse caso use "
+    "antes `request_access(project=<slug>)` (funciona mesmo sem o repositório "
+    "desta sessão afiliado a nada) e espere um owner aceitar (`list_requests` / "
+    "aceitar / recusar, ferramentas do owner) antes de linkar.\n\n"
     ""
     "IDENTIDADE\n"
     "Quem assina é a pessoa dona do token desta máquina, e a ferramenta que "
@@ -142,18 +149,11 @@ class Sessao:
             },
         )
 
-    def resolver_slug(self, project: str | None) -> str | dict[str, Any]:
-        """Decide qual dos projetos afiliados usar. `project` explícito escolhe
-        (tem que estar na lista); omitido só funciona com exatamente 1 - com
-        mais de 1, devolve erro em vez de adivinhar."""
+    def resolver_slug(self) -> str | dict[str, Any]:
+        """Escolhe entre os projetos afiliados ao repositório desta sessão - só
+        funciona sozinho com exatamente 1. Mais de 1 sem `project` explícito
+        devolve erro em vez de adivinhar."""
         slugs = [p["slug"] for p in self.projetos]
-        if project is not None:
-            if project in slugs:
-                return project
-            return {
-                "erro": f"Projeto '{project}' não está entre os afiliados a este "
-                f"repositório: {', '.join(slugs)}."
-            }
         if len(slugs) == 1:
             return slugs[0]
         return {
@@ -161,6 +161,14 @@ class Sessao:
             "com project=<slug>. Pergunte à pessoa qual, não escolha sozinho.",
             "projetos": slugs,
         }
+
+    def api_avulsa(self, ctx: Context) -> Api:
+        """Cliente HTTP sem depender do repositório já estar afiliado a nada -
+        pra tool que recebe `project` explícito e atua nele direto (pedir
+        acesso a um projeto cujo repo ainda não foi linkado, por exemplo)."""
+        if self.api is None:
+            self.api = Api(self.base_url, self.token, self.repo, _agent_do_cliente(ctx))
+        return self.api
 
 
 SESSAO = Sessao()
@@ -175,42 +183,52 @@ def _agent_do_cliente(ctx: Context) -> str:
         return "outro"
 
 
-def _novidades(sessao: Sessao, slug: str) -> list[str]:
+def _novidades(api: Api, slug: str) -> list[str]:
     """O que o outro lado escreveu desde a última chamada de tool neste
     projeto. Vai anexado em toda resposta - é o que dispensa alguém pedir
     'sincroniza no sync'."""
-    resposta = sessao.api.request(
+    resposta = api.request(
         "GET",
         f"/projetos/{slug}/mudancas",
-        query={"desde": sessao.cursores.get(slug, 0), "limite": 20, "de_outros": True},
+        query={"desde": SESSAO.cursores.get(slug, 0), "limite": 20, "de_outros": True},
     )
-    sessao.cursores[slug] = resposta["cursor"]
+    SESSAO.cursores[slug] = resposta["cursor"]
     return [e["resumo"] for e in resposta["eventos"] if e.get("resumo")]
 
 
 def _chamar(ctx: Context, project: str | None, acao) -> Any:
-    """Envelope comum de toda tool: valida ambiente, resolve os projetos do
-    repositório, decide qual usar, executa e anexa as novidades do outro
-    lado."""
+    """Envelope comum de toda tool: valida ambiente, decide qual projeto usar,
+    executa e anexa as novidades do outro lado.
+
+    `project` explícito não depende do repositório desta sessão já estar
+    afiliado a nada - só o servidor decide se você tem acesso (`exigir_acesso`).
+    Isso importa pro primeiro pedido de acesso a um projeto cujo repo ainda não
+    foi linkado. `project` omitido resolve pelos projetos afiliados ao
+    repositório (funciona sozinho com exatamente 1)."""
     problema = SESSAO.erro_de_ambiente()
     if problema:
         return {"erro": problema}
+    if project is not None:
+        slug = project
+        api = SESSAO.api_avulsa(ctx)
+    else:
+        try:
+            SESSAO.conectar(ctx)
+        except ErroApi as erro:
+            return {"erro": erro.detalhe, "status": erro.status}
+        slug = SESSAO.resolver_slug()
+        if isinstance(slug, dict):
+            return slug
+        api = SESSAO.api
     try:
-        SESSAO.conectar(ctx)
-    except ErroApi as erro:
-        return {"erro": erro.detalhe, "status": erro.status}
-    slug = SESSAO.resolver_slug(project)
-    if isinstance(slug, dict):
-        return slug
-    try:
-        resultado = acao(SESSAO.api, slug)
+        resultado = acao(api, slug)
     except ErroApi as erro:
         return {"erro": erro.detalhe, "status": erro.status}
 
     # Fora do try acima: falha aqui não pode transformar escrita bem-sucedida em
     # erro, senão o agente repete a escrita.
     try:
-        novidades = _novidades(SESSAO, slug)
+        novidades = _novidades(api, slug)
     except ErroApi:
         novidades = []
     # Objeto na raiz sempre: lista crua vira um content block por item no MCP, e
@@ -253,6 +271,20 @@ def status(ctx: Context) -> dict[str, Any]:
 
 
 @mcp.tool()
+def list_projects(ctx: Context) -> Any:
+    """Lista todo projeto que existe no servidor, não só os afiliados a este
+    repositório - existência de projeto é pública. Use pra achar o slug de um
+    projeto antes de `request_access` ou `link_repo`."""
+    problema = SESSAO.erro_de_ambiente()
+    if problema:
+        return {"erro": problema}
+    try:
+        return SESSAO.api_avulsa(ctx).request("GET", "/projetos")
+    except ErroApi as erro:
+        return {"erro": erro.detalhe, "status": erro.status}
+
+
+@mcp.tool()
 def create_project(
     ctx: Context, name: str, visibility: EVisibility, description: str | None = None
 ) -> Any:
@@ -265,9 +297,8 @@ def create_project(
     problema = SESSAO.erro_de_ambiente()
     if problema:
         return {"erro": problema}
-    api = Api(SESSAO.base_url, SESSAO.token, SESSAO.repo, _agent_do_cliente(ctx))
     try:
-        projeto = api.request(
+        projeto = SESSAO.api_avulsa(ctx).request(
             "POST",
             "/projetos",
             {
@@ -283,7 +314,6 @@ def create_project(
         )
     except ErroApi as erro:
         return {"erro": erro.detalhe, "status": erro.status}
-    SESSAO.api = api
     SESSAO.projetos = None  # força re-resolver no próximo conectar()
     return projeto
 
@@ -622,14 +652,17 @@ def link_repo(ctx: Context, project: str) -> Any:
     """Aponta o repositório desta sessão pro projeto `project` (slug) - use
     quando este repositório ainda não está afiliado a ele (frontend/backend em
     repos separados do mesmo trabalho, ou mais um repo pro mesmo projeto).
-    Você precisa já ter acesso a esse projeto. `project` é obrigatório aqui -
-    não há como inferir, é justamente o vínculo que ainda não existe."""
+    `project` é obrigatório aqui - não há como inferir, é justamente o vínculo
+    que ainda não existe.
+
+    Projeto `team`: qualquer pessoa cadastrada linka, e já vira membro nesse
+    ato - mesmo espírito de "quem tem o repositório entra sozinho". Projeto
+    `private`: só quem já é membro consegue linkar."""
     problema = SESSAO.erro_de_ambiente()
     if problema:
         return {"erro": problema}
-    api = Api(SESSAO.base_url, SESSAO.token, SESSAO.repo, _agent_do_cliente(ctx))
     try:
-        resultado = api.request(
+        resultado = SESSAO.api_avulsa(ctx).request(
             "POST",
             f"/projetos/{project}/repos",
             {
@@ -640,7 +673,6 @@ def link_repo(ctx: Context, project: str) -> Any:
         )
     except ErroApi as erro:
         return {"erro": erro.detalhe, "status": erro.status}
-    SESSAO.api = api
     SESSAO.projetos = None  # força re-resolver no próximo conectar()
     return resultado
 

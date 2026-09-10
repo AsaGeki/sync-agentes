@@ -22,6 +22,18 @@ def _serializar(conn: sqlite3.Connection, projeto: sqlite3.Row) -> dict[str, Any
     return dados
 
 
+def _serializar_com_role(conn: sqlite3.Connection, projeto: sqlite3.Row, role: str | None) -> dict[str, Any]:
+    """Igual `_serializar`, mas pra resposta que pode ir pra quem não é membro
+    (`role: null`) - repositórios vinculados e quem criou são conteúdo, não
+    existência, então somem pra quem não tem acesso."""
+    dados = _serializar(conn, projeto)
+    if role is None:
+        dados.pop("repos", None)
+        dados.pop("created_by", None)
+    dados["role"] = role
+    return dados
+
+
 def exigir_acesso(conn: sqlite3.Connection, slug: str, person_id: int) -> sqlite3.Row:
     """Porta única de todo acesso a projeto. Sem membership responde 404, não
     403: quem não é membro não descobre que o projeto existe."""
@@ -63,7 +75,7 @@ def resolve_repo(
                 role = ERole.member.value
             else:
                 role = None
-            resultado.append({**_serializar(conn, projeto), "role": role})
+            resultado.append(_serializar_com_role(conn, projeto, role))
     return resultado
 
 
@@ -85,21 +97,30 @@ def create_project(conn: sqlite3.Connection, person_id: int, dados: ProjetoIn) -
 def vincular_repo(
     conn: sqlite3.Connection, slug: str, person_id: int, repo: RepoIn
 ) -> dict[str, Any]:
-    """Aponta mais um repositório pro projeto. O mesmo repositório pode estar
-    em outro(s) projeto(s) também - isso não bloqueia. Vincular um repo que já
-    está neste projeto é idempotente."""
-    projeto = exigir_acesso(conn, slug, person_id)
-    if repositorio.find_repo_link(conn, repo.root_sha, projeto["id"]) is None:
-        with conn:
+    """Aponta mais um repositório pro projeto. `team` deixa qualquer pessoa
+    cadastrada linkar - mesmo espírito de "quem tem o repositório entra
+    sozinho" - e quem linka já vira membro nesse ato, senão ficaria com o
+    repo linkado e nenhum acesso. `private` exige já ser membro. O mesmo
+    repositório pode estar em outro(s) projeto(s) também - isso não bloqueia.
+    Vincular um repo que já está neste projeto é idempotente."""
+    projeto = repositorio.find_by_slug(conn, slug)
+    if projeto["visibility"] == EVisibility.private.value:
+        if repositorio.find_membership(conn, projeto["id"], person_id) is None:
+            raise NotFound(f"Projeto '{slug}' não existe")
+    with conn:
+        if repositorio.find_repo_link(conn, repo.root_sha, projeto["id"]) is None:
             repositorio.insert_repo(conn, projeto["id"], repo.root_sha, repo.name, repo.remote)
+        if repositorio.find_membership(conn, projeto["id"], person_id) is None:
+            repositorio.insert_membership(conn, projeto["id"], person_id, ERole.member.value)
     return _serializar(conn, projeto)
 
 
 def list_projects(conn: sqlite3.Connection, person_id: int) -> list[dict[str, Any]]:
-    """Todo projeto, `team` e `private` - existência é pública. Escrever no
-    conteúdo continua exigindo membership (`exigir_acesso`)."""
+    """Todo projeto, `team` e `private` - existência é pública. Repositórios
+    vinculados e quem criou só aparecem pra quem é membro; ler/escrever o
+    conteúdo (tasks, eventos) continua exigindo membership (`exigir_acesso`)."""
     return [
-        {**_serializar(conn, linha), "role": linha["role"]}
+        _serializar_com_role(conn, linha, linha["role"])
         for linha in repositorio.find_all(conn, person_id)
     ]
 
