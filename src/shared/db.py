@@ -57,6 +57,17 @@ CREATE TABLE IF NOT EXISTS memberships (
   PRIMARY KEY (project_id, person_id)
 );
 
+-- Pedido de acesso a projeto `private`. `team` não passa por aqui - entra
+-- sozinho direto em `memberships`.
+CREATE TABLE IF NOT EXISTS membership_requests (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  person_id   INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+  status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','rejected')),
+  created_at  TEXT NOT NULL,
+  resolved_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS tasks (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

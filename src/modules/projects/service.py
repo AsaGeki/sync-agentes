@@ -4,9 +4,9 @@ from typing import Any
 
 from src.modules.people import repositorio as people_repositorio
 from src.modules.projects import repositorio
-from src.modules.projects.models import ProjetoPatch, RepoIn
-from src.shared.enums import ERole, EVisibility
-from src.shared.erros import Forbidden, Invalid, NotFound
+from src.modules.projects.models import ProjetoIn, ProjetoPatch, RepoIn
+from src.shared.enums import ERequestStatus, ERole, EVisibility
+from src.shared.erros import AlreadyExists, Forbidden, Invalid, NotFound
 
 
 def _slug_de(nome: str) -> str:
@@ -17,6 +17,8 @@ def _slug_de(nome: str) -> str:
 def _serializar(conn: sqlite3.Connection, projeto: sqlite3.Row) -> dict[str, Any]:
     dados = {k: projeto[k] for k in projeto.keys()}
     dados["repos"] = [dict(r) for r in repositorio.repos_do_projeto(conn, projeto["id"])]
+    criador = people_repositorio.find_by_id(conn, projeto["created_by"])
+    dados["created_by"] = criador["email"] if criador else None
     return dados
 
 
@@ -32,34 +34,49 @@ def exigir_acesso(conn: sqlite3.Connection, slug: str, person_id: int) -> sqlite
 def resolve_repo(
     conn: sqlite3.Connection, person_id: int, repo: RepoIn
 ) -> dict[str, Any]:
-    """Troca um repositório git pelo projeto correspondente.
+    """Troca um repositório git pelo projeto correspondente. Nunca cria projeto -
+    repo desconhecido é 404 (`create_project` cria explícito, ou um membro de
+    projeto existente linka com `POST /projetos/{slug}/repos`).
 
-    Repo desconhecido cria o projeto e faz de quem chamou o owner. Repo já
-    vinculado devolve o projeto; se a pessoa ainda não é membro, entra sozinha
-    quando o projeto é `team` e é barrada quando é `private`.
+    Repo conhecido devolve o projeto. `team` e quem ainda não é membro entra
+    sozinho; `private` devolve com `role: null` - acesso de escrita é por
+    `request_access`, não por só ter o repositório.
     """
     projeto = repositorio.find_by_root_sha(conn, repo.root_sha)
     if projeto is None:
-        with conn:
-            slug = repositorio.slug_livre(conn, _slug_de(repo.name))
-            projeto_id = repositorio.insert(conn, slug, repo.name, person_id)
-            repositorio.insert_membership(conn, projeto_id, person_id, ERole.owner.value)
-            repositorio.insert_repo(conn, projeto_id, repo.root_sha, repo.name, repo.remote)
-        projeto = repositorio.find_by_slug(conn, slug)
-        return {**_serializar(conn, projeto), "role": ERole.owner.value, "criado": True}
+        raise NotFound(
+            f"Nenhum projeto afiliado a este repositório ('{repo.name}', sha "
+            f"{repo.root_sha[:7]}). Crie um projeto pra ele (`create_project`), ou peça "
+            f"pra um membro de um projeto existente rodar POST /projetos/{{slug}}/repos "
+            f"com root_sha='{repo.root_sha}' e name='{repo.name}'."
+        )
 
     membership = repositorio.find_membership(conn, projeto["id"], person_id)
-    if membership is None:
-        if projeto["visibility"] == EVisibility.private.value:
-            raise Forbidden(
-                f"Projeto '{projeto['slug']}' é privado - peça a um owner pra te adicionar"
-            )
+    if membership is not None:
+        role = membership["role"]
+    elif projeto["visibility"] == EVisibility.team.value:
         with conn:
             repositorio.insert_membership(conn, projeto["id"], person_id, ERole.member.value)
         role = ERole.member.value
     else:
-        role = membership["role"]
-    return {**_serializar(conn, projeto), "role": role, "criado": False}
+        role = None
+    return {**_serializar(conn, projeto), "role": role}
+
+
+def create_project(conn: sqlite3.Connection, person_id: int, dados: ProjetoIn) -> dict[str, Any]:
+    """Cria um projeto e já afilia o repositório informado a ele, quem chamou
+    vira owner. Repositório já afiliado a outro projeto é recusado."""
+    if repositorio.find_by_root_sha(conn, dados.repo.root_sha) is not None:
+        raise AlreadyExists("Este repositório já está afiliado a um projeto")
+    with conn:
+        slug = repositorio.slug_livre(conn, _slug_de(dados.name))
+        projeto_id = repositorio.insert(
+            conn, slug, dados.name, person_id, dados.description, dados.visibility.value
+        )
+        repositorio.insert_membership(conn, projeto_id, person_id, ERole.owner.value)
+        repositorio.insert_repo(conn, projeto_id, dados.repo.root_sha, dados.repo.name, dados.repo.remote)
+    projeto = repositorio.find_by_slug(conn, slug)
+    return {**_serializar(conn, projeto), "role": ERole.owner.value}
 
 
 def vincular_repo(
@@ -78,9 +95,11 @@ def vincular_repo(
 
 
 def list_projects(conn: sqlite3.Connection, person_id: int) -> list[dict[str, Any]]:
+    """Todo projeto, `team` e `private` - existência é pública. Escrever no
+    conteúdo continua exigindo membership (`exigir_acesso`)."""
     return [
         {**_serializar(conn, linha), "role": linha["role"]}
-        for linha in repositorio.find_all_de(conn, person_id)
+        for linha in repositorio.find_all(conn, person_id)
     ]
 
 
@@ -124,3 +143,50 @@ def add_member(
             conn, projeto["id"], convidado["id"], ERole.member.value
         )
     return {"projeto": slug, "email": convidado["email"], "role": ERole.member.value}
+
+
+def request_access(conn: sqlite3.Connection, slug: str, person_id: int) -> dict[str, Any]:
+    """Pede acesso de escrita a um projeto `private`. Fica pendente até um
+    owner aceitar ou recusar (`list_requests`/aceitar/recusar)."""
+    projeto = repositorio.find_by_slug(conn, slug)
+    if repositorio.find_membership(conn, projeto["id"], person_id) is not None:
+        raise AlreadyExists("Você já é membro deste projeto")
+    if repositorio.find_pending_request(conn, projeto["id"], person_id) is not None:
+        raise AlreadyExists("Já existe um pedido seu pendente pra este projeto")
+    with conn:
+        request_id = repositorio.insert_request(conn, projeto["id"], person_id)
+    return {"id": request_id, "projeto": slug, "status": ERequestStatus.pending.value}
+
+
+def list_requests(conn: sqlite3.Connection, slug: str, person_id: int) -> list[dict[str, Any]]:
+    projeto = exigir_acesso(conn, slug, person_id)
+    _exigir_owner(conn, projeto["id"], person_id)
+    return [dict(linha) for linha in repositorio.pending_requests_do_projeto(conn, projeto["id"])]
+
+
+def _resolver_request(
+    conn: sqlite3.Connection, slug: str, person_id: int, request_id: int, aceitar: bool
+) -> dict[str, Any]:
+    projeto = exigir_acesso(conn, slug, person_id)
+    _exigir_owner(conn, projeto["id"], person_id)
+    pedido = repositorio.find_request(conn, projeto["id"], request_id)
+    if pedido is None or pedido["status"] != ERequestStatus.pending.value:
+        raise NotFound(f"Pedido {request_id} não existe ou já foi resolvido")
+    status = ERequestStatus.accepted.value if aceitar else ERequestStatus.rejected.value
+    with conn:
+        repositorio.resolve_request(conn, request_id, status)
+        if aceitar:
+            repositorio.insert_membership(conn, projeto["id"], pedido["person_id"], ERole.member.value)
+    return {"id": request_id, "status": status}
+
+
+def approve_request(
+    conn: sqlite3.Connection, slug: str, person_id: int, request_id: int
+) -> dict[str, Any]:
+    return _resolver_request(conn, slug, person_id, request_id, aceitar=True)
+
+
+def reject_request(
+    conn: sqlite3.Connection, slug: str, person_id: int, request_id: int
+) -> dict[str, Any]:
+    return _resolver_request(conn, slug, person_id, request_id, aceitar=False)

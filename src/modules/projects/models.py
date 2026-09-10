@@ -12,6 +12,13 @@ class RepoIn(BaseModel):
     remote: str | None = None
 
 
+class ProjetoIn(BaseModel):
+    name: str = Field(min_length=1)
+    description: str | None = None
+    visibility: EVisibility
+    repo: RepoIn
+
+
 class ProjetoPatch(BaseModel):
     name: str | None = None
     description: str | None = None

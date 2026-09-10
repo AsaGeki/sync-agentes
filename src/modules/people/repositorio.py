@@ -1,4 +1,5 @@
 import sqlite3
+from typing import Any
 
 from src.shared.db import now
 
@@ -18,7 +19,7 @@ def find_by_token_hash(conn: sqlite3.Connection, token_hash: str) -> sqlite3.Row
 
 
 def insert(
-    conn: sqlite3.Connection, email: str, alias: str, name: str, token_hash: str
+    conn: sqlite3.Connection, email: str, alias: str, name: str, token_hash: str | None = None
 ) -> int:
     cursor = conn.execute(
         "INSERT INTO people (email, alias, name, token_hash, created_at) VALUES (?,?,?,?,?)",
@@ -39,3 +40,12 @@ def find_all(conn: sqlite3.Connection) -> list[sqlite3.Row]:
         """SELECT id, email, alias, name, token_hash IS NOT NULL AS tem_token, created_at
              FROM people ORDER BY id"""
     ).fetchall()
+
+
+def update_campos(conn: sqlite3.Connection, person_id: int, mudancas: dict[str, Any]) -> None:
+    for campo, valor in mudancas.items():
+        conn.execute(f"UPDATE people SET {campo} = ? WHERE id = ?", (valor, person_id))
+
+
+def delete(conn: sqlite3.Connection, person_id: int) -> None:
+    conn.execute("DELETE FROM people WHERE id = ?", (person_id,))

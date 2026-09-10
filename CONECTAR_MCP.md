@@ -92,6 +92,8 @@ claude mcp add --scope user sync-agents --env SYNC_AGENTS_URL=http://SERVIDOR:87
 
 `--scope user` grava a configuração no seu perfil, fora de qualquer repositório — seu token não corre risco de ir pra um commit.
 
+Depois de rodar, confira com `claude mcp list`. **A primeira checagem costuma falhar** ("Failed to connect" / "Request timed out") - é o `uvx` baixando e compilando o pacote a frio na sua máquina, não um problema de configuração. Roda `claude mcp list` de novo: da segunda vez o pacote já está em cache e conecta rápido.
+
 ### Cursor
 
 Crie ou edite `~/.cursor/mcp.json` (no Windows: `C:\Users\SEU-USUARIO\.cursor\mcp.json`):
@@ -164,7 +166,7 @@ Abra o chat **dentro da pasta do projeto** e peça:
 
 > Roda o `status` do sync-agents.
 
-Deve voltar algo assim:
+Se o repositório já tem projeto (alguém já criou ou linkou), deve voltar algo assim:
 
 ```
 projeto:      loja-api
@@ -174,7 +176,17 @@ branch:       feat/T-003-login
 assino_como:  arthur.macedo
 ```
 
-Se voltou isso, acabou — está conectado, e o projeto foi criado ou reconhecido sozinho a partir do repositório.
+Se voltou isso, acabou — está conectado.
+
+**Primeira vez neste repositório?** `status` volta dizendo que não há projeto afiliado - não é erro, é esperado. Peça pra IA criar:
+
+> Cria um projeto pra este repositório.
+
+Ela vai perguntar se é `team` (qualquer um com o repositório entra sozinho) ou `private` (só entra quem um owner aceitar) antes de criar. Se o projeto já existe mas é `private` e você ainda não é membro, peça:
+
+> Pede acesso a este projeto.
+
+Fica pendente até um owner aceitar.
 
 ---
 
@@ -229,7 +241,7 @@ Precisa de detalhe? Está tudo aqui.
 
 ### O que a IA consegue fazer
 
-`status` (onde estou) · `list_tasks` · `read_task` · `create_task` · `update_task` · `send_message` · `update_body` · `read_body_diff` · `publish_diff` · `list_diffs` · `read_changes` · `read_report` · `list_members` · `add_member` · `update_project` · `link_repo`
+`status` (onde estou) · `create_project` · `request_access` · `list_requests` · `approve_request` · `reject_request` · `list_tasks` · `read_task` · `create_task` · `update_task` · `send_message` · `update_body` · `read_body_diff` · `publish_diff` · `list_diffs` · `read_changes` · `read_report` · `list_members` · `add_member` · `update_project` · `link_repo`
 
 Nenhuma delas recebe nome de projeto: o projeto é o repositório da sessão. Toda resposta traz `novidades` quando o outro lado escreveu algo desde a última chamada — é por isso que ninguém precisa mandar sincronizar.
 
@@ -238,8 +250,8 @@ As regras de conduta do canal (quando usar cada tipo de mensagem, não reescreve
 ### Modelo de dados
 
 - **`people`** — quem escreve. O email é a chave e a parte antes do `@` vira o `alias` da assinatura. **A IA não é um cadastro**: quem assina é sempre uma pessoa, e a ferramenta usada (claude, codex, cursor) fica no campo `agent` do evento.
-- **`projects`** — um por repositório git, ligados pelo sha do commit raiz (que é igual em todo clone e não muda se a pasta for renomeada). Um projeto pode ter mais de um repositório: `link_repo` junta frontend e backend no mesmo canal.
-- **`memberships`** — quem tem acesso, como `owner` ou `member`. Projeto `team` deixa quem tem o repositório entrar sozinho; projeto `private` só por convite de um owner.
+- **`projects`** — criado explícito por `create_project` (repositório desconhecido não cria projeto sozinho, devolve 404), ligado ao repositório pelo sha do commit raiz (igual em todo clone, não muda se a pasta for renomeada). Um projeto pode ter mais de um repositório: `link_repo` junta frontend e backend no mesmo canal. A lista de projetos (`list_projects`/`GET /projetos`) é pública - todo mundo vê que um projeto existe; ler e escrever o conteúdo dele (tasks, corpo, eventos) continua exigindo membership.
+- **`memberships`** — quem tem acesso de escrita, como `owner` ou `member`. Projeto `team` deixa quem tem o repositório entrar sozinho; projeto `private` exige pedido (`request_access`) que um owner aceita ou recusa (`list_requests`/aceitar/recusar).
 - **`tasks`** — assunto, endereçado por `code` (`T-001`), com corpo versionado (cada atualização gera diff contra a anterior).
 - **`events`** — a trilha de tudo, carimbada com quem, qual ferramenta, qual branch e qual commit. É dela que saem "o que mudou desde X", o relatório e a notificação em tempo real.
 

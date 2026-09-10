@@ -35,6 +35,16 @@ INSTRUCOES = (
     "projeto, é outra sessão, aberta dentro do repositório dele. Chame "
     "`status` pra ver onde você está.\n\n"
     ""
+    "PROJETO NOVO\n"
+    "Se `status` disser que não há projeto afiliado a este repositório, use "
+    "`create_project` - ele cria o projeto e já afilia o repositório desta "
+    "sessão. SEMPRE pergunte à pessoa, antes de chamar, se o projeto deve ser "
+    "`team` (qualquer um com o repositório entra sozinho) ou `private` (só "
+    "entra quem um owner aceitar) - nunca decida isso sozinho. Se o repositório "
+    "já pertence a um projeto mas você não é membro (`private`), use "
+    "`request_access` - fica pendente até um owner aceitar (`list_requests` / "
+    "aceitar / recusar, ferramentas do owner).\n\n"
+    ""
     "IDENTIDADE\n"
     "Quem assina é a pessoa dona do token desta máquina, e a ferramenta que "
     "escreveu (claude ou codex) vai junto automaticamente. Não existe "
@@ -197,7 +207,7 @@ def status(ctx: Context) -> dict[str, Any]:
         "projeto": SESSAO.projeto["slug"],
         "projeto_name": SESSAO.projeto["name"],
         "visibility": SESSAO.projeto["visibility"],
-        "papel": SESSAO.projeto["role"],
+        "papel": SESSAO.projeto["role"] or "sem acesso - peça com request_access",
         "repo": SESSAO.repo.name,
         "branch": SESSAO.repo.branch,
         "commit": SESSAO.repo.commit_sha,
@@ -205,6 +215,42 @@ def status(ctx: Context) -> dict[str, Any]:
         "agent": _agent_do_cliente(ctx),
         "cursor": SESSAO.cursor,
     }
+
+
+@mcp.tool()
+def create_project(ctx: Context, name: str, visibility: EVisibility, description: str | None = None) -> Any:
+    """Cria um projeto novo e afilia o repositório desta sessão a ele. Use só
+    quando `status` disser que não há projeto afiliado a este repositório -
+    projeto existente não precisa disso, `status` já resolve sozinho.
+
+    SEMPRE pergunte à pessoa se o projeto deve ser `team` ou `private` antes de
+    chamar - não decida sozinho."""
+    problema = SESSAO.erro_de_ambiente()
+    if problema:
+        return {"erro": problema}
+    if SESSAO.projeto is not None:
+        return {"erro": f"Este repositório já está afiliado ao projeto '{SESSAO.slug}'."}
+    api = Api(SESSAO.base_url, SESSAO.token, SESSAO.repo, _agent_do_cliente(ctx))
+    try:
+        projeto = api.request(
+            "POST",
+            "/projetos",
+            {
+                "name": name,
+                "description": description,
+                "visibility": visibility.value,
+                "repo": {
+                    "root_sha": SESSAO.repo.root_sha,
+                    "name": SESSAO.repo.name,
+                    "remote": SESSAO.repo.remote,
+                },
+            },
+        )
+    except ErroApi as erro:
+        return {"erro": erro.detalhe, "status": erro.status}
+    SESSAO.api = api
+    SESSAO.projeto = projeto
+    return projeto
 
 
 # ---------- tasks ---------- #
@@ -467,6 +513,38 @@ def add_member(ctx: Context, email: str) -> Any:
     return _chamar(
         ctx,
         lambda api, slug: api.request("POST", f"/projetos/{slug}/membros", {"email": email}),
+    )
+
+
+@mcp.tool()
+def request_access(ctx: Context) -> Any:
+    """Pede acesso de escrita ao projeto desta sessão - necessário quando ele é
+    `private` e você ainda não é membro. Fica pendente até um owner aceitar ou
+    recusar (`list_requests` e as tools de aceitar/recusar, do owner)."""
+    return _chamar(ctx, lambda api, slug: api.request("POST", f"/projetos/{slug}/pedidos"))
+
+
+@mcp.tool()
+def list_requests(ctx: Context) -> Any:
+    """Pedidos de acesso pendentes do projeto desta sessão. Só owner."""
+    return _chamar(ctx, lambda api, slug: api.request("GET", f"/projetos/{slug}/pedidos"))
+
+
+@mcp.tool()
+def approve_request(ctx: Context, request_id: int) -> Any:
+    """Aceita um pedido de acesso - quem pediu vira member. Só owner."""
+    return _chamar(
+        ctx,
+        lambda api, slug: api.request("POST", f"/projetos/{slug}/pedidos/{request_id}/aceitar"),
+    )
+
+
+@mcp.tool()
+def reject_request(ctx: Context, request_id: int) -> Any:
+    """Recusa um pedido de acesso. Só owner."""
+    return _chamar(
+        ctx,
+        lambda api, slug: api.request("POST", f"/projetos/{slug}/pedidos/{request_id}/recusar"),
     )
 
 

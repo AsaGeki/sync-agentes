@@ -21,6 +21,12 @@ class EVisibility(StrEnum):
     private = "private"
 
 
+class ERequestStatus(StrEnum):
+    pending = "pending"
+    accepted = "accepted"
+    rejected = "rejected"
+
+
 class ETypeMessage(StrEnum):
     mudanca = "mudanca"
     pergunta = "pergunta"
