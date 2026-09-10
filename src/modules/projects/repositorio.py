@@ -14,12 +14,21 @@ def find_by_slug(conn: sqlite3.Connection, slug: str) -> sqlite3.Row:
     return projeto
 
 
-def find_by_root_sha(conn: sqlite3.Connection, root_sha: str) -> sqlite3.Row | None:
+def find_all_by_root_sha(conn: sqlite3.Connection, root_sha: str) -> list[sqlite3.Row]:
+    """Todo projeto afiliado a este repositório - pode ser mais de 1."""
     return conn.execute(
         """SELECT p.* FROM projects p
              JOIN project_repos r ON r.project_id = p.id
-            WHERE r.root_sha = ?""",
+            WHERE r.root_sha = ?
+            ORDER BY p.id""",
         (root_sha,),
+    ).fetchall()
+
+
+def find_repo_link(conn: sqlite3.Connection, root_sha: str, projeto_id: int) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT 1 FROM project_repos WHERE root_sha = ? AND project_id = ?",
+        (root_sha, projeto_id),
     ).fetchone()
 
 
@@ -67,6 +76,10 @@ def update_campos(conn: sqlite3.Connection, projeto_id: int, mudancas: dict[str,
     for campo, valor in mudancas.items():
         conn.execute(f"UPDATE projects SET {campo} = ? WHERE id = ?", (valor, projeto_id))
     conn.execute("UPDATE projects SET updated_at = ? WHERE id = ?", (now(), projeto_id))
+
+
+def delete(conn: sqlite3.Connection, projeto_id: int) -> None:
+    conn.execute("DELETE FROM projects WHERE id = ?", (projeto_id,))
 
 
 # ---------- repos ---------- #

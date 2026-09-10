@@ -38,15 +38,18 @@ CREATE TABLE IF NOT EXISTS projects (
   updated_at  TEXT NOT NULL
 );
 
--- Vinculo repo git -> projeto. `root_sha` (sha do commit raiz) e a chave: e igual
--- em todo clone, sobrevive a rename de pasta e a troca de remote. Um projeto pode
--- ter varios repos (frontend + backend no mesmo canal); um repo pertence a 1 projeto.
+-- Vinculo repo git -> projeto. `root_sha` (sha do commit raiz) e igual em todo
+-- clone, sobrevive a rename de pasta e a troca de remote. Um projeto pode ter
+-- varios repos, e o mesmo repo pode estar em varios projetos (times diferentes
+-- usando o mesmo repositorio pra assuntos diferentes) - por isso a chave e o
+-- par (root_sha, project_id), nao root_sha sozinho.
 CREATE TABLE IF NOT EXISTS project_repos (
-  root_sha   TEXT PRIMARY KEY,
+  root_sha   TEXT NOT NULL,
   project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   name       TEXT NOT NULL,
   remote     TEXT,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (root_sha, project_id)
 );
 
 CREATE TABLE IF NOT EXISTS memberships (
@@ -315,6 +318,38 @@ def _migrar_humano_para_dev(conn: sqlite3.Connection) -> None:
     conn.execute("ALTER TABLE authors_novo RENAME TO authors")
 
 
+def _project_repos_tem_pk_antiga(conn: sqlite3.Connection) -> bool:
+    linhas = conn.execute("PRAGMA table_info(project_repos)").fetchall()
+    return [linha["name"] for linha in linhas if linha["pk"] > 0] == ["root_sha"]
+
+
+def _migrar_repo_para_muitos_projetos(conn: sqlite3.Connection) -> None:
+    """Migração única: `project_repos.root_sha` deixa de ser chave sozinha (1
+    repo só podia estar em 1 projeto) - vira `(root_sha, project_id)`, o mesmo
+    repo pode estar em N projetos. Guardada checando se a PK ainda é só
+    `root_sha` - SQLite não altera PK de tabela existente com ALTER TABLE.
+    """
+    if not _tabela_existe(conn, "project_repos") or not _project_repos_tem_pk_antiga(conn):
+        return
+
+    conn.execute(
+        """CREATE TABLE project_repos_novo (
+             root_sha   TEXT NOT NULL,
+             project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+             name       TEXT NOT NULL,
+             remote     TEXT,
+             created_at TEXT NOT NULL,
+             PRIMARY KEY (root_sha, project_id)
+           )"""
+    )
+    conn.execute(
+        """INSERT INTO project_repos_novo (root_sha, project_id, name, remote, created_at)
+           SELECT root_sha, project_id, name, remote, created_at FROM project_repos"""
+    )
+    conn.execute("DROP TABLE project_repos")
+    conn.execute("ALTER TABLE project_repos_novo RENAME TO project_repos")
+
+
 def _backup_antes_de_migrar() -> None:
     """Cópia do banco antes das migrações, que fazem DROP TABLE. Uma por dia."""
     if not DB_PATH.exists():
@@ -338,6 +373,7 @@ def iniciar_banco() -> None:
         _migrar_para_ingles(conn)
         _migrar_humano_para_dev(conn)
         migracao_v3.migrar(conn, _tabela_existe, now())
+        _migrar_repo_para_muitos_projetos(conn)
     conn.execute("PRAGMA foreign_keys = ON")
     problemas = conn.execute("PRAGMA foreign_key_check").fetchall()
     if problemas:

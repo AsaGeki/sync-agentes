@@ -169,14 +169,13 @@ Abra o chat **dentro da pasta do projeto** e peça:
 Se o repositório já tem projeto (alguém já criou ou linkou), deve voltar algo assim:
 
 ```
-projeto:      loja-api
-papel:        owner
 repo:         loja-api
 branch:       feat/T-003-login
 assino_como:  arthur.macedo
+projetos:     [{ slug: loja-api, papel: owner, visibility: team }]
 ```
 
-Se voltou isso, acabou — está conectado.
+Se voltou isso, acabou — está conectado. `projetos` normalmente tem 1 item; se tiver mais de 1, as outras tools vão pedir `project=<slug>` pra saber qual usar.
 
 **Primeira vez neste repositório?** `status` volta dizendo que não há projeto afiliado - não é erro, é esperado. Peça pra IA criar:
 
@@ -216,7 +215,7 @@ Pra saber onde tudo está:
 
 Volta um resumo por task: status atual, o que mudou, em que branch e entre quais commits, e o que está esperando resposta.
 
-**Uma regra que importa:** cada projeto é um repositório. Se você quer falar de outro projeto, abre o chat na pasta dele. Não existe jeito de a IA alcançar o projeto errado — e é de propósito.
+**Uma regra que importa:** você só toca nos projetos afiliados ao repositório desta sessão — não existe jeito de a IA alcançar o projeto de outro repositório. O comum é 1 projeto por repositório, mas o mesmo repositório pode servir mais de 1 projeto (times diferentes usando o mesmo código pra assuntos diferentes); nesse caso a IA pergunta qual antes de agir.
 
 ---
 
@@ -243,14 +242,14 @@ Precisa de detalhe? Está tudo aqui.
 
 `status` (onde estou) · `create_project` · `request_access` · `list_requests` · `approve_request` · `reject_request` · `list_tasks` · `read_task` · `create_task` · `update_task` · `send_message` · `update_body` · `read_body_diff` · `publish_diff` · `list_diffs` · `read_changes` · `read_report` · `list_members` · `add_member` · `update_project` · `link_repo`
 
-Nenhuma delas recebe nome de projeto: o projeto é o repositório da sessão. Toda resposta traz `novidades` quando o outro lado escreveu algo desde a última chamada — é por isso que ninguém precisa mandar sincronizar.
+Todas aceitam `project` (slug) opcional. Com 1 projeto só afiliado ao repositório, pode omitir. Com mais de 1, é obrigatório — chamar sem devolve a lista de candidatos em vez de adivinhar. Toda resposta traz `novidades` quando o outro lado escreveu algo desde a última chamada — é por isso que ninguém precisa mandar sincronizar.
 
 As regras de conduta do canal (quando usar cada tipo de mensagem, não reescrever o texto do outro lado, mandar o corpo sempre inteiro) vêm nas instruções do próprio servidor MCP: todo cliente mostra isso pra IA assim que ela conecta, então você não precisa repassar nada.
 
 ### Modelo de dados
 
 - **`people`** — quem escreve. O email é a chave e a parte antes do `@` vira o `alias` da assinatura. **A IA não é um cadastro**: quem assina é sempre uma pessoa, e a ferramenta usada (claude, codex, cursor) fica no campo `agent` do evento.
-- **`projects`** — criado explícito por `create_project` (repositório desconhecido não cria projeto sozinho, devolve 404), ligado ao repositório pelo sha do commit raiz (igual em todo clone, não muda se a pasta for renomeada). Um projeto pode ter mais de um repositório: `link_repo` junta frontend e backend no mesmo canal. A lista de projetos (`list_projects`/`GET /projetos`) é pública - todo mundo vê que um projeto existe; ler e escrever o conteúdo dele (tasks, corpo, eventos) continua exigindo membership.
+- **`projects`** — criado explícito por `create_project` (repositório desconhecido não cria projeto sozinho, devolve 404), ligado ao repositório pelo sha do commit raiz (igual em todo clone, não muda se a pasta for renomeada). A relação é N-pra-N: um projeto pode ter mais de um repositório (`link_repo` junta frontend e backend no mesmo canal) e o mesmo repositório pode estar em mais de um projeto (times diferentes usando o mesmo código pra assuntos diferentes) - nesse caso as tools pedem `project=<slug>`. A lista de projetos (`list_projects`/`GET /projetos`) é pública - todo mundo vê que um projeto existe; ler e escrever o conteúdo dele (tasks, corpo, eventos) continua exigindo membership.
 - **`memberships`** — quem tem acesso de escrita, como `owner` ou `member`. Projeto `team` deixa quem tem o repositório entrar sozinho; projeto `private` exige pedido (`request_access`) que um owner aceita ou recusa (`list_requests`/aceitar/recusar).
 - **`tasks`** — assunto, endereçado por `code` (`T-001`), com corpo versionado (cada atualização gera diff contra a anterior).
 - **`events`** — a trilha de tudo, carimbada com quem, qual ferramenta, qual branch e qual commit. É dela que saem "o que mudou desde X", o relatório e a notificação em tempo real.

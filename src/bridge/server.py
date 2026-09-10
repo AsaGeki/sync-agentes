@@ -2,7 +2,8 @@
 
 Roda como processo na máquina de quem conecta e resolve três coisas sozinho:
 
-- escopo: o repositório do cwd define o projeto, e nenhuma tool recebe `slug`.
+- escopo: o repositório do cwd define quais projetos a sessão pode tocar (pode
+  ser mais de 1 - as tools recebem `project` opcional pra desambiguar).
 - identidade: quem assina é a pessoa dona do `SYNC_AGENTS_TOKEN`.
 - ferramenta: sai do `clientInfo` do handshake MCP.
 
@@ -29,21 +30,24 @@ INSTRUCOES = (
     "projeto, a partir de máquinas diferentes.\n\n"
     ""
     "ESCOPO\n"
-    "Você já está dentro de um projeto: o repositório git desta sessão define "
-    "qual, e não existe tool que mude isso nem que liste projeto de outra "
-    "gente. Nenhuma tool recebe nome de projeto - se você quer falar de outro "
-    "projeto, é outra sessão, aberta dentro do repositório dele. Chame "
-    "`status` pra ver onde você está.\n\n"
+    "O repositório git desta sessão define quais projetos você pode tocar - "
+    "chame `status` pra ver a lista (o caso comum é 1, mas pode ser mais de 1 "
+    "quando o mesmo repositório serve assuntos diferentes). Toda tool de "
+    "projeto/task aceita `project` (slug) opcional: com 1 projeto só, pode "
+    "omitir. Com mais de 1, é obrigatório - chamar sem `project` devolve a "
+    "lista de candidatos em vez de adivinhar qual. Pergunte à pessoa qual "
+    "projeto antes de escolher, nunca decida sozinho.\n\n"
     ""
     "PROJETO NOVO\n"
-    "Se `status` disser que não há projeto afiliado a este repositório, use "
+    "Se `status` não trouxer nenhum projeto pra este repositório, use "
     "`create_project` - ele cria o projeto e já afilia o repositório desta "
-    "sessão. SEMPRE pergunte à pessoa, antes de chamar, se o projeto deve ser "
-    "`team` (qualquer um com o repositório entra sozinho) ou `private` (só "
-    "entra quem um owner aceitar) - nunca decida isso sozinho. Se o repositório "
-    "já pertence a um projeto mas você não é membro (`private`), use "
-    "`request_access` - fica pendente até um owner aceitar (`list_requests` / "
-    "aceitar / recusar, ferramentas do owner).\n\n"
+    "sessão (funciona mesmo se este repositório já tiver outro projeto - soma "
+    "mais um). SEMPRE pergunte à pessoa, antes de chamar, se o projeto deve "
+    "ser `team` (qualquer um com o repositório entra sozinho) ou `private` (só "
+    "entra quem um owner aceitar) - nunca decida isso sozinho. Se um projeto "
+    "já existe mas você não é membro (`private`), use `request_access` - fica "
+    "pendente até um owner aceitar (`list_requests` / aceitar / recusar, "
+    "ferramentas do owner).\n\n"
     ""
     "IDENTIDADE\n"
     "Quem assina é a pessoa dona do token desta máquina, e a ferramenta que "
@@ -95,7 +99,8 @@ def _repo_declarado() -> Path | None:
 
 
 class Sessao:
-    """Estado do bridge nesta sessão: repo, projeto resolvido e cursor de eventos."""
+    """Estado do bridge nesta sessão: repo, projetos afiliados a ele (pode ser
+    mais de 1) e cursor de eventos por projeto."""
 
     def __init__(self) -> None:
         # Cwd do chat, ou o caminho declarado quando o cliente não abre projeto.
@@ -103,8 +108,8 @@ class Sessao:
         self.base_url = os.environ.get("SYNC_AGENTS_URL", "http://127.0.0.1:8787")
         self.token = os.environ.get("SYNC_AGENTS_TOKEN")
         self.api: Api | None = None
-        self.projeto: dict[str, Any] | None = None
-        self.cursor = 0
+        self.projetos: list[dict[str, Any]] | None = None
+        self.cursores: dict[str, int] = {}
 
     def erro_de_ambiente(self) -> str | None:
         if self.repo is None:
@@ -122,11 +127,12 @@ class Sessao:
         return None
 
     def conectar(self, ctx: Context) -> None:
-        """Resolve o projeto do repositório na primeira chamada da sessão."""
-        if self.projeto is not None:
+        """Resolve os projetos afiliados ao repositório na primeira chamada da
+        sessão."""
+        if self.projetos is not None:
             return
         self.api = Api(self.base_url, self.token, self.repo, _agent_do_cliente(ctx))
-        self.projeto = self.api.request(
+        self.projetos = self.api.request(
             "POST",
             "/repos/resolve",
             {
@@ -136,9 +142,25 @@ class Sessao:
             },
         )
 
-    @property
-    def slug(self) -> str:
-        return self.projeto["slug"]
+    def resolver_slug(self, project: str | None) -> str | dict[str, Any]:
+        """Decide qual dos projetos afiliados usar. `project` explícito escolhe
+        (tem que estar na lista); omitido só funciona com exatamente 1 - com
+        mais de 1, devolve erro em vez de adivinhar."""
+        slugs = [p["slug"] for p in self.projetos]
+        if project is not None:
+            if project in slugs:
+                return project
+            return {
+                "erro": f"Projeto '{project}' não está entre os afiliados a este "
+                f"repositório: {', '.join(slugs)}."
+            }
+        if len(slugs) == 1:
+            return slugs[0]
+        return {
+            "erro": "Este repositório está afiliado a mais de 1 projeto - chame de novo "
+            "com project=<slug>. Pergunte à pessoa qual, não escolha sozinho.",
+            "projetos": slugs,
+        }
 
 
 SESSAO = Sessao()
@@ -153,34 +175,42 @@ def _agent_do_cliente(ctx: Context) -> str:
         return "outro"
 
 
-def _novidades(sessao: Sessao) -> list[str]:
-    """O que o outro lado escreveu desde a última chamada de tool. Vai anexado em
-    toda resposta - é o que dispensa alguém pedir 'sincroniza no sync'."""
+def _novidades(sessao: Sessao, slug: str) -> list[str]:
+    """O que o outro lado escreveu desde a última chamada de tool neste
+    projeto. Vai anexado em toda resposta - é o que dispensa alguém pedir
+    'sincroniza no sync'."""
     resposta = sessao.api.request(
         "GET",
-        f"/projetos/{sessao.slug}/mudancas",
-        query={"desde": sessao.cursor, "limite": 20, "de_outros": True},
+        f"/projetos/{slug}/mudancas",
+        query={"desde": sessao.cursores.get(slug, 0), "limite": 20, "de_outros": True},
     )
-    sessao.cursor = resposta["cursor"]
+    sessao.cursores[slug] = resposta["cursor"]
     return [e["resumo"] for e in resposta["eventos"] if e.get("resumo")]
 
 
-def _chamar(ctx: Context, acao) -> Any:
-    """Envelope comum de toda tool: valida ambiente, resolve o projeto, executa e
-    anexa as novidades do outro lado."""
+def _chamar(ctx: Context, project: str | None, acao) -> Any:
+    """Envelope comum de toda tool: valida ambiente, resolve os projetos do
+    repositório, decide qual usar, executa e anexa as novidades do outro
+    lado."""
     problema = SESSAO.erro_de_ambiente()
     if problema:
         return {"erro": problema}
     try:
         SESSAO.conectar(ctx)
-        resultado = acao(SESSAO.api, SESSAO.slug)
+    except ErroApi as erro:
+        return {"erro": erro.detalhe, "status": erro.status}
+    slug = SESSAO.resolver_slug(project)
+    if isinstance(slug, dict):
+        return slug
+    try:
+        resultado = acao(SESSAO.api, slug)
     except ErroApi as erro:
         return {"erro": erro.detalhe, "status": erro.status}
 
     # Fora do try acima: falha aqui não pode transformar escrita bem-sucedida em
     # erro, senão o agente repete a escrita.
     try:
-        novidades = _novidades(SESSAO)
+        novidades = _novidades(SESSAO, slug)
     except ErroApi:
         novidades = []
     # Objeto na raiz sempre: lista crua vira um content block por item no MCP, e
@@ -194,7 +224,8 @@ def _chamar(ctx: Context, acao) -> Any:
 
 @mcp.tool()
 def status(ctx: Context) -> dict[str, Any]:
-    """Onde você está: repositório, projeto, quem assina e o cursor de eventos."""
+    """Onde você está: repositório e os projetos afiliados a ele (pode ser mais
+    de 1 - nesse caso as outras tools pedem `project=<slug>`)."""
     problema = SESSAO.erro_de_ambiente()
     if problema:
         return {"erro": problema}
@@ -204,32 +235,36 @@ def status(ctx: Context) -> dict[str, Any]:
     except ErroApi as erro:
         return {"erro": erro.detalhe, "status": erro.status}
     return {
-        "projeto": SESSAO.projeto["slug"],
-        "projeto_name": SESSAO.projeto["name"],
-        "visibility": SESSAO.projeto["visibility"],
-        "papel": SESSAO.projeto["role"] or "sem acesso - peça com request_access",
         "repo": SESSAO.repo.name,
         "branch": SESSAO.repo.branch,
         "commit": SESSAO.repo.commit_sha,
         "assino_como": eu["alias"],
         "agent": _agent_do_cliente(ctx),
-        "cursor": SESSAO.cursor,
+        "projetos": [
+            {
+                "slug": p["slug"],
+                "name": p["name"],
+                "visibility": p["visibility"],
+                "papel": p["role"] or "sem acesso - peça com request_access",
+            }
+            for p in SESSAO.projetos
+        ],
     }
 
 
 @mcp.tool()
-def create_project(ctx: Context, name: str, visibility: EVisibility, description: str | None = None) -> Any:
-    """Cria um projeto novo e afilia o repositório desta sessão a ele. Use só
-    quando `status` disser que não há projeto afiliado a este repositório -
-    projeto existente não precisa disso, `status` já resolve sozinho.
+def create_project(
+    ctx: Context, name: str, visibility: EVisibility, description: str | None = None
+) -> Any:
+    """Cria um projeto novo e afilia o repositório desta sessão a ele. Funciona
+    mesmo se este repositório já tiver projeto(s) afiliado(s) - soma mais um,
+    não substitui.
 
     SEMPRE pergunte à pessoa se o projeto deve ser `team` ou `private` antes de
     chamar - não decida sozinho."""
     problema = SESSAO.erro_de_ambiente()
     if problema:
         return {"erro": problema}
-    if SESSAO.projeto is not None:
-        return {"erro": f"Este repositório já está afiliado ao projeto '{SESSAO.slug}'."}
     api = Api(SESSAO.base_url, SESSAO.token, SESSAO.repo, _agent_do_cliente(ctx))
     try:
         projeto = api.request(
@@ -249,7 +284,7 @@ def create_project(ctx: Context, name: str, visibility: EVisibility, description
     except ErroApi as erro:
         return {"erro": erro.detalhe, "status": erro.status}
     SESSAO.api = api
-    SESSAO.projeto = projeto
+    SESSAO.projetos = None  # força re-resolver no próximo conectar()
     return projeto
 
 
@@ -258,11 +293,15 @@ def create_project(ctx: Context, name: str, visibility: EVisibility, description
 
 @mcp.tool()
 def list_tasks(
-    ctx: Context, status: EStatusTask | None = None, tag: str | None = None
+    ctx: Context,
+    status: EStatusTask | None = None,
+    tag: str | None = None,
+    project: str | None = None,
 ) -> Any:
-    """Lista as tasks do projeto desta sessão, com filtro opcional por status e tag."""
+    """Lista as tasks do projeto, com filtro opcional por status e tag."""
     return _chamar(
         ctx,
+        project,
         lambda api, slug: api.request(
             "GET", f"/projetos/{slug}/tasks", query={"status": status, "tag": tag}
         ),
@@ -270,10 +309,11 @@ def list_tasks(
 
 
 @mcp.tool()
-def read_task(ctx: Context, code: str, com_corpo: bool = True) -> Any:
+def read_task(ctx: Context, code: str, com_corpo: bool = True, project: str | None = None) -> Any:
     """Lê 1 task por code, com o corpo atual e a trilha completa de eventos dela."""
     return _chamar(
         ctx,
+        project,
         lambda api, slug: api.request(
             "GET", f"/projetos/{slug}/tasks/{code}", query={"com_corpo": com_corpo}
         ),
@@ -289,10 +329,12 @@ def create_task(
     tags: list[str] | None = None,
     owner_id: int | None = None,
     corpo: str | None = None,
+    project: str | None = None,
 ) -> Any:
     """Cria uma task. `code` (T-001) é gerado se omitido; `corpo` vira a v1."""
     return _chamar(
         ctx,
+        project,
         lambda api, slug: api.request(
             "POST",
             f"/projetos/{slug}/tasks",
@@ -316,6 +358,7 @@ def update_task(
     status: EStatusTask | None = None,
     tags: list[str] | None = None,
     owner_id: int | None = None,
+    project: str | None = None,
 ) -> Any:
     """Atualiza campos da task. Gera 1 evento por campo que de fato mudou."""
     corpo = {
@@ -326,6 +369,7 @@ def update_task(
     }
     return _chamar(
         ctx,
+        project,
         lambda api, slug: api.request(
             "PATCH",
             f"/projetos/{slug}/tasks/{code}",
@@ -338,11 +382,14 @@ def update_task(
 
 
 @mcp.tool()
-def send_message(ctx: Context, code: str, type: ETypeMessage, texto: str) -> Any:
+def send_message(
+    ctx: Context, code: str, type: ETypeMessage, texto: str, project: str | None = None
+) -> Any:
     """Manda uma mensagem na task (mudanca/pergunta/resposta/decisao/bloqueio).
     Não muda estado, só registra - e chega no outro lado em tempo real."""
     return _chamar(
         ctx,
+        project,
         lambda api, slug: api.request(
             "POST",
             f"/projetos/{slug}/tasks/{code}/mensagens",
@@ -352,7 +399,13 @@ def send_message(ctx: Context, code: str, type: ETypeMessage, texto: str) -> Any
 
 
 @mcp.tool()
-def update_body(ctx: Context, code: str, texto: str, versao_base: int | None = None) -> Any:
+def update_body(
+    ctx: Context,
+    code: str,
+    texto: str,
+    versao_base: int | None = None,
+    project: str | None = None,
+) -> Any:
     """Grava uma versão nova do corpo da task e devolve o diff contra a anterior.
     Mande sempre o texto completo, nunca um fragmento.
 
@@ -361,6 +414,7 @@ def update_body(ctx: Context, code: str, texto: str, versao_base: int | None = N
     tiver gravado nesse meio tempo, em vez de apagar o que ele escreveu."""
     return _chamar(
         ctx,
+        project,
         lambda api, slug: api.request(
             "PUT",
             f"/projetos/{slug}/tasks/{code}/corpo",
@@ -376,6 +430,7 @@ def publish_diff(
     base: str | None = None,
     resumo: str | None = None,
     pedir_revisao: bool = False,
+    project: str | None = None,
 ) -> Any:
     """Publica na task o que você mudou no código: arquivos tocados e o patch,
     entre `base` e o commit atual do repositório. O diff é calculado aqui.
@@ -409,7 +464,7 @@ def publish_diff(
             },
         )
 
-    return _chamar(ctx, acao)
+    return _chamar(ctx, project, acao)
 
 
 def _base_do_ultimo_diff(api: Api, slug: str, code: str) -> str | None:
@@ -419,19 +474,20 @@ def _base_do_ultimo_diff(api: Api, slug: str, code: str) -> str | None:
 
 
 @mcp.tool()
-def list_diffs(ctx: Context, code: str) -> Any:
+def list_diffs(ctx: Context, code: str, project: str | None = None) -> Any:
     """Os diffs de código já publicados numa task, sem o patch."""
     return _chamar(
-        ctx, lambda api, slug: api.request("GET", f"/projetos/{slug}/tasks/{code}/diffs")
+        ctx, project, lambda api, slug: api.request("GET", f"/projetos/{slug}/tasks/{code}/diffs")
     )
 
 
 @mcp.tool()
-def read_body_diff(ctx: Context, code: str, desde: int = 0) -> Any:
+def read_body_diff(ctx: Context, code: str, desde: int = 0, project: str | None = None) -> Any:
     """Diff do TEXTO da task (o corpo), da versão `desde` até a mais recente.
     Pra diff de código é `list_diffs`/`publish_diff` - são coisas diferentes."""
     return _chamar(
         ctx,
+        project,
         lambda api, slug: api.request(
             "GET", f"/projetos/{slug}/tasks/{code}/corpo/diff", query={"desde": desde}
         ),
@@ -442,15 +498,21 @@ def read_body_diff(ctx: Context, code: str, desde: int = 0) -> Any:
 
 
 @mcp.tool()
-def read_changes(ctx: Context, desde: int | None = None, limite: int = 200) -> Any:
+def read_changes(
+    ctx: Context, desde: int | None = None, limite: int = 200, project: str | None = None
+) -> Any:
     """O que mudou no projeto desde um cursor. Omitindo `desde`, continua de onde
-    esta sessão parou."""
+    esta sessão parou neste projeto."""
     return _chamar(
         ctx,
+        project,
         lambda api, slug: api.request(
             "GET",
             f"/projetos/{slug}/mudancas",
-            query={"desde": SESSAO.cursor if desde is None else desde, "limite": limite},
+            query={
+                "desde": SESSAO.cursores.get(slug, 0) if desde is None else desde,
+                "limite": limite,
+            },
         ),
     )
 
@@ -461,11 +523,13 @@ def read_report(
     desde: int = 0,
     formato: Literal["md", "json"] = "md",
     com_diff: bool = True,
+    project: str | None = None,
 ) -> Any:
     """Resumo técnico do estado do projeto: status por task, campos alterados,
     diff de corpo e onde no git aquilo aconteceu."""
     return _chamar(
         ctx,
+        project,
         lambda api, slug: api.request(
             "GET",
             f"/projetos/{slug}/relatorio",
@@ -484,9 +548,10 @@ def update_project(
     description: str | None = None,
     status: EStatusProject | None = None,
     visibility: EVisibility | None = None,
+    project: str | None = None,
 ) -> Any:
-    """Atualiza o projeto desta sessão. `visibility='private'` fecha o projeto:
-    a partir daí só entra quem um owner adicionar (só owner pode mudar isso)."""
+    """Atualiza o projeto. `visibility='private'` fecha o projeto: a partir daí
+    só entra quem um owner adicionar (só owner pode mudar isso)."""
     corpo = {
         "name": name,
         "description": description,
@@ -495,6 +560,7 @@ def update_project(
     }
     return _chamar(
         ctx,
+        project,
         lambda api, slug: api.request(
             "PATCH", f"/projetos/{slug}", {k: v for k, v in corpo.items() if v is not None}
         ),
@@ -502,69 +568,81 @@ def update_project(
 
 
 @mcp.tool()
-def list_members(ctx: Context) -> Any:
+def list_members(ctx: Context, project: str | None = None) -> Any:
     """Quem tem acesso a este projeto."""
-    return _chamar(ctx, lambda api, slug: api.request("GET", f"/projetos/{slug}/membros"))
+    return _chamar(ctx, project, lambda api, slug: api.request("GET", f"/projetos/{slug}/membros"))
 
 
 @mcp.tool()
-def add_member(ctx: Context, email: str) -> Any:
+def add_member(ctx: Context, email: str, project: str | None = None) -> Any:
     """Dá acesso a este projeto pra alguém já cadastrado no servidor. Só owner."""
     return _chamar(
         ctx,
+        project,
         lambda api, slug: api.request("POST", f"/projetos/{slug}/membros", {"email": email}),
     )
 
 
 @mcp.tool()
-def request_access(ctx: Context) -> Any:
-    """Pede acesso de escrita ao projeto desta sessão - necessário quando ele é
-    `private` e você ainda não é membro. Fica pendente até um owner aceitar ou
-    recusar (`list_requests` e as tools de aceitar/recusar, do owner)."""
-    return _chamar(ctx, lambda api, slug: api.request("POST", f"/projetos/{slug}/pedidos"))
+def request_access(ctx: Context, project: str | None = None) -> Any:
+    """Pede acesso de escrita a um projeto `private` que você ainda não é
+    membro. Fica pendente até um owner aceitar ou recusar (`list_requests` e
+    as tools de aceitar/recusar, do owner)."""
+    return _chamar(ctx, project, lambda api, slug: api.request("POST", f"/projetos/{slug}/pedidos"))
 
 
 @mcp.tool()
-def list_requests(ctx: Context) -> Any:
-    """Pedidos de acesso pendentes do projeto desta sessão. Só owner."""
-    return _chamar(ctx, lambda api, slug: api.request("GET", f"/projetos/{slug}/pedidos"))
+def list_requests(ctx: Context, project: str | None = None) -> Any:
+    """Pedidos de acesso pendentes deste projeto. Só owner."""
+    return _chamar(ctx, project, lambda api, slug: api.request("GET", f"/projetos/{slug}/pedidos"))
 
 
 @mcp.tool()
-def approve_request(ctx: Context, request_id: int) -> Any:
+def approve_request(ctx: Context, request_id: int, project: str | None = None) -> Any:
     """Aceita um pedido de acesso - quem pediu vira member. Só owner."""
     return _chamar(
         ctx,
+        project,
         lambda api, slug: api.request("POST", f"/projetos/{slug}/pedidos/{request_id}/aceitar"),
     )
 
 
 @mcp.tool()
-def reject_request(ctx: Context, request_id: int) -> Any:
+def reject_request(ctx: Context, request_id: int, project: str | None = None) -> Any:
     """Recusa um pedido de acesso. Só owner."""
     return _chamar(
         ctx,
+        project,
         lambda api, slug: api.request("POST", f"/projetos/{slug}/pedidos/{request_id}/recusar"),
     )
 
 
 @mcp.tool()
-def link_repo(ctx: Context) -> Any:
-    """Aponta o repositório desta sessão pro mesmo projeto de outro repo - use
-    quando frontend e backend são repos separados do mesmo trabalho. Rode a
-    partir do repo que ainda não está vinculado, tendo acesso ao projeto."""
-    return _chamar(
-        ctx,
-        lambda api, slug: api.request(
+def link_repo(ctx: Context, project: str) -> Any:
+    """Aponta o repositório desta sessão pro projeto `project` (slug) - use
+    quando este repositório ainda não está afiliado a ele (frontend/backend em
+    repos separados do mesmo trabalho, ou mais um repo pro mesmo projeto).
+    Você precisa já ter acesso a esse projeto. `project` é obrigatório aqui -
+    não há como inferir, é justamente o vínculo que ainda não existe."""
+    problema = SESSAO.erro_de_ambiente()
+    if problema:
+        return {"erro": problema}
+    api = Api(SESSAO.base_url, SESSAO.token, SESSAO.repo, _agent_do_cliente(ctx))
+    try:
+        resultado = api.request(
             "POST",
-            f"/projetos/{slug}/repos",
+            f"/projetos/{project}/repos",
             {
                 "root_sha": SESSAO.repo.root_sha,
                 "name": SESSAO.repo.name,
                 "remote": SESSAO.repo.remote,
             },
-        ),
-    )
+        )
+    except ErroApi as erro:
+        return {"erro": erro.detalhe, "status": erro.status}
+    SESSAO.api = api
+    SESSAO.projetos = None  # força re-resolver no próximo conectar()
+    return resultado
 
 
 def main() -> None:

@@ -5,17 +5,17 @@ from fastapi import APIRouter, Depends
 
 from src.modules.projects import service
 from src.modules.projects.models import ConviteIn, ProjetoIn, ProjetoPatch, RepoIn
-from src.shared.auth import pessoa_atual
+from src.shared.auth import exigir_admin, pessoa_atual
 from src.shared.db import conectar
 
 router = APIRouter()
 
 
 @router.post("/repos/resolve")
-def resolve_repo(repo: RepoIn, pessoa: sqlite3.Row = Depends(pessoa_atual)) -> dict[str, Any]:
-    """Troca um repositório git pelo projeto dele. Repo desconhecido é 404 - use
-    `POST /projetos` pra criar. Repo conhecido devolve o projeto; entra como
-    membro sozinho se ele for `team`."""
+def resolve_repo(repo: RepoIn, pessoa: sqlite3.Row = Depends(pessoa_atual)) -> list[dict[str, Any]]:
+    """Troca um repositório git pelos projetos afiliados a ele - pode ser mais
+    de 1. Repo desconhecido é 404 - use `POST /projetos` pra criar. Repo
+    conhecido entra como membro sozinho em cada projeto `team`."""
     conn = conectar()
     try:
         return service.resolve_repo(conn, pessoa["id"], repo)
@@ -61,6 +61,17 @@ def update_project(
     conn = conectar()
     try:
         return service.update_project(conn, slug, pessoa["id"], dados)
+    finally:
+        conn.close()
+
+
+@router.delete("/projetos/{slug}", status_code=204, dependencies=[Depends(exigir_admin)])
+def delete_project(slug: str) -> None:
+    """Apaga o projeto e tudo que pendura nele. Só ADMIN_TOKEN - não é ação de
+    owner comum."""
+    conn = conectar()
+    try:
+        service.delete_project(conn, slug)
     finally:
         conn.close()
 
