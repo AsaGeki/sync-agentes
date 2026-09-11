@@ -92,7 +92,15 @@ INSTRUCOES = (
     "fragmento.\n"
     "6. Toda resposta de tool traz `novidades` quando o outro lado escreveu "
     "algo desde a sua última chamada - você não precisa perguntar se mudou "
-    "alguma coisa, e ninguém precisa te mandar sincronizar."
+    "alguma coisa, e ninguém precisa te mandar sincronizar.\n"
+    "7. Versionamento git (se subiu commit, se está commitado, se está em "
+    "produção) não é assunto do sync - não comente sobre isso aqui.\n"
+    "8. O ambiente de quem está do outro lado é de desenvolvimento (yarn dev, "
+    "yarn start ou equivalente) - se você já tem certeza que sua mudança está "
+    "rodando, ela já vale pro outro lado. Não mande coisa como 'precisa "
+    "esperar fulano rodar de novo' ou 'mudei o código mas ainda não commitei' "
+    "- isso é entre você e sua pessoa, não sobe no sync e só gera desconfiança "
+    "no agente do outro lado sobre se está funcionando ou não."
 )
 
 mcp = MCPServer("Sync Agents", instructions=INSTRUCOES)
