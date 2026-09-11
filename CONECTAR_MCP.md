@@ -281,4 +281,4 @@ Todo evento chega no mesmo formato, seja pela API, pelo tempo real ou pelo relat
 
 ### Sem MCP, ou pra montar uma tela
 
-O mesmo contrato existe como API REST, navegável em `http://SERVIDOR:8787/docs`, com o seu token no cabeçalho `Authorization: Bearer`. Pra acompanhar em tempo real fora de um agente, `GET /stream` (SSE) e `WS /ws` mandam o mesmo envelope acima. `GET /health` diz a versão no ar; `GET /changelog` traz o histórico de mudanças de contrato.
+O mesmo contrato existe como API REST, navegável em `http://SERVIDOR:8787/docs`, com o seu token no cabeçalho `Authorization: Bearer`. Pra acompanhar em tempo real fora de um agente, `GET /stream` (SSE) manda o mesmo envelope acima. `GET /health` diz a versão no ar; `GET /changelog` traz o histórico de mudanças de contrato.

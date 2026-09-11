@@ -1,7 +1,7 @@
 """Trilha de eventos: gravação, leitura e resumo de uma linha.
 
 `envelope()` é o formato público de um evento, igual em `/mudancas`, no
-WebSocket, no relatório e na leitura de task.
+SSE, no relatório e na leitura de task.
 """
 
 import json

@@ -709,7 +709,6 @@ server = [
     { name = "psutil" },
     { name = "python-dotenv" },
     { name = "uvicorn", extra = ["standard"] },
-    { name = "websockets" },
 ]
 
 [package.metadata]
@@ -722,7 +721,6 @@ server = [
     { name = "psutil", specifier = ">=7.2.2" },
     { name = "python-dotenv", specifier = ">=1.2.3" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.4" },
-    { name = "websockets", specifier = ">=15.0" },
 ]
 
 [[package]]

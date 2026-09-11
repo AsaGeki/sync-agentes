@@ -10,8 +10,8 @@ def main() -> None:
     print(f"Docs:   http://{HOST}:{PORT}/docs")
     if HOST == "0.0.0.0":
         print("AVISO: exposto na rede. Firewall e escopo de acesso são sua responsabilidade.")
-    # WebSocket e SSE mantêm conexão aberta esperando push do servidor - sem teto,
-    # o shutdown gracioso do uvicorn espera essas conexões fecharem pra sempre.
+    # SSE mantém conexão aberta esperando push do servidor - sem teto, o
+    # shutdown gracioso do uvicorn espera essas conexões fecharem pra sempre.
     uvicorn.run(app, host=HOST, port=PORT, log_level="info", timeout_graceful_shutdown=5)
 
 

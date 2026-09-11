@@ -1,4 +1,4 @@
-"""Barramento em memória (WebSocket + SSE)."""
+"""Barramento em memória (SSE)."""
 
 import asyncio
 from collections import defaultdict

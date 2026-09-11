@@ -19,10 +19,10 @@ params:query {
 docs {
   Endpoint: GET /projetos/{slug}/mudancas
   Autenticacao: token pessoal (membro).
-
+  
   Cursor global: passe o `cursor` da resposta anterior em `desde` na proxima
   chamada. Cada evento ja vem com `resumo` pronto - a mesma linha que o
-  WebSocket manda.
-
+  SSE manda.
+  
   de_outros=true corta o proprio eco (so o que as outras pessoas escreveram).
 }

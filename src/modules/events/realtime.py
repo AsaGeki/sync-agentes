@@ -1,17 +1,17 @@
-"""Entrega em tempo real do que o outro lado escreveu (WebSocket + SSE, fallback).
+"""Entrega em tempo real do que o outro lado escreveu (SSE).
 
 O frame é o mesmo envelope de evento que `/mudancas` devolve - quem consome os
 dois não tem dois formatos pra tratar.
 
 Autenticação é a mesma do REST: token pessoal, no header `Authorization` ou em
 `?token=` para cliente que não manda header. Token inválido ou projeto onde a
-pessoa não é membro recusam o handshake com 403.
+pessoa não é membro recusam a conexão com 403.
 """
 
 import asyncio
 import json
 
-from fastapi import APIRouter, Header, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import StreamingResponse
 
 from src.modules.events.bus import INSCRITOS
@@ -33,37 +33,6 @@ def _autenticar(authorization: str | None, token: str | None, projeto: str) -> i
     finally:
         conn.close()
     return int(pessoa["id"])
-
-
-@router.websocket("/ws")
-async def websocket_events(
-    websocket: WebSocket,
-    projeto: str,
-    token: str | None = None,
-    authorization: str | None = Header(None),
-) -> None:
-    try:
-        person_id = _autenticar(authorization, token, projeto)
-    except DomainError:
-        # Fechar antes do accept faz o Starlette recusar o handshake com 403 - o
-        # cliente não chega a ver código de close, então não adianta detalhar aqui.
-        await websocket.close()
-        return
-
-    await websocket.accept()
-    fila: asyncio.Queue = asyncio.Queue(maxsize=500)
-    INSCRITOS[projeto].add(fila)
-    try:
-        while True:
-            evento = await fila.get()
-            # Filtro do próprio eco: ninguém é notificado do que acabou de escrever.
-            if evento.get("author_id") == person_id:
-                continue
-            await websocket.send_text(json.dumps(envelope(evento), ensure_ascii=False))
-    except WebSocketDisconnect:
-        pass
-    finally:
-        INSCRITOS[projeto].discard(fila)
 
 
 @router.get("/stream")
