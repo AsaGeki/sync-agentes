@@ -1,0 +1,23 @@
+meta {
+  name: Delete
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{baseUrl}}/people/{{personId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+docs {
+  Endpoint: DELETE /people/{person_id}
+  Autenticacao: ADMIN_TOKEN.
+  
+  Apaga a pessoa. Responde 409 se ela ja tem projeto, task ou evento
+  vinculado - historico nao e apagavel apagando quem assinou.
+}

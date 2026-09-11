@@ -1,0 +1,19 @@
+meta {
+  name: Approve Request
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/projetos/{{slug}}/pedidos/{{requestId}}/aceitar
+  body: none
+  auth: inherit
+}
+
+docs {
+  Endpoint: POST /projetos/{slug}/pedidos/{request_id}/aceitar
+  Autenticacao: token pessoal (owner).
+
+  Aceita o pedido - quem pediu vira member. Pedido inexistente ou ja resolvido
+  devolve 404.
+}

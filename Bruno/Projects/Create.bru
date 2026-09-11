@@ -1,0 +1,37 @@
+meta {
+  name: Create
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/projetos
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Meu Projeto",
+    "description": null,
+    "visibility": "team",
+    "repo": {
+      "root_sha": "{{rootSha}}",
+      "name": "meu-projeto",
+      "remote": "git@github.com:org/meu-projeto.git"
+    }
+  }
+}
+
+docs {
+  Endpoint: POST /projetos
+  Autenticacao: token pessoal.
+
+  Cria o projeto e ja afilia o repositorio informado a ele - quem chama vira
+  owner. visibility e obrigatorio (team|private). Repositorio ja afiliado a
+  outro projeto e recusado (AlreadyExists).
+}

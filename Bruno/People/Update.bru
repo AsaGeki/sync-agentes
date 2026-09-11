@@ -1,0 +1,31 @@
+meta {
+  name: Update
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{baseUrl}}/people/{{personId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{adminToken}}
+}
+
+body:json {
+  {
+    "name": "Marcelo",
+    "email": "marcelo.rosa@ferroeste.com.br"
+  }
+}
+
+docs {
+  Endpoint: PATCH /people/{person_id}
+  Autenticacao: ADMIN_TOKEN.
+  
+  Campos: email, name. So os campos enviados mudam. Trocar email nao afeta
+  o token - continua o mesmo, so muda por quem a pessoa se identifica.
+}

@@ -1,0 +1,18 @@
+meta {
+  name: changelog
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/changelog
+  body: none
+  auth: none
+}
+
+docs {
+  Endpoint: GET /changelog
+  Autenticação: não requerida
+
+  Devolve o CHANGELOG.md do repositório como texto puro.
+}

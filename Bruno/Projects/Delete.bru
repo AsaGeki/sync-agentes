@@ -1,0 +1,23 @@
+meta {
+  name: Delete
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/projetos/{{slug}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+docs {
+  Endpoint: DELETE /projetos/{slug}
+  Autenticacao: ADMIN_TOKEN - nao e acao de owner comum.
+  
+  Apaga o projeto e tudo que pendura nele: repos vinculados, membros, pedidos
+  de acesso, tasks e eventos (ON DELETE CASCADE). Sem volta.
+}

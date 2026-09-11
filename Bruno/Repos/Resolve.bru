@@ -31,7 +31,9 @@ docs {
 
     git rev-list --max-parents=0 HEAD
 
-  Repo desconhecido cria o projeto e te faz owner. Repo conhecido devolve o
-  projeto; se voce ainda nao e membro, entra sozinho quando ele e `team` e
-  leva 403 quando e `private`.
+  Repo desconhecido NAO cria mais projeto sozinho - responde 404 (crie com
+  POST /projetos, ou peca pra um membro linkar com POST /projetos/{slug}/repos).
+  Repo conhecido devolve o projeto; se voce ainda nao e membro, entra sozinho
+  quando ele e `team`, e volta com `role: null` quando e `private` - peca
+  acesso com POST /projetos/{slug}/pedidos.
 }

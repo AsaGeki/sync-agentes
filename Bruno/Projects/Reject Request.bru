@@ -1,0 +1,18 @@
+meta {
+  name: Reject Request
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/projetos/{{slug}}/pedidos/{{requestId}}/recusar
+  body: none
+  auth: inherit
+}
+
+docs {
+  Endpoint: POST /projetos/{slug}/pedidos/{request_id}/recusar
+  Autenticacao: token pessoal (owner).
+
+  Recusa o pedido. Pedido inexistente ou ja resolvido devolve 404.
+}

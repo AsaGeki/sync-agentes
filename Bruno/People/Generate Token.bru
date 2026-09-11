@@ -1,0 +1,24 @@
+meta {
+  name: Generate Token
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/people/{{personId}}/token
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+docs {
+  Endpoint: POST /people/{person_id}/token
+  Autenticacao: ADMIN_TOKEN.
+  
+  Emite um token novo - primeiro de quem ainda nao tem, ou reemissao de quem
+  perdeu o anterior. O texto puro aparece so nesta resposta - o banco guarda
+  o hash, e emitir de novo invalida o anterior.
+}
