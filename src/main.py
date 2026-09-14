@@ -1,3 +1,4 @@
+import json
 import platform
 import sqlite3
 import time
@@ -5,7 +6,7 @@ from typing import Any
 
 import psutil
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 
 from src.modules.events.realtime import router as realtime_router
 from src.modules.events.routes import router as eventos_router
@@ -58,6 +59,44 @@ app = FastAPI(
 @app.exception_handler(DomainError)
 async def tratar_erro_dominio(request: Request, exc: DomainError) -> JSONResponse:
     return JSONResponse(status_code=exc.status, content={"detail": str(exc)})
+
+
+# Retry de rede do bridge reenvia o mesmo X-Operation-Id: a 2ª chamada devolve
+# a resposta já gravada em vez de repetir a escrita. GET nunca passa por aqui.
+@app.middleware("http")
+async def idempotencia(request: Request, call_next):
+    operation_id = request.headers.get("X-Operation-Id")
+    if not operation_id or request.method not in ("POST", "PUT", "PATCH"):
+        return await call_next(request)
+
+    conn = conectar()
+    try:
+        existente = conn.execute(
+            "SELECT status, result FROM operations WHERE id = ?", (operation_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    if existente is not None:
+        return JSONResponse(status_code=existente["status"], content=json.loads(existente["result"]))
+
+    resposta = await call_next(request)
+    corpo = b"".join([chunk async for chunk in resposta.body_iterator])
+    if 200 <= resposta.status_code < 300:
+        conn = conectar()
+        try:
+            with conn:
+                conn.execute(
+                    "INSERT OR IGNORE INTO operations (id, status, result, created_at) VALUES (?,?,?,?)",
+                    (operation_id, resposta.status_code, corpo.decode("utf-8"), now()),
+                )
+        finally:
+            conn.close()
+    return Response(
+        content=corpo,
+        status_code=resposta.status_code,
+        headers=dict(resposta.headers),
+        media_type=resposta.media_type,
+    )
 
 
 @app.get("/health")

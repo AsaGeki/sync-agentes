@@ -10,6 +10,9 @@ class TaskIn(BaseModel):
     tags: list[str] = Field(default_factory=list)
     owner_id: int | None = None
     corpo: str | None = None
+    # Codes de outras tasks do mesmo projeto. Enquanto alguma não estiver
+    # 'feito', esta task não pode ir pra 'feito' (ver service.checar_dependencias_prontas).
+    dependencies: list[str] = Field(default_factory=list)
 
 
 class TaskPatch(BaseModel):

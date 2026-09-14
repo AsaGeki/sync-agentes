@@ -85,6 +85,17 @@ CREATE TABLE IF NOT EXISTS tasks (
   UNIQUE (project_id, code)
 );
 
+-- Task só fecha (status='feito') quando toda depends_on também estiver.
+CREATE TABLE IF NOT EXISTS task_dependencies (
+  task_id       INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  depends_on_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  created_at    TEXT NOT NULL,
+  PRIMARY KEY (task_id, depends_on_id),
+  CHECK (task_id != depends_on_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_deps_depends_on ON task_dependencies (depends_on_id);
+
 CREATE TABLE IF NOT EXISTS events (
   seq        INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -121,6 +132,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_events_corpo_version
 CREATE TABLE IF NOT EXISTS schema_migrations (
   id          TEXT PRIMARY KEY,
   aplicada_em TEXT NOT NULL
+);
+
+-- Dedupe de mutação por X-Operation-Id (ver main.py). Sem escopo por projeto:
+-- colisão de UUID entre projetos é praticamente impossível.
+CREATE TABLE IF NOT EXISTS operations (
+  id         TEXT PRIMARY KEY,
+  status     INTEGER NOT NULL,
+  result     TEXT NOT NULL,
+  created_at TEXT NOT NULL
 );
 """
 

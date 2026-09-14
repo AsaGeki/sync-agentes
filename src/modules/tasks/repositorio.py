@@ -106,3 +106,20 @@ def todos_corpos(conn: sqlite3.Connection, task_id: int) -> list[sqlite3.Row]:
             WHERE task_id = ? AND kind = 'body.updated' ORDER BY version""",
         (task_id,),
     ).fetchall()
+
+
+def insert_dependencies(conn: sqlite3.Connection, task_id: int, depends_on_ids: list[int]) -> None:
+    conn.executemany(
+        "INSERT INTO task_dependencies (task_id, depends_on_id, created_at) VALUES (?,?,?)",
+        [(task_id, depends_on_id, now()) for depends_on_id in depends_on_ids],
+    )
+
+
+def dependencies(conn: sqlite3.Connection, task_id: int) -> list[sqlite3.Row]:
+    """As tasks que esta depende, com code e status atual de cada uma."""
+    return conn.execute(
+        """SELECT t.code, t.status FROM task_dependencies td
+             JOIN tasks t ON t.id = td.depends_on_id
+            WHERE td.task_id = ? ORDER BY t.code""",
+        (task_id,),
+    ).fetchall()

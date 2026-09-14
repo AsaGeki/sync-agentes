@@ -64,7 +64,9 @@ INSTRUCOES = (
     "MODELO\n"
     "- task (`create_task`/`list_tasks`/`read_task`/`update_task`): unidade de "
     "assunto, endereçada por code (T-001, gerado sozinho se omitido). "
-    "title/status/tags/owner_id + um corpo versionado.\n"
+    "title/status/tags/owner_id + um corpo versionado. `dependencies` (codes "
+    "de outra task, só na criação) trava o status 'feito' até elas também "
+    "estarem.\n"
     "- corpo (`read_task`/`update_body`/`read_body_diff`): texto de referência da "
     "task. Cada atualização vira uma versão e o servidor calcula o diff.\n"
     "- evento: trilha do que aconteceu, com branch e commit de onde saiu. "
@@ -367,9 +369,12 @@ def create_task(
     tags: list[str] | None = None,
     owner_id: int | None = None,
     corpo: str | None = None,
+    dependencies: list[str] | None = None,
     project: str | None = None,
 ) -> Any:
-    """Cria uma task. `code` (T-001) é gerado se omitido; `corpo` vira a v1."""
+    """Cria uma task. `code` (T-001) é gerado se omitido; `corpo` vira a v1.
+    `dependencies` são codes de outras tasks do mesmo projeto - esta task não
+    pode ir pra status 'feito' enquanto elas não estiverem."""
     return _chamar(
         ctx,
         project,
@@ -383,6 +388,7 @@ def create_task(
                 "tags": tags or [],
                 "owner_id": owner_id,
                 "corpo": corpo,
+                "dependencies": dependencies or [],
             },
         ),
     )

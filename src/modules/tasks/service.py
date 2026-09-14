@@ -17,6 +17,7 @@ TENTATIVAS_DE_CODIGO = 5
 
 def serializar(conn: sqlite3.Connection, task: sqlite3.Row) -> dict[str, Any]:
     corpo = repositorio.ultimo_corpo(conn, task["id"])
+    deps = repositorio.dependencies(conn, task["id"])
     return {
         "code": task["code"],
         "title": task["title"],
@@ -25,9 +26,26 @@ def serializar(conn: sqlite3.Connection, task: sqlite3.Row) -> dict[str, Any]:
         "owner": repositorio.owner_name(conn, task["owner_id"]),
         "owner_id": task["owner_id"],
         "versao_corpo": corpo["version"] if corpo else 0,
+        "dependencies": [d["code"] for d in deps],
+        "dependencias_pendentes": [d["code"] for d in deps if d["status"] != EStatusTask.feito.value],
         "created_at": task["created_at"],
         "updated_at": task["updated_at"],
     }
+
+
+def _checar_dependencias_prontas(conn: sqlite3.Connection, task: sqlite3.Row, novo_status: str) -> None:
+    """Task só fecha quando toda dependência já estiver 'feito' - senão o
+    outro lado marca terminado algo que ainda depende de trabalho pendente."""
+    if novo_status != EStatusTask.feito.value:
+        return
+    pendentes = [
+        d["code"] for d in repositorio.dependencies(conn, task["id"]) if d["status"] != EStatusTask.feito.value
+    ]
+    if pendentes:
+        raise Conflict(
+            f"Task depende de {', '.join(pendentes)}, que ainda não está 'feito' - "
+            "não dá pra marcar esta como 'feito' antes."
+        )
 
 
 def _make_diff(antes: str, depois: str, rotulo_antes: str, rotulo_depois: str) -> str:
@@ -95,11 +113,16 @@ async def create_task(
     projeto = exigir_acesso(conn, slug, author_id)
     # Dois lados criando ao mesmo tempo chegam no mesmo código. Se ele foi gerado
     # aqui, tenta o seguinte; se veio de quem chamou, o conflito é resposta.
+    depends_on_ids = [
+        repositorio.find_by_code(conn, projeto["id"], dep_code)["id"] for dep_code in dados.dependencies
+    ]
     for tentativa in range(TENTATIVAS_DE_CODIGO):
         code = dados.code or repositorio.proximo_codigo(conn, projeto["id"])
         try:
             with conn:
                 task_id = repositorio.insert(conn, projeto["id"], code, dados)
+                if depends_on_ids:
+                    repositorio.insert_dependencies(conn, task_id, depends_on_ids)
                 seq = eventos_service.registrar(
                     conn,
                     ctx,
@@ -160,6 +183,8 @@ async def update_task(
     mudancas = dados.model_dump(mode="json", exclude_none=True)
     if not mudancas:
         raise Invalid("Nada pra atualizar")
+    if "status" in mudancas:
+        _checar_dependencias_prontas(conn, task, mudancas["status"])
     sequencias: list[int] = []
     with conn:
         for campo, valor in mudancas.items():
