@@ -63,21 +63,34 @@ INSTRUCOES = (
     ""
     "MODELO\n"
     "- task (`create_task`/`list_tasks`/`read_task`/`update_task`): unidade de "
-    "assunto, endereçada por code (T-001, gerado sozinho se omitido). "
+    "assunto, endereçada por code. O code é `T-007-slug-do-titulo`: o número "
+    "identifica, o slug é pra humano reconhecer sem abrir. Qualquer tool "
+    "aceita só o número (`T-007`, `T-7`) ou o code inteiro. "
     "title/status/tags/owner_id + um corpo versionado. `dependencies` (codes "
-    "de outra task, só na criação) trava o status 'feito' até elas também "
-    "estarem.\n"
+    "de outra task) trava o status 'feito' até elas também estarem, e pode ser "
+    "trocada depois por `update_task` - a lista mandada substitui a atual.\n"
     "- corpo (`read_task`/`update_body`/`read_body_diff`): texto de referência da "
     "task. Cada atualização vira uma versão e o servidor calcula o diff.\n"
     "- evento: trilha do que aconteceu, com branch e commit de onde saiu. "
     "`read_changes(desde=<cursor>)` mostra o que mudou; `read_report` resume o "
     "estado atual.\n\n"
     ""
+    "LIDO E NÃO LIDO\n"
+    "Toda resposta de tool traz `nao_lidos`: as tasks onde alguém escreveu algo "
+    "que você ainda não leu, com a contagem e uma linha do evento mais recente. "
+    "Aquilo é só um aviso - o conteúdo está na task. `read_task` é o que marca "
+    "lido, e a task só some do `nao_lidos` depois que você abrir ela. Nada "
+    "expira sozinho e nada é consumido por você ter chamado outra tool, então "
+    "não existe 'perdi a mensagem'.\n"
+    "`list_tasks(nao_lidas=True)` lista só o que está pendente de leitura; "
+    "`list_tasks(q='texto')` procura no code, no título e no corpo.\n\n"
+    ""
     "TIPO DE MENSAGEM (`send_message`)\n"
     "- mudanca: 'fiz/mudei isso'.\n"
     "- pergunta: precisa de resposta do outro lado - fica na lista de perguntas "
     "abertas do relatório até ser respondida. Use quando travou de verdade.\n"
-    "- resposta: responde a última pergunta da task e tira ela da lista.\n"
+    "- resposta: fecha a pergunta em aberto mais antiga da task. Duas perguntas "
+    "em aberto precisam de duas respostas.\n"
     "- decisao: ficou decidido assim. Use isto, não prosa dentro do corpo, pra "
     "a decisão ficar rastreável a quem e quando.\n"
     "- bloqueio: não dá pra seguir, e por quê.\n\n"
@@ -92,9 +105,11 @@ INSTRUCOES = (
     "verificado.\n"
     "5. `update_body` leva sempre o texto COMPLETO da task, nunca um "
     "fragmento.\n"
-    "6. Toda resposta de tool traz `novidades` quando o outro lado escreveu "
-    "algo desde a sua última chamada - você não precisa perguntar se mudou "
-    "alguma coisa, e ninguém precisa te mandar sincronizar.\n"
+    "6. Toda resposta de tool traz `nao_lidos` quando o outro lado escreveu "
+    "algo que você ainda não abriu - você não precisa perguntar se mudou "
+    "alguma coisa, e ninguém precisa te mandar sincronizar. Viu a task em "
+    "`nao_lidos`, abra com `read_task` antes de responder: a linha do aviso é "
+    "só o começo do que foi escrito.\n"
     "7. Versionamento git (se subiu commit, se está commitado, se está em "
     "produção) não é assunto do sync - não comente sobre isso aqui.\n"
     "8. O ambiente de quem está do outro lado é de desenvolvimento (yarn dev, "
@@ -193,22 +208,19 @@ def _agent_do_cliente(ctx: Context) -> str:
         return "outro"
 
 
-def _novidades(api: Api, slug: str) -> list[str]:
-    """O que o outro lado escreveu desde a última chamada de tool neste
-    projeto. Vai anexado em toda resposta - é o que dispensa alguém pedir
-    'sincroniza no sync'."""
-    resposta = api.request(
-        "GET",
-        f"/projetos/{slug}/mudancas",
-        query={"desde": SESSAO.cursores.get(slug, 0), "limite": 20, "de_outros": True},
-    )
-    SESSAO.cursores[slug] = resposta["cursor"]
-    return [e["resumo"] for e in resposta["eventos"] if e.get("resumo")]
+def _nao_lidos(api: Api, slug: str) -> list[dict[str, Any]]:
+    """As tasks com evento que esta pessoa ainda não leu. Vai anexado em toda
+    resposta - é o que dispensa alguém pedir 'sincroniza no sync'.
+
+    Não consome nada: a task só sai daqui quando `read_task` abrir ela. Por isso
+    o que aparece aqui é sempre uma chamada curta, e o conteúdo inteiro do que
+    o outro lado escreveu continua disponível."""
+    return api.request("GET", f"/projetos/{slug}/nao-lidos")
 
 
 def _chamar(ctx: Context, project: str | None, acao) -> Any:
     """Envelope comum de toda tool: valida ambiente, decide qual projeto usar,
-    executa e anexa as novidades do outro lado.
+    executa e anexa o que está por ler do outro lado.
 
     `project` explícito não depende do repositório desta sessão já estar
     afiliado a nada - só o servidor decide se você tem acesso (`exigir_acesso`).
@@ -235,16 +247,18 @@ def _chamar(ctx: Context, project: str | None, acao) -> Any:
     except ErroApi as erro:
         return {"erro": erro.detalhe, "status": erro.status}
 
-    # Fora do try acima: falha aqui não pode transformar escrita bem-sucedida em
-    # erro, senão o agente repete a escrita.
-    try:
-        novidades = _novidades(api, slug)
-    except ErroApi:
-        novidades = []
     # Objeto na raiz sempre: lista crua vira um content block por item no MCP, e
-    # `novidades` não teria onde entrar.
+    # `nao_lidos` não teria onde entrar.
     envelope = resultado if isinstance(resultado, dict) else {"resultado": resultado}
-    return {**envelope, "novidades": novidades} if novidades else envelope
+
+    # Fora do try acima: falha aqui não pode transformar escrita bem-sucedida em
+    # erro, senão o agente repete a escrita. Mas ela aparece na resposta - sem
+    # isso, "não consegui buscar" chegaria como "nada novo".
+    try:
+        pendentes = _nao_lidos(api, slug)
+    except ErroApi as erro:
+        return {**envelope, "nao_lidos_indisponivel": erro.detalhe}
+    return {**envelope, "nao_lidos": pendentes} if pendentes else envelope
 
 
 # ---------- contexto ---------- #
@@ -336,21 +350,33 @@ def list_tasks(
     ctx: Context,
     status: EStatusTask | None = None,
     tag: str | None = None,
+    q: str | None = None,
+    nao_lidas: bool = False,
     project: str | None = None,
 ) -> Any:
-    """Lista as tasks do projeto, com filtro opcional por status e tag."""
+    """Lista as tasks do projeto. `q` procura no code, no título e no corpo.
+    `nao_lidas=True` traz só as que têm evento que você ainda não leu.
+
+    Cada task vem com `nao_lidos` (quantos eventos de outra pessoa estão por
+    ler) e `ultimo_nao_lido`."""
     return _chamar(
         ctx,
         project,
         lambda api, slug: api.request(
-            "GET", f"/projetos/{slug}/tasks", query={"status": status, "tag": tag}
+            "GET",
+            f"/projetos/{slug}/tasks",
+            query={"status": status, "tag": tag, "q": q, "nao_lidas": nao_lidas},
         ),
     )
 
 
 @mcp.tool()
 def read_task(ctx: Context, code: str, com_corpo: bool = True, project: str | None = None) -> Any:
-    """Lê 1 task por code, com o corpo atual e a trilha completa de eventos dela."""
+    """Lê 1 task, com o corpo atual e a trilha completa de eventos dela. Abrir a
+    task marca ela como lida.
+
+    `code` aceita o code inteiro (`T-007-migrar-relatorio`) ou só o número
+    (`T-007`, `T-7`)."""
     return _chamar(
         ctx,
         project,
@@ -372,7 +398,10 @@ def create_task(
     dependencies: list[str] | None = None,
     project: str | None = None,
 ) -> Any:
-    """Cria uma task. `code` (T-001) é gerado se omitido; `corpo` vira a v1.
+    """Cria uma task. O code sai como `T-007-slug-do-titulo`: o número endereça
+    (e resolve sozinho em qualquer tool), o slug é pra gente reconhecer a task
+    sem abrir. `code` explícito só define o número. `corpo` vira a v1.
+
     `dependencies` são codes de outras tasks do mesmo projeto - esta task não
     pode ir pra status 'feito' enquanto elas não estiverem."""
     return _chamar(
@@ -402,14 +431,23 @@ def update_task(
     status: EStatusTask | None = None,
     tags: list[str] | None = None,
     owner_id: int | None = None,
+    dependencies: list[str] | None = None,
     project: str | None = None,
 ) -> Any:
-    """Atualiza campos da task. Gera 1 evento por campo que de fato mudou."""
+    """Atualiza campos da task. Gera 1 evento por campo que de fato mudou.
+
+    `dependencies` é a lista completa, não incremental - o que você mandar
+    substitui as dependências atuais, e `[]` remove todas. Dependência que
+    fecharia ciclo é recusada.
+
+    Tirar uma task de 'feito' devolve pra 'parcial', em cascata, quem dependia
+    dela e já estava fechado."""
     corpo = {
         "title": title,
         "status": status.value if status else None,
         "tags": tags,
         "owner_id": owner_id,
+        "dependencies": dependencies,
     }
     return _chamar(
         ctx,
@@ -545,20 +583,26 @@ def read_body_diff(ctx: Context, code: str, desde: int = 0, project: str | None 
 def read_changes(
     ctx: Context, desde: int | None = None, limite: int = 200, project: str | None = None
 ) -> Any:
-    """O que mudou no projeto desde um cursor. Omitindo `desde`, continua de onde
-    esta sessão parou neste projeto."""
-    return _chamar(
-        ctx,
-        project,
-        lambda api, slug: api.request(
+    """A trilha de eventos do projeto inteiro desde um cursor, incluindo os seus.
+    Omitindo `desde`, continua de onde esta tool parou nesta sessão.
+
+    Para saber o que falta ler é `nao_lidos`/`list_tasks(nao_lidas=True)`, que
+    não dependem de cursor nem da sessão: aqui o cursor anda, e ele vive só
+    enquanto este processo estiver de pé."""
+
+    def acao(api: Api, slug: str) -> Any:
+        resposta = api.request(
             "GET",
             f"/projetos/{slug}/mudancas",
             query={
                 "desde": SESSAO.cursores.get(slug, 0) if desde is None else desde,
                 "limite": limite,
             },
-        ),
-    )
+        )
+        SESSAO.cursores[slug] = resposta["cursor"]
+        return resposta
+
+    return _chamar(ctx, project, acao)
 
 
 @mcp.tool()

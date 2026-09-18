@@ -34,11 +34,24 @@ def list_tasks(
     slug: str,
     status: EStatusTask | None = None,
     tag: str | None = None,
+    q: str | None = None,
+    nao_lidas: bool = False,
     pessoa: sqlite3.Row = Depends(pessoa_atual),
 ) -> list[dict[str, Any]]:
     conn = conectar()
     try:
-        return service.list_tasks(conn, slug, pessoa["id"], status, tag)
+        return service.list_tasks(conn, slug, pessoa["id"], status, tag, q, nao_lidas)
+    finally:
+        conn.close()
+
+
+@router.get("/projetos/{slug}/nao-lidos")
+def nao_lidos(
+    slug: str, pessoa: sqlite3.Row = Depends(pessoa_atual)
+) -> list[dict[str, Any]]:
+    conn = conectar()
+    try:
+        return service.nao_lidos(conn, slug, pessoa["id"])
     finally:
         conn.close()
 

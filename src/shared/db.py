@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 import shutil
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from src.shared import migracao_v3
@@ -85,6 +85,13 @@ CREATE TABLE IF NOT EXISTS tasks (
   UNIQUE (project_id, code)
 );
 
+-- O número do code (`T-007`) é a identidade da task no projeto; o slug que vem
+-- depois dele é só pra leitura. Sem este índice, dois lados criando ao mesmo
+-- tempo com títulos diferentes gerariam dois `T-007` com codes distintos, e o
+-- UNIQUE da tabela não pegaria.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_numero
+  ON tasks (project_id, CAST(SUBSTR(code, 3) AS INTEGER));
+
 -- Task só fecha (status='feito') quando toda depends_on também estiver.
 CREATE TABLE IF NOT EXISTS task_dependencies (
   task_id       INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -95,6 +102,17 @@ CREATE TABLE IF NOT EXISTS task_dependencies (
 );
 
 CREATE INDEX IF NOT EXISTS idx_task_deps_depends_on ON task_dependencies (depends_on_id);
+
+-- Marca d'água de leitura por pessoa. `last_read_seq` é o maior seq de evento
+-- que aquela pessoa já viu na task; evento de seq maior conta como não lido.
+-- Uma linha por (task, pessoa), não uma por evento.
+CREATE TABLE IF NOT EXISTS task_reads (
+  task_id       INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  person_id     INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+  last_read_seq INTEGER NOT NULL,
+  updated_at    TEXT NOT NULL,
+  PRIMARY KEY (task_id, person_id)
+);
 
 CREATE TABLE IF NOT EXISTS events (
   seq        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -150,6 +168,8 @@ CREATE TABLE IF NOT EXISTS operations (
 # Bancos novos já nascem com a coluna via SCHEMA (adicione lá também) - a checagem
 # de coluna existente abaixo garante que a migração não tenta duplicar.
 MIGRACOES: list[tuple[str, str, str, str]] = []
+
+RETENCAO_OPERATIONS_DIAS = 7
 
 
 def now() -> str:
@@ -402,6 +422,13 @@ def iniciar_banco() -> None:
     with conn:
         conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript(SCHEMA)
+
+        # `operations` só serve pro retry imediato do bridge - linha velha não
+        # tem mais quem a reenvie.
+        conn.execute(
+            "DELETE FROM operations WHERE created_at < ?",
+            ((datetime.now().astimezone() - timedelta(days=RETENCAO_OPERATIONS_DIAS)).isoformat(timespec="seconds"),),
+        )
 
         aplicadas = {row["id"] for row in conn.execute("SELECT id FROM schema_migrations")}
         for id_, tabela, coluna, sql in MIGRACOES:

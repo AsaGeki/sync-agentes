@@ -10,6 +10,14 @@ def insert(conn: sqlite3.Connection, **campos: Any) -> int:
     cursor = conn.execute(
         f"INSERT INTO events ({colunas}) VALUES ({marcadores})", tuple(campos.values())
     )
+    # Todo evento de task carimba `tasks.updated_at`: o campo significa "quando
+    # aconteceu a última coisa nesta task", e é por ele que `list_tasks` diz o
+    # que andou sem precisar reler task por task.
+    if campos.get("task_id") is not None:
+        conn.execute(
+            "UPDATE tasks SET updated_at = ? WHERE id = ?",
+            (campos["created_at"], campos["task_id"]),
+        )
     return int(cursor.lastrowid)
 
 

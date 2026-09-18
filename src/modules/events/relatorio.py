@@ -23,8 +23,9 @@ def montar_relatorio(
     conn: sqlite3.Connection, slug: str, person_id: int, desde: int
 ) -> dict[str, Any]:
     projeto = exigir_acesso(conn, slug, person_id)
+    leitura = tasks_repositorio.leitura_do_projeto(conn, projeto["id"], person_id)
     tasks = [
-        tasks_service.serializar(conn, t)
+        tasks_service.serializar(conn, t, leitura.get(t["id"]))
         for t in tasks_repositorio.find_all(conn, projeto["id"], None)
     ]
     seqs = eventos_repositorio.seqs_do_projeto(conn, projeto["id"], desde)
@@ -44,18 +45,18 @@ def montar_relatorio(
     for cru in crus:
         contagem_autor[eventos_service.assinatura(cru)] += 1
 
-    # Pergunta em aberto: última mensagem type=pergunta sem nenhuma resposta depois dela.
+    # Cada `resposta` fecha a pergunta aberta mais antiga da task: duas perguntas
+    # em aberto exigem duas respostas pra sumirem daqui.
     perguntas_abertas: list[dict[str, Any]] = []
     for task in tasks:
         linhas = eventos_repositorio.mensagens_da_task(conn, projeto["id"], task["code"])
-        pendente = None
+        abertas: list[dict[str, Any]] = []
         for linha in linhas:
             if linha["type"] == "pergunta":
-                pendente = dict(linha)
-            elif linha["type"] == "resposta":
-                pendente = None
-        if pendente:
-            perguntas_abertas.append({"code": task["code"], **pendente})
+                abertas.append(dict(linha))
+            elif linha["type"] == "resposta" and abertas:
+                abertas.pop(0)
+        perguntas_abertas += [{"code": task["code"], **pendente} for pendente in abertas]
 
     return {
         "projeto": dict(projeto),

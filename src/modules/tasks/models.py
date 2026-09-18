@@ -20,6 +20,9 @@ class TaskPatch(BaseModel):
     status: EStatusTask | None = None
     tags: list[str] | None = None
     owner_id: int | None = None
+    # Lista completa, não incremental: o que vier aqui substitui as dependências
+    # atuais da task. Lista vazia remove todas.
+    dependencies: list[str] | None = None
 
 
 class MensagemIn(BaseModel):
