@@ -175,12 +175,15 @@ def _gravar_corpo_evento(
     return seq, versao, diff
 
 
-def task_diff(conn: sqlite3.Connection, task_id: int, code: str, desde: int) -> dict[str, Any]:
+def task_diff(
+    conn: sqlite3.Connection, task_id: int, code: str, desde: int, ate: int | None = None
+) -> dict[str, Any]:
+    """Diff do corpo entre a versão `desde` e a `ate` (padrão: a mais recente)."""
     versoes = repositorio.todos_corpos(conn, task_id)
     if not versoes:
         return {"code": code, "versao_de": 0, "versao_para": 0, "diff": ""}
     antes = next((v["texto"] for v in versoes if v["version"] == desde), "")
-    ultima = versoes[-1]
+    ultima = next((v for v in versoes if v["version"] == ate), versoes[-1])
     return {
         "code": code,
         "versao_de": desde,
@@ -247,13 +250,31 @@ def list_tasks(
     feature: str | None = None,
     sem_feature: bool = False,
 ) -> list[dict[str, Any]]:
+    projeto = exigir_acesso(conn, slug, person_id)
+    return filtrar_tasks(conn, projeto, person_id, status, tag, q, nao_lidas, feature, sem_feature)
+
+
+def filtrar_tasks(
+    conn: sqlite3.Connection,
+    projeto: sqlite3.Row,
+    person_id: int | None,
+    status: EStatusTask | None,
+    tag: str | None,
+    q: str | None = None,
+    nao_lidas: bool = False,
+    feature: str | None = None,
+    sem_feature: bool = False,
+) -> list[dict[str, Any]]:
+    """Núcleo de `list_tasks` sem checagem de acesso. `person_id=None` é leitura
+    de admin: sem contagem de não lidos."""
     if feature and sem_feature:
         raise Invalid("Use feature ou sem_feature, não os dois")
-    projeto = exigir_acesso(conn, slug, person_id)
     feature_id = (
         features_repositorio.find_by_code(conn, projeto["id"], feature)["id"] if feature else None
     )
-    leitura = repositorio.leitura_do_projeto(conn, projeto["id"], person_id)
+    leitura = (
+        repositorio.leitura_do_projeto(conn, projeto["id"], person_id) if person_id is not None else {}
+    )
     linhas = repositorio.find_all(conn, projeto["id"], status, feature_id, sem_feature)
     if q:
         casam = repositorio.ids_que_casam(conn, projeto["id"], q)
@@ -306,8 +327,22 @@ def read_task(
     conn: sqlite3.Connection, slug: str, person_id: int, code: str, com_corpo: bool
 ) -> dict[str, Any]:
     projeto = exigir_acesso(conn, slug, person_id)
+    return montar_task(conn, projeto, code, person_id, com_corpo)
+
+
+def montar_task(
+    conn: sqlite3.Connection,
+    projeto: sqlite3.Row,
+    code: str,
+    person_id: int | None,
+    com_corpo: bool,
+) -> dict[str, Any]:
+    """Núcleo de `read_task` sem checagem de acesso. `person_id=None` é leitura
+    de admin: não conta nem marca lido."""
     task = repositorio.find_by_code(conn, projeto["id"], code)
-    leitura = repositorio.leitura_do_projeto(conn, projeto["id"], person_id).get(task["id"])
+    leitura = None
+    if person_id is not None:
+        leitura = repositorio.leitura_do_projeto(conn, projeto["id"], person_id).get(task["id"])
     dados = serializar(conn, task, leitura)
     if com_corpo:
         corpo = repositorio.ultimo_corpo(conn, task["id"])
@@ -315,10 +350,11 @@ def read_task(
     dados["eventos"] = eventos_service.eventos_da_task(conn, task["id"])
     # Abrir a task é o que marca lido: daqui pra frente ela só volta a aparecer
     # em `nao_lidas` se o outro lado escrever de novo.
-    with conn:
-        repositorio.marcar_lida(
-            conn, task["id"], person_id, repositorio.ultimo_seq(conn, task["id"])
-        )
+    if person_id is not None:
+        with conn:
+            repositorio.marcar_lida(
+                conn, task["id"], person_id, repositorio.ultimo_seq(conn, task["id"])
+            )
     return dados
 
 

@@ -165,6 +165,15 @@ def add_member(
     `private`."""
     projeto = exigir_acesso(conn, slug, person_id)
     _exigir_owner(conn, projeto["id"], person_id)
+    return _inserir_membro(conn, projeto, email)
+
+
+def admin_add_member(conn: sqlite3.Connection, slug: str, email: str) -> dict[str, Any]:
+    """Mesmo que `add_member`, sem exigir owner - acesso só pelo admin."""
+    return _inserir_membro(conn, repositorio.find_by_slug(conn, slug), email)
+
+
+def _inserir_membro(conn: sqlite3.Connection, projeto: sqlite3.Row, email: str) -> dict[str, Any]:
     convidado = people_repositorio.find_by_email(conn, email)
     if convidado is None:
         raise NotFound(f"Ninguém cadastrado com o email '{email}'")
@@ -172,7 +181,7 @@ def add_member(
         repositorio.insert_membership(
             conn, projeto["id"], convidado["id"], ERole.member.value
         )
-    return {"projeto": slug, "email": convidado["email"], "role": ERole.member.value}
+    return {"projeto": projeto["slug"], "email": convidado["email"], "role": ERole.member.value}
 
 
 def request_access(conn: sqlite3.Connection, slug: str, person_id: int) -> dict[str, Any]:
@@ -199,6 +208,19 @@ def _resolver_request(
 ) -> dict[str, Any]:
     projeto = exigir_acesso(conn, slug, person_id)
     _exigir_owner(conn, projeto["id"], person_id)
+    return _aplicar_request(conn, projeto, request_id, aceitar)
+
+
+def admin_resolver_request(
+    conn: sqlite3.Connection, slug: str, request_id: int, aceitar: bool
+) -> dict[str, Any]:
+    """Mesmo que aceitar/recusar pedido, sem exigir owner - acesso só pelo admin."""
+    return _aplicar_request(conn, repositorio.find_by_slug(conn, slug), request_id, aceitar)
+
+
+def _aplicar_request(
+    conn: sqlite3.Connection, projeto: sqlite3.Row, request_id: int, aceitar: bool
+) -> dict[str, Any]:
     pedido = repositorio.find_request(conn, projeto["id"], request_id)
     if pedido is None or pedido["status"] != ERequestStatus.pending.value:
         raise NotFound(f"Pedido {request_id} não existe ou já foi resolvido")

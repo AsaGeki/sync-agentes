@@ -21,6 +21,24 @@ ROTULO_STATUS = {
 }
 
 
+def perguntas_abertas(
+    conn: sqlite3.Connection, projeto_id: int, tasks: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Cada `resposta` fecha a pergunta aberta mais antiga da task: duas perguntas
+    em aberto exigem duas respostas pra sumirem daqui."""
+    pendentes: list[dict[str, Any]] = []
+    for task in tasks:
+        linhas = eventos_repositorio.mensagens_da_task(conn, projeto_id, task["code"])
+        abertas: list[dict[str, Any]] = []
+        for linha in linhas:
+            if linha["type"] == "pergunta":
+                abertas.append(dict(linha))
+            elif linha["type"] == "resposta" and abertas:
+                abertas.pop(0)
+        pendentes += [{"code": task["code"], **pendente} for pendente in abertas]
+    return pendentes
+
+
 def montar_relatorio(
     conn: sqlite3.Connection, slug: str, person_id: int, desde: int
 ) -> dict[str, Any]:
@@ -57,19 +75,6 @@ def montar_relatorio(
     for cru in crus:
         contagem_autor[eventos_service.assinatura(cru)] += 1
 
-    # Cada `resposta` fecha a pergunta aberta mais antiga da task: duas perguntas
-    # em aberto exigem duas respostas pra sumirem daqui.
-    perguntas_abertas: list[dict[str, Any]] = []
-    for task in tasks:
-        linhas = eventos_repositorio.mensagens_da_task(conn, projeto["id"], task["code"])
-        abertas: list[dict[str, Any]] = []
-        for linha in linhas:
-            if linha["type"] == "pergunta":
-                abertas.append(dict(linha))
-            elif linha["type"] == "resposta" and abertas:
-                abertas.pop(0)
-        perguntas_abertas += [{"code": task["code"], **pendente} for pendente in abertas]
-
     return {
         "projeto": dict(projeto),
         "tasks": tasks,
@@ -80,7 +85,7 @@ def montar_relatorio(
         "features_apagadas": features_apagadas,
         "contagem_status": dict(contagem_status),
         "contagem_autor": dict(contagem_autor),
-        "perguntas_abertas": perguntas_abertas,
+        "perguntas_abertas": perguntas_abertas(conn, projeto["id"], tasks),
         "desde": desde,
         "cursor": eventos[-1]["seq"] if eventos else desde,
     }
