@@ -142,7 +142,7 @@ def linha_do_tempo(eventos: list[dict[str, Any]], abertas: set[int]) -> list[dic
 def ctx_task(
     conn: sqlite3.Connection, projeto: sqlite3.Row, code: str, person_id: int | None
 ) -> dict[str, Any]:
-    task = tasks_service.montar_task(conn, projeto, code, person_id, com_corpo=True)
+    task = tasks_service.montar_task(conn, projeto, code, person_id, com_corpo=True, marcar_lida=False)
     eventos = task["eventos"]
     abertas = {p["seq"] for p in perguntas_abertas(conn, projeto["id"], [task])}
 

@@ -20,7 +20,7 @@
     <dl class="numeros">
       <div><dt>Precisam de atenção</dt><dd>{{ c.atencao }}</dd></div>
       <div><dt>Perguntas abertas</dt><dd>{{ c.perguntas_abertas }}</dd></div>
-      {% if c.nao_lidos is not none %}<div><dt>Não lidos</dt><dd>{{ c.nao_lidos }}</dd></div>{% endif %}
+      {% if c.nao_lidos is not none %}<div><dt title="Eventos que sua IA ainda não leu">Não lidos (IA)</dt><dd>{{ c.nao_lidos }}</dd></div>{% endif %}
     </dl>
     <footer class="mudo">
       <span title="{{ c.ultima_atividade|quando }}">Última atividade {{ c.ultima_atividade|relativo }}</span>

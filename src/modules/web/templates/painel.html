@@ -6,9 +6,9 @@
 {% set p = painel %}
 {% set url_p = base ~ '/p/' ~ projeto['slug'] %}
 
-<div {% if not admin %}hx-ext="sse" sse-connect="/web/p/{{ projeto['slug'] }}/stream"{% endif %}>
-<div id="painel-corpo"
-     {% if not admin %}hx-get="{{ request.url }}" hx-trigger="sse:mudou delay:500ms" hx-select="#painel-corpo" hx-swap="outerHTML"{% endif %}>
+<div>
+<div id="painel-corpo" hx-disinherit="*"
+     {% if not admin %}hx-get="{{ request.url }}" hx-trigger="mudou from:body delay:500ms" hx-select="#painel-corpo" hx-swap="outerHTML"{% endif %}>
 
   <div class="cabeca-pagina">
     <h1>{{ projeto['name'] }}</h1>
@@ -25,7 +25,7 @@
     <div class="tile"><span class="rotulo">Precisam de atenção</span><span class="valor">{{ p.atencao|length }}</span><span class="mudo">bloqueadas ou aguardando decisão</span></div>
     <div class="tile"><span class="rotulo">Perguntas abertas</span><span class="valor">{{ p.perguntas_abertas|length }}</span><span class="mudo">sem resposta ainda</span></div>
     {% if p.nao_lidos is not none %}
-    <a class="tile" href="{{ url_p }}/tasks?nao_lidas=true"><span class="rotulo">Não lidos</span><span class="valor">{{ p.nao_lidos }}</span><span class="mudo">eventos de outras pessoas</span></a>
+    <a class="tile" href="{{ url_p }}/tasks?nao_lidas=true"><span class="rotulo">Não lidos pela sua IA</span><span class="valor">{{ p.nao_lidos }}</span><span class="mudo">eventos de outras pessoas</span></a>
     {% endif %}
   </section>
 

@@ -336,9 +336,11 @@ def montar_task(
     code: str,
     person_id: int | None,
     com_corpo: bool,
+    marcar_lida: bool = True,
 ) -> dict[str, Any]:
     """Núcleo de `read_task` sem checagem de acesso. `person_id=None` é leitura
-    de admin: não conta nem marca lido."""
+    de admin: não conta nem marca lido. `marcar_lida=False` conta sem marcar:
+    a leitura pela web não tira do não lido o que a IA da pessoa ainda não viu."""
     task = repositorio.find_by_code(conn, projeto["id"], code)
     leitura = None
     if person_id is not None:
@@ -350,7 +352,7 @@ def montar_task(
     dados["eventos"] = eventos_service.eventos_da_task(conn, task["id"])
     # Abrir a task é o que marca lido: daqui pra frente ela só volta a aparecer
     # em `nao_lidas` se o outro lado escrever de novo.
-    if person_id is not None:
+    if person_id is not None and marcar_lida:
         with conn:
             repositorio.marcar_lida(
                 conn, task["id"], person_id, repositorio.ultimo_seq(conn, task["id"])

@@ -2,6 +2,7 @@
 leitura de task e as escritas leves (mensagem e campos da task)."""
 
 import asyncio
+import json
 import sqlite3
 from contextlib import closing
 
@@ -175,17 +176,20 @@ async def enviar_mensagem(
 # ---------- tempo real ---------- #
 
 
-@router.get("/web/p/{slug}/stream")
-async def stream(slug: str, pessoa: sqlite3.Row = Depends(pessoa_web)) -> StreamingResponse:
-    """Avisa a página que algo mudou; ela mesma rebusca o trecho afetado. Não
-    corta o próprio eco: a IA da pessoa escreve assinando como ela, e isso
-    precisa aparecer na tela."""
+@router.get("/web/stream")
+async def stream(pessoa: sqlite3.Row = Depends(pessoa_web)) -> StreamingResponse:
+    """Um canal só por pessoa, com todos os projetos dela: as abas dividem esta
+    conexão via SharedWorker, porque o navegador limita 6 conexões HTTP/1.1 por
+    host e uma por aba travava quem abria várias. Cada aviso diz projeto e task;
+    a página filtra o que é dela e rebusca o trecho afetado. Não corta o próprio
+    eco: a IA da pessoa escreve assinando como ela, e isso precisa aparecer."""
     with closing(conectar()) as conn:
-        exigir_acesso(conn, slug, pessoa["id"])
+        slugs = [p["slug"] for p in indicadores.projetos_da_pessoa(conn, pessoa["id"])]
 
     async def gerar():
         fila: asyncio.Queue = asyncio.Queue(maxsize=500)
-        INSCRITOS[slug].add(fila)
+        for slug in slugs:
+            INSCRITOS[slug].add(fila)
         try:
             while True:
                 try:
@@ -193,11 +197,10 @@ async def stream(slug: str, pessoa: sqlite3.Row = Depends(pessoa_web)) -> Stream
                 except TimeoutError:
                     yield ": ping\n\n"
                     continue
-                alvo = evento.get("task_code") or "-"
-                yield f"event: mudou\ndata: {alvo}\n\n"
-                if evento.get("task_code"):
-                    yield f"event: task-{alvo}\ndata: {alvo}\n\n"
+                aviso = {"projeto": evento["project_slug"], "task": evento.get("task_code")}
+                yield f"event: mudou\ndata: {json.dumps(aviso)}\n\n"
         finally:
-            INSCRITOS[slug].discard(fila)
+            for slug in slugs:
+                INSCRITOS[slug].discard(fila)
 
     return StreamingResponse(gerar(), media_type="text/event-stream")

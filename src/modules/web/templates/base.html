@@ -8,7 +8,7 @@
   <title>{% block titulo %}sync-agents{% endblock %}</title>
   <link rel="stylesheet" href="/web/static/app.css">
   <script src="/web/static/htmx.min.js" defer></script>
-  <script src="/web/static/sse.min.js" defer></script>
+  <script src="/web/static/tempo-real.js" defer></script>
 </head>
 <body hx-boost="true">
 <div class="app {{ 'com-lateral' if nav is defined else '' }}">
@@ -33,7 +33,7 @@
         {% set atual = projeto is defined and projeto['slug'] == item.slug %}
         <a href="{{ base }}/p/{{ item.slug }}" class="projeto-nav {{ 'aberto' if atual else '' }}">
           <span class="nome">{{ item.name }}</span>
-          {% if item.nao_lidos %}<span class="contador" title="{{ item.nao_lidos }} não lido(s)">{{ item.nao_lidos }}</span>{% endif %}
+          {% if item.nao_lidos %}<span class="contador" title="{{ item.nao_lidos }} evento(s) que sua IA ainda não leu">{{ item.nao_lidos }}</span>{% endif %}
         </a>
         {% if atual %}
           <div class="sub-nav">
@@ -67,7 +67,9 @@
   </aside>
   {% endif %}
 
-  <main class="area">
+  <main class="area"
+        {%- if pessoa and not admin %} data-pessoa="{{ pessoa['id'] }}"{% endif %}
+        {%- if projeto is defined and not admin %} data-projeto="{{ projeto['slug'] }}"{% endif %}>
     <div id="erro" role="alert"></div>
     {% block conteudo %}{% endblock %}
   </main>

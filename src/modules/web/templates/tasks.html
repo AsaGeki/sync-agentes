@@ -30,12 +30,12 @@
   </select>
   <input type="text" name="tag" value="{{ filtros.tag }}" placeholder="Tag" size="10">
   {% if not admin %}
-    <label class="marcar"><input type="checkbox" name="nao_lidas" value="true" {% if filtros.nao_lidas %}checked{% endif %}> Só não lidas</label>
+    <label class="marcar"><input type="checkbox" name="nao_lidas" value="true" {% if filtros.nao_lidas %}checked{% endif %}> Só não lidas pela IA</label>
   {% endif %}
 </form>
 
-<div {% if not admin %}hx-ext="sse" sse-connect="/web/p/{{ projeto['slug'] }}/stream"{% endif %}>
-<section id="lista" {% if not admin %}hx-get="{{ request.url }}" hx-trigger="sse:mudou delay:500ms" hx-select="#lista" hx-swap="outerHTML"{% endif %}>
+<div>
+<section id="lista" hx-disinherit="*" {% if not admin %}hx-get="{{ request.url }}" hx-trigger="mudou from:body delay:500ms" hx-select="#lista" hx-swap="outerHTML"{% endif %}>
   {% if filtros.visao == 'quadro' %}
     <div class="quadro">
       {% for status, itens in colunas %}
@@ -64,13 +64,13 @@
   {% else %}
     <table class="tabela tabela-tasks">
       <thead><tr>
-        {% if not admin %}<th class="col-lido"><span class="sr">Não lidos</span></th>{% endif %}
+        {% if not admin %}<th class="col-lido"><span class="sr">Não lidos pela IA</span></th>{% endif %}
         <th>Code</th><th>Título</th><th>Status</th><th>Dono</th><th>Tags</th><th>Atualizada</th>
       </tr></thead>
       <tbody>
         {% for t in tasks %}
           <tr class="{{ 'nao-lida' if t.nao_lidos else '' }}">
-            {% if not admin %}<td class="col-lido">{% if t.nao_lidos %}<span class="contador" title="{{ t.nao_lidos }} não lido(s)">{{ t.nao_lidos }}</span>{% endif %}</td>{% endif %}
+            {% if not admin %}<td class="col-lido">{% if t.nao_lidos %}<span class="contador" title="{{ t.nao_lidos }} evento(s) que sua IA ainda não leu">{{ t.nao_lidos }}</span>{% endif %}</td>{% endif %}
             <td><code title="{{ t.code }}">{{ t.code|code_curto }}</code></td>
             <td class="col-titulo">
               <a href="{{ base }}/p/{{ projeto['slug'] }}/t/{{ t.code }}">{{ t.title }}</a>

@@ -6,7 +6,7 @@
 {% set mensagens = task.eventos|selectattr('kind', 'equalto', 'message.created')|list %}
 {% include "parciais/abas.html" %}
 
-<div class="pagina-task" {% if not admin %}hx-ext="sse" sse-connect="/web/p/{{ projeto['slug'] }}/stream"{% endif %}>
+<div class="pagina-task">
 
 <header id="task-titulo" class="task-titulo">
   <h1>{{ task.title }}</h1>
@@ -37,8 +37,8 @@
       {% else %}<p class="mudo">Sem corpo.</p>{% endif %}
     </details>
 
-    <section id="conversa" class="conversa" aria-label="Conversa"
-      {% if not admin %}hx-get="{{ url_task }}" hx-trigger="sse:task-{{ task.code }} delay:400ms" hx-select="#conversa"
+    <section id="conversa" class="conversa" aria-label="Conversa" hx-disinherit="*"
+      {% if not admin %}hx-get="{{ url_task }}" hx-trigger="mudou-task[detail.task=='{{ task.code }}'] from:body delay:400ms" hx-select="#conversa"
       hx-select-oob="#task-titulo,#corpo-card,#propriedades" hx-swap="outerHTML"{% endif %}>
       {% for bloco in blocos %}
         {% if bloco.tipo == 'dia' %}
