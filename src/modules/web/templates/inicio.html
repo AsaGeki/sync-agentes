@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block titulo %}{{ 'Todos os projetos' if admin else 'Meus projetos' }} · sync-agents{% endblock %}
+{% block conteudo %}
+<div class="cabeca-pagina"><h1>{{ 'Todos os projetos' if admin else 'Visão geral' }}</h1><span class="mudo">{{ cards|length }} projeto(s)</span></div>
+{% if not cards %}
+  <p class="mudo">{{ 'Nenhum projeto cadastrado.' if admin else 'Você ainda não é membro de nenhum projeto.' }}</p>
+{% endif %}
+<div class="grade-cards">
+  {% for c in cards %}
+  <article class="cartao card-projeto">
+    <header>
+      <h2><a href="{{ base }}/p/{{ c.slug }}">{{ c.name }}</a></h2>
+      <span class="etiqueta">{{ c.status }}</span>
+      <span class="etiqueta">{{ c.visibility }}</span>
+    </header>
+    <div class="medidor" role="img" aria-label="{{ c.feitas }} de {{ c.total_tasks }} tasks feitas">
+      <div class="medidor-fill" style="width: {{ (100 * c.feitas / c.total_tasks) if c.total_tasks else 0 }}%"></div>
+    </div>
+    <p class="mudo">{{ c.feitas }}/{{ c.total_tasks }} tasks feitas · {{ c.membros }} membro(s)</p>
+    <dl class="numeros">
+      <div><dt>Precisam de atenção</dt><dd>{{ c.atencao }}</dd></div>
+      <div><dt>Perguntas abertas</dt><dd>{{ c.perguntas_abertas }}</dd></div>
+      {% if c.nao_lidos is not none %}<div><dt>Não lidos</dt><dd>{{ c.nao_lidos }}</dd></div>{% endif %}
+    </dl>
+    <footer class="mudo">
+      <span title="{{ c.ultima_atividade|quando }}">Última atividade {{ c.ultima_atividade|relativo }}</span>
+      {% if admin %}
+        <button class="perigo" hx-post="/web/admin/p/{{ c.slug }}/apagar"
+                hx-confirm="Apagar o projeto '{{ c.name }}' e tudo dele (tasks, eventos, membros)? Não dá pra desfazer.">apagar</button>
+      {% endif %}
+    </footer>
+  </article>
+  {% endfor %}
+</div>
+{% endblock %}

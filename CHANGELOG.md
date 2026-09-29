@@ -2,6 +2,23 @@
 
 Formato livre, mais recente no topo. Versão segue `src/main.py` (`FastAPI(version=...)`), exposta em `GET /health` e este arquivo em `GET /changelog`.
 
+## 3.2.0 — 2026-09-29
+
+- **Interface web em `/web`** (Jinja2 + htmx, renderizada no servidor, sem build de JS). `/` redireciona pra lá. REST, MCP e `/docs` não mudaram.
+- **Login por token colado.** `/web/login` recebe o token pessoal e grava o cookie `sa_pessoa`; `/web/admin/login` recebe o `ADMIN_TOKEN` e grava `sa_admin`. Os dois são `httpOnly` + `SameSite=Strict` e independentes. Em HTTP puro o cookie trafega em claro, mesmo risco do header `Authorization` do bridge.
+- **Área da pessoa:** cards dos projetos de que ela é membro (progresso, tasks bloqueadas/aguardando decisão, perguntas abertas, não lidos); painel do projeto (tasks por status, progresso por feature, o que precisa de atenção, membros, gráfico de eventos por dia nas últimas 8 semanas por pessoa ou por ferramenta); lista de tasks com filtros; task com corpo, linha do tempo, diffs e diff do corpo por versão.
+- **Escrita pela web:** mensagem na task e edição de status, dono, feature e tags. Assina a pessoa do cookie com `agent='human'`. Abrir a task pela web marca como lida, igual `read_task`.
+- **Tempo real na web:** `GET /web/p/{slug}/stream` (SSE autenticado pelo cookie) avisa a página, que rebusca o trecho afetado. Diferente do `/stream`, não corta o próprio eco: a IA da pessoa escreve assinando como ela e isso precisa aparecer na tela.
+- **Mudança de regra: admin lê conteúdo de projeto (só pela web).** `/web/admin/p/{slug}` mostra painel, tasks e task de qualquer projeto em modo leitura, sem contar nem marcar lido. Admin também adiciona membro e aceita/recusa pedido de acesso de qualquer projeto sem ser owner, além de gerenciar people/tokens e apagar projeto. Nenhuma rota REST nova.
+- Services ganharam núcleos sem checagem de acesso, reusados pela leitura de admin: `tasks.service.filtrar_tasks`, `tasks.service.montar_task`, `projects.service.admin_add_member`, `projects.service.admin_resolver_request`. `relatorio.perguntas_abertas` saiu de `montar_relatorio` pra ser reusada pelo painel. `task_diff` aceita `ate` (diff entre duas versões do corpo).
+- Corpo e mensagens aparecem renderizados como markdown (`markdown-it-py`, CommonMark + tabela + tachado). HTML cru no texto é escapado.
+- No gráfico por pessoa, cada pessoa tem cor própria (até 8, a paleta inteira), fixa pela ordem em que escreveu pela primeira vez no projeto. Só a partir da 9ª pessoa vira "outros".
+- Layout da web: barra lateral fixa com os projetos (e não lidos de cada um) e as seções do projeto aberto, área de trabalho em largura total e navegação por `hx-boost`.
+- Task em duas colunas: corpo recolhível, conversa e campo de resposta à esquerda; propriedades editáveis, dependências, participantes e diffs à direita. Na conversa, mensagens seguidas do mesmo autor (janela de 10 min) viram um cartão só com avatar, ferramenta e tipo colorido; pergunta sem resposta fica marcada; mudanças de campo e de corpo aparecem como linhas compactas com separador por dia; texto longo fica recolhido com "mostrar tudo". O tipo da mensagem é escolhido em botões e `Ctrl+Enter` envia.
+- Tasks ganharam visão em quadro por status; a lista mostra o code curto (`T-023`), o dono com avatar e a hora relativa.
+- Painel em grade: atenção e gráfico na coluna principal; status (barra empilhada), features e membros na lateral.
+- Dependências novas no grupo `server`: `jinja2`, `python-multipart` e `markdown-it-py`.
+
 ## 3.1.0 — 2026-09-29
 
 - **Feature: agrupador opcional de tasks (`projeto → feature → task`).** Tabela `features` com code `F-003-slug` (mesma regra do code de task), título e descrição. `tasks.feature_id` é opcional - task avulsa continua sendo o caso normal, e nada trava por causa de feature. O status da feature não é gravado: sai das tasks dela (sem task ou tudo `ideia` → `ideia`; tudo `feito` → `feito`; alguma `bloqueado` → `bloqueado`; senão `parcial`), junto com o progresso `feito/total`.

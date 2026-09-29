@@ -27,6 +27,9 @@ server = [
     "uvicorn[standard]>=0.52.4",
     "python-dotenv>=1.2.3",
     "psutil>=7.2.2",
+    "jinja2>=3.1.6",
+    "python-multipart>=0.0.32",
+    "markdown-it-py>=4.2.0",
 ]
 dev = [
     "ruff>=0.16.4",
@@ -43,5 +46,5 @@ target-version = "py313"
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.ruff.lint.flake8-bugbear]
-# Depends()/Query()/Header() em default de argumento é o padrão idiomático do FastAPI, não um bug.
-extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header"]
+# Depends()/Query()/Header()/Form()/Path() em default de argumento é o padrão idiomático do FastAPI, não um bug.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header", "fastapi.Form", "fastapi.Path"]

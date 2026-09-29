@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% from "parciais/macros.html" import avatar, status_pill, hora %}
+{% block titulo %}{{ projeto['name'] }} · sync-agents{% endblock %}
+{% block conteudo %}
+{% include "parciais/abas.html" %}
+{% set p = painel %}
+{% set url_p = base ~ '/p/' ~ projeto['slug'] %}
+
+<div {% if not admin %}hx-ext="sse" sse-connect="/web/p/{{ projeto['slug'] }}/stream"{% endif %}>
+<div id="painel-corpo"
+     {% if not admin %}hx-get="{{ request.url }}" hx-trigger="sse:mudou delay:500ms" hx-select="#painel-corpo" hx-swap="outerHTML"{% endif %}>
+
+  <div class="cabeca-pagina">
+    <h1>{{ projeto['name'] }}</h1>
+    <span class="etiqueta">{{ projeto['status'] }}</span>
+    <span class="etiqueta">{{ projeto['visibility'] }}</span>
+  </div>
+
+  <section class="tiles">
+    <a class="tile" href="{{ url_p }}/tasks?status=feito">
+      <span class="rotulo">Tasks feitas</span>
+      <span class="valor">{{ p.feitas }}<small>/{{ p.total_tasks }}</small></span>
+      <div class="medidor"><div class="medidor-fill" style="width: {{ (100 * p.feitas / p.total_tasks) if p.total_tasks else 0 }}%"></div></div>
+    </a>
+    <div class="tile"><span class="rotulo">Precisam de atenção</span><span class="valor">{{ p.atencao|length }}</span><span class="mudo">bloqueadas ou aguardando decisão</span></div>
+    <div class="tile"><span class="rotulo">Perguntas abertas</span><span class="valor">{{ p.perguntas_abertas|length }}</span><span class="mudo">sem resposta ainda</span></div>
+    {% if p.nao_lidos is not none %}
+    <a class="tile" href="{{ url_p }}/tasks?nao_lidas=true"><span class="rotulo">Não lidos</span><span class="valor">{{ p.nao_lidos }}</span><span class="mudo">eventos de outras pessoas</span></a>
+    {% endif %}
+  </section>
+
+  <div class="painel-grade">
+    <div class="painel-principal">
+      <section class="cartao">
+        <h2>Precisa de atenção</h2>
+        {% if not p.atencao and not p.perguntas_abertas %}<p class="mudo">Nada bloqueado nem esperando resposta.</p>{% endif %}
+        <ul class="lista-atencao">
+          {% for t in p.atencao %}
+            <li>
+              {{ status_pill(t.status) }}
+              <a href="{{ url_p }}/t/{{ t.code }}"><code>{{ t.code|code_curto }}</code> {{ t.title }}</a>
+            </li>
+          {% endfor %}
+          {% for q in p.perguntas_abertas %}
+            <li>
+              <span class="tipo t-pergunta">pergunta</span>
+              <div class="pergunta">
+                <a href="{{ url_p }}/t/{{ q.code }}#ev-{{ q.seq }}"><code>{{ q.code|code_curto }}</code></a>
+                <span>{{ q.texto.splitlines()[0]|truncate(160)|markdown_linha }}</span>
+                <span class="mudo">— {{ q.author_alias }}, {{ hora(q.created_at) }}</span>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+
+      <section class="cartao">
+        {% include "parciais/grafico.html" %}
+      </section>
+    </div>
+
+    <aside class="painel-lateral">
+      <section class="cartao">
+        <h2>Tasks por status</h2>
+        {% if p.total_tasks %}
+        <div class="barra-status" role="img" aria-label="Distribuição de tasks por status">
+          {% for status, n in p.contagem_status if n %}
+            <span class="seg st-{{ status }}" style="flex-grow: {{ n }}" title="{{ ROTULO_STATUS[status] }}: {{ n }}"></span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <ul class="lista-status">
+          {% for status, n in p.contagem_status %}
+            <li><a href="{{ url_p }}/tasks?status={{ status }}">{{ status_pill(status) }}</a><span class="numero">{{ n }}</span></li>
+          {% endfor %}
+        </ul>
+      </section>
+
+      <section class="cartao">
+        <h2>Features</h2>
+        {% if not p.features %}<p class="mudo">Nenhuma feature. Tasks avulsas são o caso normal.</p>{% endif %}
+        <ul class="lista-features">
+          {% for f in p.features %}
+            <li>
+              <div class="linha">
+                <a href="{{ url_p }}/tasks?feature={{ f.code }}"><code>{{ f.code|code_curto }}</code> {{ f.title }}</a>
+                <span class="mudo">{{ f.progresso.feito }}/{{ f.progresso.total }}</span>
+              </div>
+              <div class="medidor" role="img" aria-label="{{ f.progresso.feito }} de {{ f.progresso.total }} feitas">
+                <div class="medidor-fill" style="width: {{ (100 * f.progresso.feito / f.progresso.total) if f.progresso.total else 0 }}%"></div>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+
+      <section class="cartao">
+        <h2>Membros <span class="mudo">{{ p.membros|length }}</span></h2>
+        <ul class="lista-lateral">
+          {% for m in p.membros %}
+            <li title="{{ m.email }}">{{ avatar(m.email.split('@')[0], m.name, 'pequeno') }} {{ m.name }} {% if m.role == 'owner' %}<span class="etiqueta">owner</span>{% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% if admin %}
+          <form class="em-linha" hx-post="/web/admin/p/{{ projeto['slug'] }}/membros" hx-select="#painel-corpo" hx-target="#painel-corpo" hx-swap="outerHTML">
+            <input type="email" name="email" required placeholder="email de quem entra">
+            <button>Adicionar</button>
+          </form>
+          <h3>Pedidos de acesso</h3>
+          {% if not pedidos %}<p class="mudo">Nenhum pendente.</p>{% endif %}
+          <ul class="lista-lateral">
+            {% for r in pedidos %}
+              <li>
+                <span>{{ r.name }} <span class="mudo">{{ r.email }}</span></span>
+                {% for acao in ['aceitar', 'recusar'] %}
+                  <button class="{{ 'perigo' if acao == 'recusar' else '' }}"
+                          hx-post="/web/admin/p/{{ projeto['slug'] }}/pedidos/{{ r.id }}/{{ acao }}"
+                          hx-select="#painel-corpo" hx-target="#painel-corpo" hx-swap="outerHTML">{{ acao }}</button>
+                {% endfor %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </section>
+    </aside>
+  </div>
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% from "parciais/macros.html" import icone, avatar, status_pill %}
+{% block titulo %}Tasks · {{ projeto['name'] }}{% endblock %}
+{% block conteudo %}
+{% include "parciais/abas.html" %}
+{% set url_tasks = base ~ '/p/' ~ projeto['slug'] ~ '/tasks' %}
+
+<div class="cabeca-pagina">
+  <h1>Tasks</h1>
+  <div class="alternar" role="group" aria-label="Visão">
+    <a href="{{ url_tasks }}?visao=lista" {% if filtros.visao == 'lista' %}aria-current="true"{% endif %}>{{ icone('lista') }} Lista</a>
+    <a href="{{ url_tasks }}?visao=quadro" {% if filtros.visao == 'quadro' %}aria-current="true"{% endif %}>{{ icone('quadro') }} Quadro</a>
+  </div>
+</div>
+
+<form class="filtros" hx-get="{{ url_tasks }}" hx-select="#lista" hx-target="#lista"
+      hx-swap="outerHTML" hx-push-url="true" hx-trigger="change, input from:[name=q] delay:300ms, submit">
+  <input type="hidden" name="visao" value="{{ filtros.visao }}">
+  <input type="search" name="q" value="{{ filtros.q }}" placeholder="Buscar em code, título ou corpo">
+  {% if filtros.visao == 'lista' %}
+  <select name="status" aria-label="Status">
+    <option value="">Todos os status</option>
+    {% for s in statuses %}<option value="{{ s }}" {% if filtros.status == s %}selected{% endif %}>{{ ROTULO_STATUS[s] }}</option>{% endfor %}
+  </select>
+  {% endif %}
+  <select name="feature" aria-label="Feature">
+    <option value="">Todas as features</option>
+    <option value="{{ SEM_FEATURE }}" {% if filtros.feature == SEM_FEATURE %}selected{% endif %}>Sem feature</option>
+    {% for f in features %}<option value="{{ f['code'] }}" {% if filtros.feature == f['code'] %}selected{% endif %}>{{ f['code']|code_curto }} {{ f['title'] }}</option>{% endfor %}
+  </select>
+  <input type="text" name="tag" value="{{ filtros.tag }}" placeholder="Tag" size="10">
+  {% if not admin %}
+    <label class="marcar"><input type="checkbox" name="nao_lidas" value="true" {% if filtros.nao_lidas %}checked{% endif %}> Só não lidas</label>
+  {% endif %}
+</form>
+
+<div {% if not admin %}hx-ext="sse" sse-connect="/web/p/{{ projeto['slug'] }}/stream"{% endif %}>
+<section id="lista" {% if not admin %}hx-get="{{ request.url }}" hx-trigger="sse:mudou delay:500ms" hx-select="#lista" hx-swap="outerHTML"{% endif %}>
+  {% if filtros.visao == 'quadro' %}
+    <div class="quadro">
+      {% for status, itens in colunas %}
+        <section class="coluna-quadro">
+          <header>{{ status_pill(status) }} <span class="mudo">{{ itens|length }}</span></header>
+          {% for t in itens %}
+            <a class="cartao-task" href="{{ base }}/p/{{ projeto['slug'] }}/t/{{ t.code }}">
+              <div class="linha-topo">
+                <code title="{{ t.code }}">{{ t.code|code_curto }}</code>
+                {% if t.nao_lidos %}<span class="contador">{{ t.nao_lidos }}</span>{% endif %}
+              </div>
+              <div class="titulo-task">{{ t.title }}</div>
+              <div class="linha-base">
+                {% if t.feature %}<span class="etiqueta" title="{{ t.feature.title }}">{{ t.feature.code|code_curto }}</span>{% endif %}
+                {% for tag in t.tags[:3] %}<span class="etiqueta">{{ tag }}</span>{% endfor %}
+                <span class="espaco"></span>
+                {% if t.owner %}{{ avatar(t.owner, t.owner, 'pequeno') }}{% endif %}
+              </div>
+            </a>
+          {% else %}
+            <p class="mudo vazio">Nada aqui.</p>
+          {% endfor %}
+        </section>
+      {% endfor %}
+    </div>
+  {% else %}
+    <table class="tabela tabela-tasks">
+      <thead><tr>
+        {% if not admin %}<th class="col-lido"><span class="sr">Não lidos</span></th>{% endif %}
+        <th>Code</th><th>Título</th><th>Status</th><th>Dono</th><th>Tags</th><th>Atualizada</th>
+      </tr></thead>
+      <tbody>
+        {% for t in tasks %}
+          <tr class="{{ 'nao-lida' if t.nao_lidos else '' }}">
+            {% if not admin %}<td class="col-lido">{% if t.nao_lidos %}<span class="contador" title="{{ t.nao_lidos }} não lido(s)">{{ t.nao_lidos }}</span>{% endif %}</td>{% endif %}
+            <td><code title="{{ t.code }}">{{ t.code|code_curto }}</code></td>
+            <td class="col-titulo">
+              <a href="{{ base }}/p/{{ projeto['slug'] }}/t/{{ t.code }}">{{ t.title }}</a>
+              {% if t.feature %}<span class="etiqueta" title="{{ t.feature.title }}">{{ t.feature.code|code_curto }} {{ t.feature.title|truncate(24) }}</span>{% endif %}
+            </td>
+            <td>{{ status_pill(t.status) }}</td>
+            <td>{% if t.owner %}<span class="dono">{{ avatar(t.owner, t.owner, 'pequeno') }} {{ t.owner }}</span>{% else %}<span class="mudo">—</span>{% endif %}</td>
+            <td class="col-tags" title="{{ t.tags|join(', ') }}">{% for tag in t.tags[:3] %}<span class="etiqueta">{{ tag }}</span> {% endfor %}{% if t.tags|length > 3 %}<span class="mudo">+{{ t.tags|length - 3 }}</span>{% endif %}</td>
+            <td class="mudo sem-quebra">{{ t.updated_at|relativo }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" class="mudo">Nenhuma task com esse filtro.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="mudo rodape-lista">{{ tasks|length }} task(s)</p>
+  {% endif %}
+</section>
+</div>
+{% endblock %}

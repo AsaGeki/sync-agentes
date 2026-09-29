@@ -1,0 +1,51 @@
+<figure id="grafico" class="grafico">
+  <figcaption>
+    <div>
+      <strong>Atividade nas últimas 8 semanas</strong>
+      <span class="mudo">· {{ grafico.total }} evento(s) · por {{ 'pessoa' if grafico.por == 'pessoa' else 'ferramenta' }}</span>
+    </div>
+    <div class="alternar" role="group" aria-label="Agrupar atividade">
+      {% for valor, rotulo in [('pessoa', 'Por pessoa'), ('agent', 'Por ferramenta')] %}
+        <a href="?por={{ valor }}" hx-get="?por={{ valor }}" hx-select="#painel-corpo" hx-target="#painel-corpo"
+           hx-swap="outerHTML" hx-push-url="true" {% if grafico.por == valor %}aria-current="true"{% endif %}>{{ rotulo }}</a>
+      {% endfor %}
+    </div>
+  </figcaption>
+
+  {% if grafico.series|length >= 2 %}
+  <ul class="legenda">
+    {% for s in grafico.series %}<li><span class="amostra {{ s.classe }}"></span>{{ s.rotulo }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+
+  <svg viewBox="0 0 {{ grafico.largura }} {{ grafico.altura }}" role="img"
+       aria-label="Eventos por dia nas últimas 8 semanas, empilhados por {{ grafico.por }}">
+    {% for t in grafico.ticks %}
+      <line class="grade" x1="{{ grafico.esquerda }}" x2="{{ grafico.fim_x }}" y1="{{ t.y }}" y2="{{ t.y }}"></line>
+      <text class="eixo" x="{{ grafico.esquerda - 6 }}" y="{{ t.y + 4 }}" text-anchor="end">{{ t.valor }}</text>
+    {% endfor %}
+    <line class="linha-base" x1="{{ grafico.esquerda }}" x2="{{ grafico.fim_x }}" y1="{{ grafico.base_y }}" y2="{{ grafico.base_y }}"></line>
+    {% for c in grafico.colunas %}
+      <g class="coluna">
+        <title>{{ c.titulo }}</title>
+        <rect class="alvo" x="{{ c.x }}" y="0" width="{{ c.largura }}" height="{{ grafico.base_y }}"></rect>
+        {% for s in c.segmentos %}<path class="{{ s.classe }}" d="{{ s.d }}"></path>{% endfor %}
+        {% if c.rotulo %}<text class="eixo" x="{{ c.centro }}" y="{{ grafico.base_y + 15 }}" text-anchor="middle">{{ c.rotulo }}</text>{% endif %}
+      </g>
+    {% endfor %}
+  </svg>
+
+  <details>
+    <summary>Ver tabela</summary>
+    <table class="tabela numerica">
+      <thead><tr><th>Dia</th>{% for s in grafico.series %}<th>{{ s.rotulo }}</th>{% endfor %}<th>Total</th></tr></thead>
+      <tbody>
+        {% for c in grafico.colunas if c.total %}
+          <tr><td>{{ c.dia }}</td>{% for v in c.valores %}<td>{{ v }}</td>{% endfor %}<td>{{ c.total }}</td></tr>
+        {% else %}
+          <tr><td colspan="{{ grafico.series|length + 2 }}" class="mudo">Nenhum evento no período.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+</figure>

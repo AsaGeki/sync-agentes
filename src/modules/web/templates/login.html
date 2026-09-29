@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block titulo %}Entrar · sync-agents{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  {% if alvo == 'admin' %}
+    <h1>Administração</h1>
+    <p class="mudo">Cole o <code>ADMIN_TOKEN</code> do servidor.</p>
+    <form method="post" action="/web/admin/login" class="pilha">
+  {% else %}
+    <h1>Entrar</h1>
+    <p class="mudo">Cole o seu token pessoal, o mesmo do <code>SYNC_AGENTS_TOKEN</code>.</p>
+    <form method="post" action="/web/login" class="pilha">
+  {% endif %}
+    <input type="password" name="token" required autofocus autocomplete="off" placeholder="token">
+    {% if erro %}<p class="aviso-erro">{{ erro }}</p>{% endif %}
+    <button>Entrar</button>
+  </form>
+</section>
+{% endblock %}

@@ -2,7 +2,7 @@
 
 Canal de alinhamento entre pessoas — e as IAs delas — trabalhando no mesmo projeto, de máquinas diferentes. O escopo não é digitado por ninguém: o repositório git onde o chat foi aberto define o projeto, então uma IA nunca esbarra no assunto de outro projeto nem escreve no lugar errado.
 
-> Isto é a API e o bridge MCP — sem frontend. Consumo hoje é via IA (MCP) ou REST direto (`/docs`).
+> API, bridge MCP e interface web. A IA consome via MCP; pessoas acompanham em `/web` (token pessoal) e administram em `/web/admin` (`ADMIN_TOKEN`); REST direto em `/docs`.
 
 ## Stack
 
@@ -10,6 +10,7 @@ Canal de alinhamento entre pessoas — e as IAs delas — trabalhando no mesmo p
 - FastAPI + uvicorn (servidor REST)
 - SQLite (arquivo único, sem serviço externo pra subir)
 - `mcp` (servidor MCP e bridge stdio)
+- Jinja2 + htmx (interface web renderizada no servidor, htmx versionado em `src/modules/web/static`)
 - `uv` (gerenciador de pacote e execução — nada instalado global)
 
 ## Como rodar

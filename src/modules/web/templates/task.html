@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% from "parciais/macros.html" import icone, avatar, status_pill, agente, hora %}
+{% block titulo %}{{ task.code|code_curto }} {{ task.title }} · {{ projeto['name'] }}{% endblock %}
+{% block conteudo %}
+{% set url_task = base ~ '/p/' ~ projeto['slug'] ~ '/t/' ~ task.code %}
+{% set mensagens = task.eventos|selectattr('kind', 'equalto', 'message.created')|list %}
+{% include "parciais/abas.html" %}
+
+<div class="pagina-task" {% if not admin %}hx-ext="sse" sse-connect="/web/p/{{ projeto['slug'] }}/stream"{% endif %}>
+
+<header id="task-titulo" class="task-titulo">
+  <h1>{{ task.title }}</h1>
+  <div class="sub">
+    <code title="{{ task.code }}">{{ task.code|code_curto }}</code>
+    {{ status_pill(task.status) }}
+    <span class="mudo">{{ mensagens|length }} mensagem(ns)</span>
+    {% if abertas %}<span class="etiqueta t-pergunta">{{ abertas }} pergunta(s) em aberto</span>{% endif %}
+    <span class="mudo">· atualizada {{ hora(task.updated_at) }}</span>
+  </div>
+</header>
+
+<div class="task-layout">
+  <div class="task-principal">
+
+    <details id="corpo-card" class="cartao corpo-card" {% if task.corpo %}open{% endif %}>
+      <summary>
+        {{ icone('corpo') }} <strong>Corpo</strong>
+        <span class="mudo">v{{ task.versao_corpo }}{% if ultimo_corpo %} · {{ ultimo_corpo.actor.person }} · {{ hora(ultimo_corpo.created_at) }}{% endif %}</span>
+      </summary>
+      {% if task.corpo %}
+        {% set longo = task.corpo|length > 1500 %}
+        <div class="md {{ 'longa' if longo else '' }}">{{ task.corpo|markdown }}</div>
+        {% if longo %}
+          <button type="button" class="link ver-mais"
+                  onclick="const md = this.previousElementSibling; md.classList.toggle('expandida'); this.textContent = md.classList.contains('expandida') ? 'mostrar menos' : 'mostrar o corpo inteiro';">mostrar o corpo inteiro</button>
+        {% endif %}
+      {% else %}<p class="mudo">Sem corpo.</p>{% endif %}
+    </details>
+
+    <section id="conversa" class="conversa" aria-label="Conversa"
+      {% if not admin %}hx-get="{{ url_task }}" hx-trigger="sse:task-{{ task.code }} delay:400ms" hx-select="#conversa"
+      hx-select-oob="#task-titulo,#corpo-card,#propriedades" hx-swap="outerHTML"{% endif %}>
+      {% for bloco in blocos %}
+        {% if bloco.tipo == 'dia' %}
+          <div class="separador-dia"><span>{{ bloco.dia|rotulo_dia }}</span></div>
+
+        {% elif bloco.tipo == 'mensagens' %}
+          <article class="msg-grupo">
+            {{ avatar(bloco.actor.person, bloco.actor.name) }}
+            <div class="msg-coluna">
+              <header class="msg-cabeca">
+                <strong>{{ bloco.actor.person }}</strong>{{ agente(bloco.actor.agent) }}
+                {{ hora(bloco.inicio) }}
+              </header>
+              {% for m in bloco.itens %}
+                <div id="ev-{{ m.seq }}" class="msg t-{{ m.payload.type }} {{ 'aberta' if m.aberta else '' }}">
+                  <div class="msg-meta">
+                    <span class="tipo t-{{ m.payload.type }}">{{ ROTULO_MENSAGEM[m.payload.type] }}</span>
+                    {% if m.aberta %}<span class="aguardando">aguardando resposta</span>{% endif %}
+                    {% if not loop.first %}<span class="mudo hora-extra">{{ hora(m.created_at) }}</span>{% endif %}
+                  </div>
+                  {% set longa = m.payload.texto|length > 1200 %}
+                  <div class="md {{ 'longa' if longa else '' }}">{{ m.payload.texto|markdown }}</div>
+                  {% if longa %}
+                    <button type="button" class="link ver-mais"
+                            onclick="const md = this.previousElementSibling; md.classList.toggle('expandida'); this.textContent = md.classList.contains('expandida') ? 'mostrar menos' : 'mostrar tudo';">mostrar tudo</button>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </div>
+          </article>
+
+        {% elif bloco.tipo == 'sistema' %}
+          <div class="sistema">
+            <span class="sistema-icone">{{ icone('editar') }}</span>
+            <div>
+              <span class="quem"><strong>{{ bloco.actor.person }}</strong>{{ agente(bloco.actor.agent) }}</span>
+              <ul>
+                {% for e in bloco.itens %}{% set pl = e.payload %}
+                  <li id="ev-{{ e.seq }}">
+                    {% if e.kind == 'task.created' %}
+                      criou a task
+                    {% elif e.kind == 'body.updated' %}
+                      {% if pl.versao > 1 %}
+                        <details class="inline" hx-get="{{ url_task }}/corpo-diff?versao={{ pl.versao }}" hx-trigger="toggle once" hx-target="find .diff-alvo">
+                          <summary>atualizou o corpo para v{{ pl.versao }}</summary>
+                          <div class="diff-alvo"><p class="mudo">carregando…</p></div>
+                        </details>
+                      {% else %}escreveu o corpo (v1){% endif %}
+                    {% elif e.kind == 'task.field_changed' %}
+                      {% set nome_campo = {'owner_id': 'dono', 'dependencies': 'dependências', 'title': 'título'}.get(pl.campo, pl.campo) %}
+                      mudou <strong>{{ nome_campo }}</strong>:
+                      {% for v in [pl.valor_de, pl.valor_para] -%}
+                        {%- if v is none %}<span class="mudo">vazio</span>
+                        {%- elif pl.campo == 'status' %}{{ status_pill(v) }}
+                        {%- elif pl.campo == 'owner_id' %}{{ nomes.get(v, '#' ~ v) }}
+                        {%- elif pl.campo == 'tags' %}{{ v|json_lista or '—' }}
+                        {%- else %}{{ v|truncate(80) }}{% endif %}
+                        {%- if loop.first %} <span class="mudo">→</span> {% endif -%}
+                      {%- endfor %}
+                    {% else %}
+                      {{ e.resumo }}
+                    {% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+            {{ hora(bloco.inicio) }}
+          </div>
+
+        {% elif bloco.tipo == 'diff' %}
+          {% set e = bloco.itens[0] %}{% set pl = e.payload %}
+          <article id="ev-{{ e.seq }}" class="cartao diff-card">
+            <header>
+              <span class="sistema-icone">{{ icone('diff') }}</span>
+              <strong>{{ e.actor.person }}</strong>{{ agente(e.actor.agent) }}
+              <span>publicou diff</span>
+              <code>{{ (pl.base_sha or '')[:7] }}..{{ (pl.head_sha or '')[:7] }}</code>
+              {% if e.git.branch %}<span class="etiqueta">{{ e.git.branch }}</span>{% endif %}
+              <span class="espaco"></span>{{ hora(e.created_at) }}
+            </header>
+            <ul class="arquivos">{% for a in pl.arquivos %}<li><code>{{ a }}</code></li>{% endfor %}</ul>
+            {% if pl.patch %}
+              <details><summary>ver patch</summary>
+                {% with diff = {'diff': pl.patch} %}{% include "parciais/corpo_diff.html" %}{% endwith %}
+              </details>
+            {% endif %}
+          </article>
+        {% endif %}
+      {% endfor %}
+    </section>
+
+    {% if not admin %}
+    <form class="composer cartao" hx-post="{{ url_task }}/mensagens" hx-target="#conversa" hx-select="#conversa"
+          hx-select-oob="#task-titulo,#corpo-card,#propriedades" hx-swap="outerHTML" hx-disabled-elt="find button"
+          hx-on::after-request="if (event.detail.successful) this.reset()">
+      <div class="tipos" role="radiogroup" aria-label="Tipo da mensagem">
+        {% for t in tipos_mensagem %}
+          <label class="tipo-opcao t-{{ t }}"><input type="radio" name="tipo" value="{{ t }}" {% if loop.first %}checked{% endif %}><span>{{ ROTULO_MENSAGEM[t] }}</span></label>
+        {% endfor %}
+      </div>
+      <textarea name="texto" rows="3" required placeholder="Escreva sua mensagem (markdown)…"
+                onkeydown="if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); this.form.requestSubmit(); }"></textarea>
+      <footer>
+        <span class="mudo">Markdown suportado · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> envia</span>
+        <button class="primario">Enviar <span class="htmx-indicator">…</span></button>
+      </footer>
+    </form>
+    {% endif %}
+  </div>
+
+  <aside id="propriedades" class="task-lateral">
+    <section class="bloco-lateral">
+      <h2>Propriedades</h2>
+      {% if admin %}
+        <dl class="props">
+          <dt>Status</dt><dd>{{ status_pill(task.status) }}</dd>
+          <dt>Dono</dt><dd>{{ task.owner or '—' }}</dd>
+          <dt>Feature</dt><dd>{% if task.feature %}<code>{{ task.feature.code|code_curto }}</code> {{ task.feature.title }}{% else %}—{% endif %}</dd>
+          <dt>Tags</dt><dd>{% for tag in task.tags %}<span class="etiqueta">{{ tag }}</span>{% else %}—{% endfor %}</dd>
+        </dl>
+      {% else %}
+        <form class="props" hx-post="{{ url_task }}/campos" hx-trigger="change" hx-target="#propriedades" hx-select="#propriedades"
+              hx-select-oob="#task-titulo,#conversa" hx-swap="outerHTML">
+          <label>Status
+            <select name="status">
+              {% for s in statuses %}<option value="{{ s }}" {% if task.status == s %}selected{% endif %}>{{ ROTULO_STATUS[s] }}</option>{% endfor %}
+            </select>
+          </label>
+          <label>Dono
+            <select name="owner_id">
+              {# Vazio não muda o dono; cobre também dono que já saiu do projeto. #}
+              <option value="" {% if task.owner_id not in membros|map(attribute='id') %}selected{% endif %}>{{ task.owner or 'sem dono' }}</option>
+              {% for m in membros %}<option value="{{ m['id'] }}" {% if task.owner_id == m['id'] %}selected{% endif %}>{{ m['name'] }}</option>{% endfor %}
+            </select>
+          </label>
+          <label>Feature
+            <select name="feature">
+              <option value="">sem feature</option>
+              {% for f in features %}<option value="{{ f['code'] }}" {% if task.feature and task.feature.code == f['code'] %}selected{% endif %}>{{ f['code']|code_curto }} {{ f['title'] }}</option>{% endfor %}
+            </select>
+          </label>
+          <label>Tags <input type="text" name="tags" value="{{ task.tags|join(', ') }}" placeholder="separadas por vírgula"></label>
+        </form>
+      {% endif %}
+    </section>
+
+    {% if task.dependencies %}
+    <section class="bloco-lateral">
+      <h2>Depende de</h2>
+      <ul class="lista-lateral">
+        {% for d in task.dependencies %}
+          <li><a href="{{ base }}/p/{{ projeto['slug'] }}/t/{{ d }}" title="{{ d }}"><code>{{ d|code_curto }}</code></a>
+            {% if d in task.dependencias_pendentes %}<span class="etiqueta t-bloqueio">pendente</span>{% else %}<span class="etiqueta t-decisao">feito</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <section class="bloco-lateral">
+      <h2>Participantes</h2>
+      <ul class="lista-lateral">
+        {% for p in participantes %}
+          <li>{{ avatar(p.person, p.name, 'pequeno') }} {{ p.person }} {% for a in p.agents %}{{ agente(a) }}{% endfor %}</li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    {% if diffs %}
+    <section class="bloco-lateral">
+      <h2>Diffs publicados</h2>
+      <ul class="lista-lateral">
+        {% for d in diffs %}
+          <li><a href="#ev-{{ d.seq }}" hx-boost="false"><code>{{ (d.payload.head_sha or '')[:7] }}</code></a>
+            <span class="mudo">{{ d.payload.arquivos|length }} arq. · {{ d.created_at|relativo }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </aside>
+</div>
+</div>
+{% endblock %}

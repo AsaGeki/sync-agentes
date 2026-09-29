@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block titulo %}Erro {{ status }} · sync-agents{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>Erro {{ status }}</h1>
+  <p>{{ mensagem }}</p>
+  <p><a href="/web">Voltar</a></p>
+</section>
+{% endblock %}

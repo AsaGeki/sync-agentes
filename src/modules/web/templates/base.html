@@ -1,0 +1,76 @@
+{% from "parciais/macros.html" import icone, avatar %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"responseHandling":[{"code":"204","swap":false},{"code":"[2345]..","swap":true}]}'>
+  <title>{% block titulo %}sync-agents{% endblock %}</title>
+  <link rel="stylesheet" href="/web/static/app.css">
+  <script src="/web/static/htmx.min.js" defer></script>
+  <script src="/web/static/sse.min.js" defer></script>
+</head>
+<body hx-boost="true">
+<div class="app {{ 'com-lateral' if nav is defined else '' }}">
+  {% if nav is defined %}
+  <aside class="lateral">
+    <a class="marca" href="{{ base }}">sync-agents</a>
+
+    {% if admin %}
+    <nav class="grupo-nav" aria-label="Administração">
+      <span class="titulo-nav">Administração</span>
+      <a href="/web/admin/people" {% if request.url.path.startswith('/web/admin/people') %}aria-current="page"{% endif %}>{{ icone('pessoas') }} People</a>
+      <a href="/web/admin/projetos" {% if request.url.path == '/web/admin/projetos' %}aria-current="page"{% endif %}>{{ icone('pasta') }} Todos os projetos</a>
+    </nav>
+    {% endif %}
+
+    <nav class="grupo-nav" aria-label="Projetos">
+      <span class="titulo-nav">{{ 'Projetos' if admin else 'Meus projetos' }}</span>
+      {% if not admin %}
+        <a href="/web" {% if request.url.path == '/web' %}aria-current="page"{% endif %}>{{ icone('painel') }} Visão geral</a>
+      {% endif %}
+      {% for item in nav %}
+        {% set atual = projeto is defined and projeto['slug'] == item.slug %}
+        <a href="{{ base }}/p/{{ item.slug }}" class="projeto-nav {{ 'aberto' if atual else '' }}">
+          <span class="nome">{{ item.name }}</span>
+          {% if item.nao_lidos %}<span class="contador" title="{{ item.nao_lidos }} não lido(s)">{{ item.nao_lidos }}</span>{% endif %}
+        </a>
+        {% if atual %}
+          <div class="sub-nav">
+            <a href="{{ base }}/p/{{ item.slug }}" {% if aba == 'painel' %}aria-current="page"{% endif %}>{{ icone('painel') }} Painel</a>
+            <a href="{{ base }}/p/{{ item.slug }}/tasks" {% if aba == 'tasks' and filtros is defined and filtros.visao == 'lista' or aba == 'task' %}aria-current="page"{% endif %}>{{ icone('lista') }} Tasks</a>
+            <a href="{{ base }}/p/{{ item.slug }}/tasks?visao=quadro" {% if aba == 'tasks' and filtros is defined and filtros.visao == 'quadro' %}aria-current="page"{% endif %}>{{ icone('quadro') }} Quadro</a>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </nav>
+
+    <div class="rodape-nav">
+      {% if pessoa %}
+        <div class="quem">{{ avatar(pessoa['alias'], pessoa['name']) }} <span>{{ pessoa['name'] }}</span></div>
+      {% endif %}
+      <div class="links-sessao">
+        {% if request.cookies.get('sa_pessoa') %}
+          {% if admin %}<a href="/web">área pessoal</a>{% endif %}
+          <form method="post" action="/web/logout" hx-boost="false"><button class="link">sair</button></form>
+        {% else %}
+          <a href="/web/login" hx-boost="false">entrar</a>
+        {% endif %}
+        {% if request.cookies.get('sa_admin') %}
+          {% if not admin %}<a href="/web/admin/people">admin</a>{% endif %}
+          <form method="post" action="/web/admin/logout" hx-boost="false"><button class="link">sair do admin</button></form>
+        {% else %}
+          <a href="/web/admin/login" hx-boost="false">admin</a>
+        {% endif %}
+      </div>
+    </div>
+  </aside>
+  {% endif %}
+
+  <main class="area">
+    <div id="erro" role="alert"></div>
+    {% block conteudo %}{% endblock %}
+  </main>
+</div>
+</body>
+</html>

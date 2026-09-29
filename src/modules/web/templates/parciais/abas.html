@@ -1,0 +1,6 @@
+<nav class="trilha" aria-label="Você está em">
+  <a href="{{ base }}/p/{{ projeto['slug'] }}">{{ projeto['name'] }}</a>
+  {% if aba in ('tasks', 'task') %}<span>/</span><a href="{{ base }}/p/{{ projeto['slug'] }}/tasks">Tasks</a>{% endif %}
+  {% if aba == 'task' %}<span>/</span><span class="atual">{{ task.code|code_curto }}</span>{% endif %}
+  {% if admin %}<span class="etiqueta">somente leitura (admin)</span>{% endif %}
+</nav>

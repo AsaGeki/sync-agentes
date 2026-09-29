@@ -6,6 +6,7 @@ from typing import Any
 import psutil
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from src.modules.events.realtime import router as realtime_router
 from src.modules.events.routes import router as eventos_router
@@ -13,6 +14,10 @@ from src.modules.features.routes import router as features_router
 from src.modules.people.routes import router as people_router
 from src.modules.projects.routes import router as projetos_router
 from src.modules.tasks.routes import router as tasks_router
+from src.modules.web.admin_routes import router as web_admin_router
+from src.modules.web.erros import resposta_erro_web
+from src.modules.web.routes import router as web_router
+from src.modules.web.templating import PASTA_WEB
 from src.shared.db import BASE_DIR, DB_PATH, conectar, iniciar_banco, now
 from src.shared.erros import DomainError
 
@@ -50,14 +55,16 @@ def banco_conectado() -> bool:
 app = FastAPI(
     title="Sync Agents",
     description="Canal de alinhamento entre agentes de IA e humanos, por projeto e task.",
-    version="3.1.0",
+    version="3.2.0",
 )
 
 
 # Erro de regra de negócio vira HTTP aqui, num handler global - nenhuma rota
 # precisa de try/except pra isso.
 @app.exception_handler(DomainError)
-async def tratar_erro_dominio(request: Request, exc: DomainError) -> JSONResponse:
+async def tratar_erro_dominio(request: Request, exc: DomainError) -> Response:
+    if request.url.path.startswith("/web"):
+        return resposta_erro_web(request, exc)
     return JSONResponse(status_code=exc.status, content={"detail": str(exc)})
 
 
@@ -135,3 +142,6 @@ app.include_router(tasks_router)
 app.include_router(features_router)
 app.include_router(eventos_router)
 app.include_router(realtime_router)
+app.mount("/web/static", StaticFiles(directory=PASTA_WEB / "static"), name="web_static")
+app.include_router(web_admin_router)
+app.include_router(web_router)

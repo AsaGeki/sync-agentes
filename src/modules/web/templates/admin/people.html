@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block titulo %}People · admin · sync-agents{% endblock %}
+{% block conteudo %}
+<h1>People</h1>
+<div id="people-area">
+  {% if token_emitido %}
+    <section class="cartao destaque">
+      <h2>Token de {{ token_emitido.name }}</h2>
+      <p>Copie agora: ele não aparece de novo. O token anterior dessa pessoa deixou de valer.</p>
+      <pre class="token">{{ token_emitido.token }}</pre>
+    </section>
+  {% endif %}
+
+  <section class="cartao">
+    <h2>Cadastrar pessoa</h2>
+    <form class="em-linha" hx-post="/web/admin/people" hx-select="#people-area" hx-target="#people-area" hx-swap="outerHTML">
+      <input type="email" name="email" required placeholder="email">
+      <input type="text" name="name" required placeholder="nome">
+      <button>Cadastrar</button>
+    </form>
+  </section>
+
+  <section class="cartao">
+    <table class="tabela">
+      <thead><tr><th>#</th><th colspan="2">Email e nome</th><th>Token</th><th>Criada</th><th></th></tr></thead>
+      <tbody>
+        {% for p in people %}
+          <tr>
+            <td class="numero">{{ p.id }}</td>
+            <td colspan="2">
+              <form class="em-linha" id="editar-{{ p.id }}" hx-post="/web/admin/people/{{ p.id }}"
+                    hx-select="#people-area" hx-target="#people-area" hx-swap="outerHTML">
+                <input type="email" name="email" value="{{ p.email }}" required aria-label="Email" size="30">
+                <input type="text" name="name" value="{{ p.name }}" required aria-label="Nome">
+                <button>Salvar</button>
+              </form>
+            </td>
+            <td>{{ 'tem' if p.tem_token else 'sem token' }}</td>
+            <td class="mudo">{{ p.created_at|quando }}</td>
+            <td class="acoes">
+              <button hx-post="/web/admin/people/{{ p.id }}/token" hx-select="#people-area" hx-target="#people-area" hx-swap="outerHTML"
+                      {% if p.tem_token %}hx-confirm="Emitir token novo pra {{ p.name }}? O atual para de funcionar."{% endif %}>
+                {{ 'Reemitir token' if p.tem_token else 'Emitir token' }}
+              </button>
+              <button class="perigo" hx-post="/web/admin/people/{{ p.id }}/apagar" hx-select="#people-area" hx-target="#people-area" hx-swap="outerHTML"
+                      hx-confirm="Apagar {{ p.name }}? Não dá pra desfazer.">Apagar</button>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}
