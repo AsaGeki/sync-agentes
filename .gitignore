@@ -6,6 +6,7 @@ __pycache__/
 
 # Ambiente e segredos
 .env
+Bruno/environments/Local.bru
 
 # Banco local
 sync.db
