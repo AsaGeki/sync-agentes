@@ -1,0 +1,18 @@
+meta {
+  name: Find By Code
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/projetos/{{slug}}/features/F-1
+  body: none
+  auth: inherit
+}
+
+docs {
+  Endpoint: GET /projetos/{slug}/features/{code}
+  Autenticacao: token pessoal (membro).
+
+  code aceita inteiro (F-001-slug) ou so o numero (F-1). Traz a lista de tasks.
+}

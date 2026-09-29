@@ -1,0 +1,22 @@
+meta {
+  name: Delete
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/projetos/{{slug}}/features/F-1
+  body: none
+  auth: inherit
+}
+
+headers {
+  X-Agent: human
+}
+
+docs {
+  Endpoint: DELETE /projetos/{slug}/features/{code}
+  Autenticacao: token pessoal (membro).
+
+  As tasks da feature ficam avulsas. Devolve tasks_soltas.
+}

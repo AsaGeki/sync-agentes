@@ -208,6 +208,7 @@ Vocabulário que vale conhecer, porque é o que aparece no relatório:
 | O quê | Pra quê |
 |---|---|
 | **task** | um assunto. Tem código (`T-001`), status, dono e um texto de referência versionado |
+| **feature** | agrupa tasks de um mesmo assunto maior. Tem código (`F-001`), e o status sai das tasks dela. Opcional |
 | **mudanca** | "fiz isso" |
 | **pergunta** | você travou e precisa do outro lado. Fica listada como pendente até alguém responder |
 | **resposta** | destrava a pergunta da task |
@@ -247,7 +248,7 @@ Precisa de detalhe? Está tudo aqui.
 
 ### O que a IA consegue fazer
 
-`status` (onde estou) · `list_projects` · `create_project` · `request_access` · `list_requests` · `approve_request` · `reject_request` · `list_tasks` · `read_task` · `create_task` · `update_task` · `send_message` · `update_body` · `read_body_diff` · `publish_diff` · `list_diffs` · `read_changes` · `read_report` · `list_members` · `add_member` · `update_project` · `link_repo`
+`status` (onde estou) · `list_projects` · `create_project` · `request_access` · `list_requests` · `approve_request` · `reject_request` · `list_tasks` · `read_task` · `create_task` · `update_task` · `create_feature` · `list_features` · `update_feature` · `send_message` · `update_body` · `read_body_diff` · `publish_diff` · `list_diffs` · `read_changes` · `read_report` · `list_members` · `add_member` · `update_project` · `link_repo`
 
 Todas aceitam `project` (slug) opcional. Com 1 projeto só afiliado ao repositório, pode omitir. Com mais de 1, é obrigatório — chamar sem devolve a lista de candidatos em vez de adivinhar. Toda resposta traz `novidades` quando o outro lado escreveu algo desde a última chamada — é por isso que ninguém precisa mandar sincronizar.
 
@@ -258,7 +259,8 @@ As regras de conduta do canal (quando usar cada tipo de mensagem, não reescreve
 - **`people`** — quem escreve. O email é a chave e a parte antes do `@` vira o `alias` da assinatura. **A IA não é um cadastro**: quem assina é sempre uma pessoa, e a ferramenta usada (claude, codex, cursor) fica no campo `agent` do evento.
 - **`projects`** — criado explícito por `create_project` (repositório desconhecido não cria projeto sozinho, devolve 404), ligado ao repositório pelo sha do commit raiz (igual em todo clone, não muda se a pasta for renomeada). A relação é N-pra-N: um projeto pode ter mais de um repositório (`link_repo` junta frontend e backend no mesmo canal) e o mesmo repositório pode estar em mais de um projeto (times diferentes usando o mesmo código pra assuntos diferentes) - nesse caso as tools pedem `project=<slug>`. A lista de projetos (`list_projects`/`GET /projetos`) é pública - todo mundo vê que um projeto existe; ler e escrever o conteúdo dele (tasks, corpo, eventos) continua exigindo membership.
 - **`memberships`** — quem tem acesso de escrita, como `owner` ou `member`. Projeto `team` deixa quem tem o repositório entrar sozinho; projeto `private` exige pedido (`request_access`) que um owner aceita ou recusa (`list_requests`/aceitar/recusar).
-- **`tasks`** — assunto, endereçado por `code` (`T-001`), com corpo versionado (cada atualização gera diff contra a anterior).
+- **`features`** — agrupador opcional de tasks, endereçado por `code` (`F-001`). Não tem status próprio: sai das tasks dela. Apagar feature deixa as tasks avulsas.
+- **`tasks`** — assunto, endereçado por `code` (`T-001`), com corpo versionado (cada atualização gera diff contra a anterior). Pode pertencer a uma feature (opcional).
 - **`events`** — a trilha de tudo, carimbada com quem, qual ferramenta, qual branch e qual commit. É dela que saem "o que mudou desde X", o relatório e a notificação em tempo real.
 
 Todo evento chega no mesmo formato, seja pela API, pelo tempo real ou pelo relatório:
@@ -270,6 +272,7 @@ Todo evento chega no mesmo formato, seja pela API, pelo tempo real ou pelo relat
   "created_at": "2026-09-09T14:03:00-03:00",
   "project": "loja-api",
   "task": "T-003",
+  "feature": null,
   "actor": { "person": "arthur.macedo", "name": "Arthur", "agent": "claude" },
   "git": { "branch": "feat/T-003-login", "commit": "d4e5f6a" },
   "payload": { "base_sha": "a1b2c3d", "head_sha": "d4e5f6a", "arquivos": ["src/auth.py"] },
@@ -277,7 +280,7 @@ Todo evento chega no mesmo formato, seja pela API, pelo tempo real ou pelo relat
 }
 ```
 
-`kind` é um destes: `task.created`, `task.field_changed`, `body.updated`, `message.created`, `diff.published`. O `agent` é `claude`, `codex`, `human` ou `outro`.
+`kind` é um destes: `task.created`, `task.field_changed`, `body.updated`, `message.created`, `diff.published`, `feature.created`, `feature.field_changed`, `feature.deleted`. O `agent` é `claude`, `codex`, `human` ou `outro`.
 
 ### Sem MCP, ou pra montar uma tela
 

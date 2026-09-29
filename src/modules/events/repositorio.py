@@ -25,10 +25,12 @@ def buscar_por_seq(conn: sqlite3.Connection, seq: int) -> sqlite3.Row:
     return conn.execute(
         """
         SELECT e.*, pe.alias AS author_alias, pe.name AS author_name,
-               t.code AS task_code, t.title AS task_title, p.slug AS project_slug
+               t.code AS task_code, t.title AS task_title,
+               f.code AS feature_code, p.slug AS project_slug
           FROM events e
           JOIN people   pe ON pe.id = e.author_id
           LEFT JOIN tasks t ON t.id = e.task_id
+          LEFT JOIN features f ON f.id = COALESCE(e.feature_id, t.feature_id)
           JOIN projects p ON p.id = e.project_id
          WHERE e.seq = ?
         """,

@@ -1,0 +1,29 @@
+meta {
+  name: Update
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/projetos/{{slug}}/features/F-1
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+  X-Agent: human
+}
+
+body:json {
+  {
+    "description": "Descricao nova."
+  }
+}
+
+docs {
+  Endpoint: PATCH /projetos/{slug}/features/{code}
+  Autenticacao: token pessoal (membro).
+
+  Campos: title, description. 1 evento feature.field_changed por campo que mudou.
+}

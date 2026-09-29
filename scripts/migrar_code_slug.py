@@ -19,7 +19,8 @@ import sqlite3
 import sys
 from datetime import datetime
 
-from src.modules.tasks.repositorio import montar_code, numero_do_code
+from src.modules.tasks.repositorio import numero_do_code
+from src.shared.codes import montar_code
 from src.shared.db import DB_PATH
 
 

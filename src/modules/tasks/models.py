@@ -13,6 +13,8 @@ class TaskIn(BaseModel):
     # Codes de outras tasks do mesmo projeto. Enquanto alguma não estiver
     # 'feito', esta task não pode ir pra 'feito' (ver service.checar_dependencias_prontas).
     dependencies: list[str] = Field(default_factory=list)
+    # Code da feature (`F-3` ou inteiro). Omitido: task avulsa.
+    feature: str | None = None
 
 
 class TaskPatch(BaseModel):
@@ -23,6 +25,8 @@ class TaskPatch(BaseModel):
     # Lista completa, não incremental: o que vier aqui substitui as dependências
     # atuais da task. Lista vazia remove todas.
     dependencies: list[str] | None = None
+    # Code da feature pra onde a task vai. `""` tira a task da feature.
+    feature: str | None = None
 
 
 class MensagemIn(BaseModel):

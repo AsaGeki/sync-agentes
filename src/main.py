@@ -1,4 +1,3 @@
-import json
 import platform
 import sqlite3
 import time
@@ -10,6 +9,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse, Response
 
 from src.modules.events.realtime import router as realtime_router
 from src.modules.events.routes import router as eventos_router
+from src.modules.features.routes import router as features_router
 from src.modules.people.routes import router as people_router
 from src.modules.projects.routes import router as projetos_router
 from src.modules.tasks.routes import router as tasks_router
@@ -50,7 +50,7 @@ def banco_conectado() -> bool:
 app = FastAPI(
     title="Sync Agents",
     description="Canal de alinhamento entre agentes de IA e humanos, por projeto e task.",
-    version="3.0.0",
+    version="3.1.0",
 )
 
 
@@ -66,7 +66,7 @@ async def tratar_erro_dominio(request: Request, exc: DomainError) -> JSONRespons
 @app.middleware("http")
 async def idempotencia(request: Request, call_next):
     operation_id = request.headers.get("X-Operation-Id")
-    if not operation_id or request.method not in ("POST", "PUT", "PATCH"):
+    if not operation_id or request.method not in ("POST", "PUT", "PATCH", "DELETE"):
         return await call_next(request)
 
     conn = conectar()
@@ -77,7 +77,11 @@ async def idempotencia(request: Request, call_next):
     finally:
         conn.close()
     if existente is not None:
-        return JSONResponse(status_code=existente["status"], content=json.loads(existente["result"]))
+        return Response(
+            content=existente["result"],
+            status_code=existente["status"],
+            media_type="application/json",
+        )
 
     resposta = await call_next(request)
     corpo = b"".join([chunk async for chunk in resposta.body_iterator])
@@ -128,5 +132,6 @@ def changelog() -> str:
 app.include_router(people_router)
 app.include_router(projetos_router)
 app.include_router(tasks_router)
+app.include_router(features_router)
 app.include_router(eventos_router)
 app.include_router(realtime_router)

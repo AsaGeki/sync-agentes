@@ -2,60 +2,23 @@
 # (ver ultimo_corpo/todos_corpos). find_by_code também é usado por outros domínios.
 
 import json
-import re
 import sqlite3
-import unicodedata
 from typing import Any
 
 from src.modules.tasks.models import TaskIn
+from src.shared import codes
 from src.shared.db import now
 from src.shared.enums import EStatusTask
 from src.shared.erros import NotFound
 
-LIMITE_SLUG_CODE = 40
-
-
-def slug_do_titulo(title: str) -> str:
-    """Parte legível do code: título sem acento, minúsculo, hifenizado. Corta na
-    última palavra inteira que couber - palavra pela metade atrapalha quem lê."""
-    texto = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode()
-    texto = re.sub(r"[^a-zA-Z0-9]+", "-", texto).strip("-").lower()
-    if len(texto) <= LIMITE_SLUG_CODE:
-        return texto
-    cortado = texto[:LIMITE_SLUG_CODE]
-    if "-" in cortado:
-        cortado = cortado.rsplit("-", 1)[0]
-    return cortado.strip("-")
-
 
 def numero_do_code(code: str) -> str | None:
-    """`T-7`, `T-007` e `T-007-qualquer-coisa` normalizam pra `T-007`."""
-    achado = re.match(r"^\s*[Tt]-0*(\d+)", code)
-    return f"T-{int(achado.group(1)):03d}" if achado else None
-
-
-def montar_code(numero: str, title: str) -> str:
-    """`T-007` + título vira `T-007-slug-do-titulo`. O número endereça, o slug
-    é pra reconhecer a task sem precisar abrir."""
-    slug = slug_do_titulo(title)
-    return f"{numero}-{slug}" if slug else numero
+    return codes.numero_do_code(code, "T")
 
 
 def find_by_code(conn: sqlite3.Connection, projeto_id: int, code: str) -> sqlite3.Row:
-    """Aceita o code inteiro (`T-007-slug`) ou só o número (`T-7`, `T-007`) - o
-    número é único no projeto, então não fica ambíguo."""
-    task = conn.execute(
-        "SELECT * FROM tasks WHERE project_id = ? AND code = ?", (projeto_id, code)
-    ).fetchone()
-    if task is not None:
-        return task
-
-    numero = numero_do_code(code)
-    if numero is not None:
-        task = conn.execute(
-            "SELECT * FROM tasks WHERE project_id = ? AND (code = ? OR code GLOB ?)",
-            (projeto_id, numero, f"{numero}-*"),
-        ).fetchone()
+    """Aceita o code inteiro (`T-007-slug`) ou só o número (`T-7`, `T-007`)."""
+    task = codes.buscar_por_code(conn, "tasks", projeto_id, code, "T")
     if task is None:
         raise NotFound(f"Task '{code}' não existe neste projeto")
     return task
@@ -66,22 +29,16 @@ def find_by_id(conn: sqlite3.Connection, task_id: int) -> sqlite3.Row | None:
 
 
 def proximo_numero(conn: sqlite3.Connection, projeto_id: int) -> str:
-    """Sempre acima do maior número já usado: contar tasks repetiria um número
-    caso alguma tenha sido removida. `CAST(SUBSTR(code, 3))` para no primeiro
-    hífen, então o slug no fim do code não atrapalha."""
-    linha = conn.execute(
-        "SELECT MAX(CAST(SUBSTR(code, 3) AS INTEGER)) AS maior FROM tasks"
-        " WHERE project_id = ? AND code GLOB 'T-[0-9]*'",
-        (projeto_id,),
-    ).fetchone()
-    return f"T-{(linha['maior'] or 0) + 1:03d}"
+    return codes.proximo_numero(conn, "tasks", projeto_id, "T")
 
 
-def insert(conn: sqlite3.Connection, projeto_id: int, code: str, dados: TaskIn) -> int:
+def insert(
+    conn: sqlite3.Connection, projeto_id: int, code: str, dados: TaskIn, feature_id: int | None
+) -> int:
     cursor = conn.execute(
         """INSERT INTO tasks
-           (project_id, code, title, status, tags, owner_id, created_at, updated_at)
-           VALUES (?,?,?,?,?,?,?,?)""",
+           (project_id, code, title, status, tags, owner_id, feature_id, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?)""",
         (
             projeto_id,
             code,
@@ -89,6 +46,7 @@ def insert(conn: sqlite3.Connection, projeto_id: int, code: str, dados: TaskIn) 
             dados.status.value,
             json.dumps(dados.tags, ensure_ascii=False),
             dados.owner_id,
+            feature_id,
             now(),
             now(),
         ),
@@ -97,13 +55,22 @@ def insert(conn: sqlite3.Connection, projeto_id: int, code: str, dados: TaskIn) 
 
 
 def find_all(
-    conn: sqlite3.Connection, projeto_id: int, status: EStatusTask | None
+    conn: sqlite3.Connection,
+    projeto_id: int,
+    status: EStatusTask | None,
+    feature_id: int | None = None,
+    sem_feature: bool = False,
 ) -> list[sqlite3.Row]:
     sql = "SELECT * FROM tasks WHERE project_id = ?"
     params: list[Any] = [projeto_id]
     if status is not None:
         sql += " AND status = ?"
         params.append(status.value)
+    if feature_id is not None:
+        sql += " AND feature_id = ?"
+        params.append(feature_id)
+    if sem_feature:
+        sql += " AND feature_id IS NULL"
     sql += " ORDER BY code"
     return conn.execute(sql, params).fetchall()
 

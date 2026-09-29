@@ -1,0 +1,31 @@
+meta {
+  name: Create
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/projetos/{{slug}}/features
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+  X-Agent: human
+  X-Git-Branch: main
+}
+
+body:json {
+  {
+    "title": "Login SSO",
+    "description": "Entrada via SSO no front e no back."
+  }
+}
+
+docs {
+  Endpoint: POST /projetos/{slug}/features
+  Autenticacao: token pessoal (membro).
+
+  code (F-001-slug) e gerado sozinho. Status nao e campo: sai das tasks.
+}

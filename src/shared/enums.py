@@ -58,3 +58,6 @@ class EKindEvent(StrEnum):
     body_updated = "body.updated"
     message_created = "message.created"
     diff_published = "diff.published"
+    feature_created = "feature.created"
+    feature_field_changed = "feature.field_changed"
+    feature_deleted = "feature.deleted"

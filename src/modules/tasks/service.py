@@ -5,14 +5,23 @@ from typing import Any
 
 from src.modules.events import service as eventos_service
 from src.modules.events.bus import publish
+from src.modules.features import repositorio as features_repositorio
 from src.modules.projects.service import exigir_acesso
 from src.modules.tasks import repositorio
 from src.modules.tasks.models import CorpoIn, DiffIn, MensagemIn, TaskIn, TaskPatch
+from src.shared import codes
 from src.shared.auth import ContextoGit
 from src.shared.enums import EKindEvent, EStatusTask, ETypeMessage
 from src.shared.erros import AlreadyExists, Conflict, Invalid, MissingRequirement
 
 TENTATIVAS_DE_CODIGO = 5
+
+
+def _feature_resumida(conn: sqlite3.Connection, feature_id: int | None) -> dict[str, str] | None:
+    if feature_id is None:
+        return None
+    feature = features_repositorio.find_by_id(conn, feature_id)
+    return {"code": feature["code"], "title": feature["title"]}
 
 
 def serializar(
@@ -31,6 +40,7 @@ def serializar(
         "tags": json.loads(task["tags"]),
         "owner": repositorio.owner_name(conn, task["owner_id"]),
         "owner_id": task["owner_id"],
+        "feature": _feature_resumida(conn, task["feature_id"]),
         "versao_corpo": corpo["version"] if corpo else 0,
         "dependencies": [d["code"] for d in deps],
         "dependencias_pendentes": [d["code"] for d in deps if d["status"] != EStatusTask.feito.value],
@@ -188,6 +198,11 @@ async def create_task(
     # Dois lados criando ao mesmo tempo chegam no mesmo número. Se ele foi gerado
     # aqui, tenta o seguinte; se veio de quem chamou, o conflito é resposta.
     depends_on_ids = _resolver_dependencias(conn, projeto["id"], None, dados.dependencies)
+    feature_id = (
+        features_repositorio.find_by_code(conn, projeto["id"], dados.feature)["id"]
+        if dados.feature
+        else None
+    )
     numero_pedido = None
     if dados.code is not None:
         numero_pedido = repositorio.numero_do_code(dados.code)
@@ -195,10 +210,10 @@ async def create_task(
             raise Invalid(f"'{dados.code}' não é um code de task - o formato é T-007")
     for tentativa in range(TENTATIVAS_DE_CODIGO):
         numero = numero_pedido or repositorio.proximo_numero(conn, projeto["id"])
-        code = repositorio.montar_code(numero, dados.title)
+        code = codes.montar_code(numero, dados.title)
         try:
             with conn:
-                task_id = repositorio.insert(conn, projeto["id"], code, dados)
+                task_id = repositorio.insert(conn, projeto["id"], code, dados, feature_id)
                 if depends_on_ids:
                     repositorio.insert_dependencies(conn, task_id, depends_on_ids)
                 seq = eventos_service.registrar(
@@ -229,10 +244,17 @@ def list_tasks(
     tag: str | None,
     q: str | None = None,
     nao_lidas: bool = False,
+    feature: str | None = None,
+    sem_feature: bool = False,
 ) -> list[dict[str, Any]]:
+    if feature and sem_feature:
+        raise Invalid("Use feature ou sem_feature, não os dois")
     projeto = exigir_acesso(conn, slug, person_id)
+    feature_id = (
+        features_repositorio.find_by_code(conn, projeto["id"], feature)["id"] if feature else None
+    )
     leitura = repositorio.leitura_do_projeto(conn, projeto["id"], person_id)
-    linhas = repositorio.find_all(conn, projeto["id"], status)
+    linhas = repositorio.find_all(conn, projeto["id"], status, feature_id, sem_feature)
     if q:
         casam = repositorio.ids_que_casam(conn, projeto["id"], q)
         linhas = [linha for linha in linhas if linha["id"] in casam]
@@ -323,6 +345,14 @@ async def update_task(
             conn, projeto["id"], task["id"], novas_dependencias
         )
 
+    # `feature` também não é coluna: vira `feature_id`, e o evento leva o code.
+    nova_feature = mudancas.pop("feature", None)
+    feature_nova_id = None
+    if nova_feature:
+        feature_nova_id = features_repositorio.find_by_code(
+            conn, projeto["id"], nova_feature
+        )["id"]
+
     sequencias: list[int] = []
     with conn:
         if novas_dependencias is not None:
@@ -344,6 +374,24 @@ async def update_task(
                         valor_para=", ".join(depois_deps) or None,
                     )
                 )
+
+        if nova_feature is not None and feature_nova_id != task["feature_id"]:
+            antes_feature = _feature_resumida(conn, task["feature_id"])
+            depois_feature = _feature_resumida(conn, feature_nova_id)
+            repositorio.update_campo(conn, task["id"], "feature_id", feature_nova_id)
+            sequencias.append(
+                eventos_service.registrar(
+                    conn,
+                    ctx,
+                    project_id=projeto["id"],
+                    task_id=task["id"],
+                    author_id=author_id,
+                    kind=EKindEvent.task_field_changed.value,
+                    campo="feature",
+                    valor_de=antes_feature["code"] if antes_feature else None,
+                    valor_para=depois_feature["code"] if depois_feature else None,
+                )
+            )
 
         # Depois de gravar as dependências novas: fechar a task no mesmo patch
         # que as trocou tem que valer contra as novas, não contra as antigas.

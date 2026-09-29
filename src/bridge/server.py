@@ -69,6 +69,12 @@ INSTRUCOES = (
     "title/status/tags/owner_id + um corpo versionado. `dependencies` (codes "
     "de outra task) trava o status 'feito' até elas também estarem, e pode ser "
     "trocada depois por `update_task` - a lista mandada substitui a atual.\n"
+    "- feature (`create_feature`/`list_features`/`update_feature`): agrupa "
+    "tasks de um mesmo assunto maior, endereçada por code `F-003-slug` (aceita "
+    "`F-3`). É opcional: task sem feature é normal, e nada trava por causa de "
+    "feature. `create_task(feature=...)` já cria dentro dela; "
+    "`update_task(feature=...)` move, e `feature=''` tira. O status da feature "
+    "sai das tasks dela, não é setado à mão.\n"
     "- corpo (`read_task`/`update_body`/`read_body_diff`): texto de referência da "
     "task. Cada atualização vira uma versão e o servidor calcula o diff.\n"
     "- evento: trilha do que aconteceu, com branch e commit de onde saiu. "
@@ -352,10 +358,13 @@ def list_tasks(
     tag: str | None = None,
     q: str | None = None,
     nao_lidas: bool = False,
+    feature: str | None = None,
+    sem_feature: bool = False,
     project: str | None = None,
 ) -> Any:
     """Lista as tasks do projeto. `q` procura no code, no título e no corpo.
     `nao_lidas=True` traz só as que têm evento que você ainda não leu.
+    `feature='F-3'` filtra por feature; `sem_feature=True` traz só as avulsas.
 
     Cada task vem com `nao_lidos` (quantos eventos de outra pessoa estão por
     ler) e `ultimo_nao_lido`."""
@@ -365,7 +374,14 @@ def list_tasks(
         lambda api, slug: api.request(
             "GET",
             f"/projetos/{slug}/tasks",
-            query={"status": status, "tag": tag, "q": q, "nao_lidas": nao_lidas},
+            query={
+                "status": status,
+                "tag": tag,
+                "q": q,
+                "nao_lidas": nao_lidas,
+                "feature": feature,
+                "sem_feature": sem_feature,
+            },
         ),
     )
 
@@ -396,6 +412,7 @@ def create_task(
     owner_id: int | None = None,
     corpo: str | None = None,
     dependencies: list[str] | None = None,
+    feature: str | None = None,
     project: str | None = None,
 ) -> Any:
     """Cria uma task. O code sai como `T-007-slug-do-titulo`: o número endereça
@@ -403,7 +420,10 @@ def create_task(
     sem abrir. `code` explícito só define o número. `corpo` vira a v1.
 
     `dependencies` são codes de outras tasks do mesmo projeto - esta task não
-    pode ir pra status 'feito' enquanto elas não estiverem."""
+    pode ir pra status 'feito' enquanto elas não estiverem.
+
+    `feature` (code `F-3`) cria a task dentro da feature; omitido, a task fica
+    avulsa."""
     return _chamar(
         ctx,
         project,
@@ -418,6 +438,7 @@ def create_task(
                 "owner_id": owner_id,
                 "corpo": corpo,
                 "dependencies": dependencies or [],
+                "feature": feature,
             },
         ),
     )
@@ -432,6 +453,7 @@ def update_task(
     tags: list[str] | None = None,
     owner_id: int | None = None,
     dependencies: list[str] | None = None,
+    feature: str | None = None,
     project: str | None = None,
 ) -> Any:
     """Atualiza campos da task. Gera 1 evento por campo que de fato mudou.
@@ -441,13 +463,16 @@ def update_task(
     fecharia ciclo é recusada.
 
     Tirar uma task de 'feito' devolve pra 'parcial', em cascata, quem dependia
-    dela e já estava fechado."""
+    dela e já estava fechado.
+
+    `feature` move a task pra outra feature; `feature=''` tira ela da feature."""
     corpo = {
         "title": title,
         "status": status.value if status else None,
         "tags": tags,
         "owner_id": owner_id,
         "dependencies": dependencies,
+        "feature": feature,
     }
     return _chamar(
         ctx,
@@ -455,6 +480,57 @@ def update_task(
         lambda api, slug: api.request(
             "PATCH",
             f"/projetos/{slug}/tasks/{code}",
+            {k: v for k, v in corpo.items() if v is not None},
+        ),
+    )
+
+
+# ---------- features ---------- #
+
+
+@mcp.tool()
+def create_feature(
+    ctx: Context, title: str, description: str | None = None, project: str | None = None
+) -> Any:
+    """Cria uma feature: agrupador de tasks de um mesmo assunto maior. O code
+    sai como `F-003-slug-do-titulo`. Feature é opcional - só crie quando houver
+    mais de uma task no mesmo assunto."""
+    return _chamar(
+        ctx,
+        project,
+        lambda api, slug: api.request(
+            "POST", f"/projetos/{slug}/features", {"title": title, "description": description}
+        ),
+    )
+
+
+@mcp.tool()
+def list_features(ctx: Context, project: str | None = None) -> Any:
+    """Lista as features do projeto com o status derivado das tasks (ideia,
+    parcial, bloqueado, feito) e o progresso `feito/total`. As tasks de uma
+    feature saem em `list_tasks(feature='F-3')`."""
+    return _chamar(
+        ctx, project, lambda api, slug: api.request("GET", f"/projetos/{slug}/features")
+    )
+
+
+@mcp.tool()
+def update_feature(
+    ctx: Context,
+    code: str,
+    title: str | None = None,
+    description: str | None = None,
+    project: str | None = None,
+) -> Any:
+    """Atualiza título ou descrição da feature. Status não se atualiza aqui:
+    ele sai das tasks."""
+    corpo = {"title": title, "description": description}
+    return _chamar(
+        ctx,
+        project,
+        lambda api, slug: api.request(
+            "PATCH",
+            f"/projetos/{slug}/features/{code}",
             {k: v for k, v in corpo.items() if v is not None},
         ),
     )

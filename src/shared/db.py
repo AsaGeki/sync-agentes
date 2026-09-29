@@ -71,6 +71,22 @@ CREATE TABLE IF NOT EXISTS membership_requests (
   resolved_at TEXT
 );
 
+-- Agrupador opcional de tasks. Status não é coluna: sai das tasks na leitura.
+CREATE TABLE IF NOT EXISTS features (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  code        TEXT NOT NULL,
+  title       TEXT NOT NULL,
+  description TEXT,
+  created_by  INTEGER NOT NULL REFERENCES people(id),
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL,
+  UNIQUE (project_id, code)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_features_numero
+  ON features (project_id, CAST(SUBSTR(code, 3) AS INTEGER));
+
 CREATE TABLE IF NOT EXISTS tasks (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -80,6 +96,7 @@ CREATE TABLE IF NOT EXISTS tasks (
              CHECK (status IN ('ideia','parcial','feito','bloqueado','aguardando_decisao')),
   tags       TEXT NOT NULL DEFAULT '[]',
   owner_id   INTEGER REFERENCES people(id),
+  feature_id INTEGER REFERENCES features(id) ON DELETE SET NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   UNIQUE (project_id, code)
@@ -118,6 +135,7 @@ CREATE TABLE IF NOT EXISTS events (
   seq        INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   task_id    INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+  feature_id INTEGER REFERENCES features(id) ON DELETE SET NULL,
   author_id  INTEGER NOT NULL REFERENCES people(id),
   agent      TEXT NOT NULL DEFAULT 'outro'
              CHECK (agent IN ('claude','codex','human','outro')),
@@ -125,7 +143,8 @@ CREATE TABLE IF NOT EXISTS events (
   commit_sha TEXT,
   kind       TEXT NOT NULL CHECK (kind IN (
                'task.created','task.field_changed','body.updated',
-               'message.created','diff.published')),
+               'message.created','diff.published',
+               'feature.created','feature.field_changed','feature.deleted')),
   type       TEXT,
   texto      TEXT,
   campo      TEXT,
@@ -167,7 +186,15 @@ CREATE TABLE IF NOT EXISTS operations (
 # (id único e permanente, tabela, coluna, "ALTER TABLE ... ADD COLUMN ...").
 # Bancos novos já nascem com a coluna via SCHEMA (adicione lá também) - a checagem
 # de coluna existente abaixo garante que a migração não tenta duplicar.
-MIGRACOES: list[tuple[str, str, str, str]] = []
+MIGRACOES: list[tuple[str, str, str, str]] = [
+    (
+        "tasks-feature-id",
+        "tasks",
+        "feature_id",
+        "ALTER TABLE tasks ADD COLUMN feature_id INTEGER"
+        " REFERENCES features(id) ON DELETE SET NULL",
+    ),
+]
 
 RETENCAO_OPERATIONS_DIAS = 7
 
@@ -390,6 +417,73 @@ def _migrar_repo_para_muitos_projetos(conn: sqlite3.Connection) -> None:
     conn.execute("ALTER TABLE project_repos_novo RENAME TO project_repos")
 
 
+def _events_sem_kind_de_feature(conn: sqlite3.Connection) -> bool:
+    linha = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'events'"
+    ).fetchone()
+    return linha is not None and "'feature.created'" not in linha["sql"]
+
+
+def _migrar_events_para_features(conn: sqlite3.Connection) -> None:
+    """Migração única: `events` ganha `feature_id` e os kinds `feature.*`.
+    Guardada pelo texto do CHECK - SQLite não altera CHECK de tabela existente.
+    Os índices de `events` somem no DROP e o `SCHEMA` recria logo depois."""
+    if not _events_sem_kind_de_feature(conn):
+        return
+
+    # O CREATE abaixo comita sozinho; sobra de uma tentativa interrompida não
+    # pode travar o próximo start.
+    conn.execute("DROP TABLE IF EXISTS events_novo")
+    # O DROP de `events` leva a linha dela em `sqlite_sequence`; sem restaurar,
+    # seq de evento já apagado (cascade de projeto) voltaria a ser emitido.
+    contador = conn.execute(
+        "SELECT seq FROM sqlite_sequence WHERE name = 'events'"
+    ).fetchone()
+    conn.execute(
+        """CREATE TABLE events_novo (
+             seq        INTEGER PRIMARY KEY AUTOINCREMENT,
+             project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+             task_id    INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+             feature_id INTEGER REFERENCES features(id) ON DELETE SET NULL,
+             author_id  INTEGER NOT NULL REFERENCES people(id),
+             agent      TEXT NOT NULL DEFAULT 'outro'
+                        CHECK (agent IN ('claude','codex','human','outro')),
+             branch     TEXT,
+             commit_sha TEXT,
+             kind       TEXT NOT NULL CHECK (kind IN (
+                          'task.created','task.field_changed','body.updated',
+                          'message.created','diff.published',
+                          'feature.created','feature.field_changed','feature.deleted')),
+             type       TEXT,
+             texto      TEXT,
+             campo      TEXT,
+             valor_de   TEXT,
+             valor_para TEXT,
+             version    INTEGER,
+             base_sha   TEXT,
+             arquivos   TEXT,
+             created_at TEXT NOT NULL
+           )"""
+    )
+    conn.execute(
+        """INSERT INTO events_novo
+               (seq, project_id, task_id, author_id, agent, branch, commit_sha, kind,
+                type, texto, campo, valor_de, valor_para, version, base_sha, arquivos,
+                created_at)
+           SELECT seq, project_id, task_id, author_id, agent, branch, commit_sha, kind,
+                  type, texto, campo, valor_de, valor_para, version, base_sha, arquivos,
+                  created_at
+             FROM events"""
+    )
+    conn.execute("DROP TABLE events")
+    conn.execute("ALTER TABLE events_novo RENAME TO events")
+    if contador is not None:
+        conn.execute(
+            "UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name = 'events'",
+            (contador["seq"],),
+        )
+
+
 def _backup_antes_de_migrar() -> None:
     """Cópia do banco antes das migrações, que fazem DROP TABLE. Uma por dia."""
     if not DB_PATH.exists():
@@ -414,6 +508,7 @@ def iniciar_banco() -> None:
         _migrar_humano_para_dev(conn)
         migracao_v3.migrar(conn, _tabela_existe, now())
         _migrar_repo_para_muitos_projetos(conn)
+        _migrar_events_para_features(conn)
     conn.execute("PRAGMA foreign_keys = ON")
     problemas = conn.execute("PRAGMA foreign_key_check").fetchall()
     if problemas:
@@ -440,4 +535,7 @@ def iniciar_banco() -> None:
                 "INSERT INTO schema_migrations (id, aplicada_em) VALUES (?, ?)",
                 (id_, now()),
             )
+
+        # Fora do SCHEMA: em banco existente a coluna só nasce no laço acima.
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_feature ON tasks (feature_id)")
     conn.close()

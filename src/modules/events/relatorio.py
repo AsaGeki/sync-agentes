@@ -4,6 +4,8 @@ from typing import Any
 
 from src.modules.events import repositorio as eventos_repositorio
 from src.modules.events import service as eventos_service
+from src.modules.features import repositorio as features_repositorio
+from src.modules.features import service as features_service
 from src.modules.projects.service import exigir_acesso
 from src.modules.tasks import repositorio as tasks_repositorio
 from src.modules.tasks import service as tasks_service
@@ -28,14 +30,24 @@ def montar_relatorio(
         tasks_service.serializar(conn, t, leitura.get(t["id"]))
         for t in tasks_repositorio.find_all(conn, projeto["id"], None)
     ]
+    features = [
+        features_service.serializar(conn, f)
+        for f in features_repositorio.find_all(conn, projeto["id"])
+    ]
     seqs = eventos_repositorio.seqs_do_projeto(conn, projeto["id"], desde)
     crus = [eventos_service.hidratar(conn, seq) for seq in seqs]
     eventos = [eventos_service.envelope(cru) for cru in crus]
 
     por_task: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    por_feature: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    features_apagadas: list[str] = []
     for evento in eventos:
         if evento.get("task"):
             por_task[evento["task"]].append(evento)
+        elif evento["kind"] == EKindEvent.feature_deleted:
+            features_apagadas.append(evento["payload"]["code"])
+        elif evento.get("feature"):
+            por_feature[evento["feature"]].append(evento)
 
     contagem_status: dict[str, int] = defaultdict(int)
     for task in tasks:
@@ -63,6 +75,9 @@ def montar_relatorio(
         "tasks": tasks,
         "eventos": eventos,
         "por_task": por_task,
+        "features": features,
+        "por_feature": por_feature,
+        "features_apagadas": features_apagadas,
         "contagem_status": dict(contagem_status),
         "contagem_autor": dict(contagem_autor),
         "perguntas_abertas": perguntas_abertas,
@@ -87,11 +102,66 @@ def _pontos_git(eventos: list[dict[str, Any]]) -> str:
     return " · ".join(partes)
 
 
+def _secao_task(
+    conn: sqlite3.Connection,
+    projeto: dict[str, Any],
+    task: dict[str, Any],
+    atividade: list[dict[str, Any]],
+    com_diff: bool,
+) -> list[str]:
+    marcadores = [ROTULO_STATUS.get(task["status"], task["status"])]
+    if task["tags"]:
+        marcadores.append(", ".join(task["tags"]))
+    if task["owner"]:
+        marcadores.append(f"dono {task['owner']}")
+    linhas = [f"### {task['code']} · {task['title']}   `[{' · '.join(marcadores)}]`", ""]
+
+    for evento in atividade:
+        if evento["kind"] == EKindEvent.task_field_changed:
+            dados = evento["payload"]
+            de = eventos_service.linha_curta(dados.get("valor_de")) or "vazio"
+            para = eventos_service.linha_curta(dados.get("valor_para")) or "vazio"
+            linhas.append(f"- `{dados['campo']}`: {de} → {para}")
+        elif evento["kind"] == EKindEvent.diff_published:
+            dados = evento["payload"]
+            arquivos = ", ".join(f"`{a}`" for a in dados["arquivos"][:6])
+            sobra = len(dados["arquivos"]) - 6
+            if sobra > 0:
+                arquivos += f" (+{sobra})"
+            base = (dados.get("base_sha") or "")[:7]
+            head = (dados.get("head_sha") or "")[:7]
+            linhas.append(f"- diff `{base}..{head}`: {arquivos or 'nenhum arquivo'}")
+
+    pontos = _pontos_git(atividade)
+    if pontos:
+        linhas.append(f"- git: {pontos}")
+    linhas.append("")
+
+    if com_diff:
+        versoes = [
+            e["payload"]["versao"] for e in atividade if e["kind"] == EKindEvent.body_updated
+        ]
+        if versoes:
+            task_row = tasks_repositorio.find_by_code(conn, projeto["id"], task["code"])
+            dados = tasks_service.task_diff(conn, task_row["id"], task["code"], min(versoes) - 1)
+            if dados["diff"]:
+                linhas += [
+                    f"#### Diff do corpo (v{dados['versao_de']} → v{dados['versao_para']})",
+                    "",
+                    "```diff",
+                    dados["diff"].rstrip("\n"),
+                    "```",
+                    "",
+                ]
+    return linhas
+
+
 def relatorio_markdown(conn: sqlite3.Connection, rel: dict[str, Any], com_diff: bool) -> str:
-    """Resumo técnico do estado do projeto - por task, mostra status/tags/dono
-    atuais, campos que mudaram na janela e diff acumulado do corpo. Não narra
-    mensagens (mudanca/pergunta/resposta/decisao/bloqueio) nem autoria por
-    evento - quem quiser isso usa `formato=json`, que carrega os eventos crus."""
+    """Resumo técnico do estado do projeto - tasks agrupadas por feature (as
+    avulsas em "Sem feature"), com status/tags/dono atuais, campos que mudaram na
+    janela e diff acumulado do corpo. Não narra mensagens
+    (mudanca/pergunta/resposta/decisao/bloqueio) nem autoria por evento - quem
+    quiser isso usa `formato=json`, que carrega os eventos crus."""
     projeto = rel["projeto"]
     linhas: list[str] = [
         f"# Relatório — {projeto['name']} (`{projeto['slug']}`)",
@@ -118,64 +188,53 @@ def relatorio_markdown(conn: sqlite3.Connection, rel: dict[str, Any], com_diff: 
         alvos = ", ".join(f"{t['code']} (dono: {t['owner'] or 'sem dono'})" for t in aguardando)
         linhas.append(f"- **Aguardando decisão:** {alvos}")
 
+    for feature in rel["features"]:
+        progresso = feature["progresso"]
+        linhas.append(
+            f"- `{feature['code']}` · {ROTULO_STATUS.get(feature['status'], feature['status'])}"
+            f" · {progresso['feito']}/{progresso['total']} feito"
+        )
+    if rel["features_apagadas"]:
+        linhas.append(f"- **Features apagadas:** {', '.join(rel['features_apagadas'])}")
+
     linhas += ["", "---", ""]
 
-    for task in rel["tasks"]:
-        atividade = rel["por_task"].get(task["code"], [])
-        if not atividade:
+    grupos: list[tuple[dict[str, Any] | None, list[dict[str, Any]]]] = [
+        (f, [t for t in rel["tasks"] if t["feature"] and t["feature"]["code"] == f["code"]])
+        for f in rel["features"]
+    ]
+    grupos.append((None, [t for t in rel["tasks"] if t["feature"] is None]))
+
+    for feature, tasks in grupos:
+        com_atividade = [t for t in tasks if rel["por_task"].get(t["code"])]
+        eventos_feature = rel["por_feature"].get(feature["code"], []) if feature else []
+        if not com_atividade and not eventos_feature:
             continue
 
-        marcadores = [ROTULO_STATUS.get(task["status"], task["status"])]
-        if task["tags"]:
-            marcadores.append(", ".join(task["tags"]))
-        if task["owner"]:
-            marcadores.append(f"dono {task['owner']}")
-        linhas += [
-            f"## {task['code']} · {task['title']}   `[{' · '.join(marcadores)}]`",
-            "",
-        ]
-
-        for evento in atividade:
-            if evento["kind"] == EKindEvent.task_field_changed:
-                dados = evento["payload"]
-                de = dados.get("valor_de") or "vazio"
-                para = dados.get("valor_para") or "vazio"
-                linhas.append(f"- `{dados['campo']}`: {de} → {para}")
-            elif evento["kind"] == EKindEvent.diff_published:
-                dados = evento["payload"]
-                arquivos = ", ".join(f"`{a}`" for a in dados["arquivos"][:6])
-                sobra = len(dados["arquivos"]) - 6
-                if sobra > 0:
-                    arquivos += f" (+{sobra})"
-                base = (dados.get("base_sha") or "")[:7]
-                head = (dados.get("head_sha") or "")[:7]
-                linhas.append(f"- diff `{base}..{head}`: {arquivos or 'nenhum arquivo'}")
-
-        pontos = _pontos_git(atividade)
-        if pontos:
-            linhas.append(f"- git: {pontos}")
-        linhas.append("")
-
-        if com_diff:
-            versoes = [
-                e["payload"]["versao"]
-                for e in atividade
-                if e["kind"] == EKindEvent.body_updated
+        if feature:
+            progresso = feature["progresso"]
+            status = ROTULO_STATUS.get(feature["status"], feature["status"])
+            linhas += [
+                f"## {feature['code']} · {feature['title']}"
+                f"   `[{status} · {progresso['feito']}/{progresso['total']} feito]`",
+                "",
             ]
-            if versoes:
-                task_row = tasks_repositorio.find_by_code(conn, projeto["id"], task["code"])
-                dados = tasks_service.task_diff(
-                    conn, task_row["id"], task["code"], min(versoes) - 1
-                )
-                if dados["diff"]:
-                    linhas += [
-                        f"### Diff do corpo (v{dados['versao_de']} → v{dados['versao_para']})",
-                        "",
-                        "```diff",
-                        dados["diff"].rstrip("\n"),
-                        "```",
-                        "",
-                    ]
+        else:
+            linhas += ["## Sem feature", ""]
+
+        for evento in eventos_feature:
+            if evento["kind"] == EKindEvent.feature_created:
+                linhas.append("- feature criada")
+            else:
+                dados = evento["payload"]
+                de = eventos_service.linha_curta(dados.get("valor_de")) or "vazio"
+                para = eventos_service.linha_curta(dados.get("valor_para")) or "vazio"
+                linhas.append(f"- `{dados['campo']}`: {de} → {para}")
+        if eventos_feature:
+            linhas.append("")
+
+        for task in com_atividade:
+            linhas += _secao_task(conn, projeto, task, rel["por_task"][task["code"]], com_diff)
         linhas += ["---", ""]
 
     return "\n".join(linhas)

@@ -35,12 +35,16 @@ def _payload(evento: dict[str, Any], com_texto: bool) -> dict[str, Any]:
     kind = evento["kind"]
     if kind == EKindEvent.task_created:
         return {"title": evento.get("texto")}
-    if kind == EKindEvent.task_field_changed:
+    if kind in (EKindEvent.task_field_changed, EKindEvent.feature_field_changed):
         return {
             "campo": evento.get("campo"),
             "valor_de": evento.get("valor_de"),
             "valor_para": evento.get("valor_para"),
         }
+    if kind == EKindEvent.feature_created:
+        return {"title": evento.get("texto")}
+    if kind == EKindEvent.feature_deleted:
+        return {"code": evento.get("valor_de")}
     if kind == EKindEvent.body_updated:
         dados: dict[str, Any] = {"versao": evento.get("version")}
         if com_texto:
@@ -60,6 +64,30 @@ def _payload(evento: dict[str, Any], com_texto: bool) -> dict[str, Any]:
     return {}
 
 
+def _code_da_feature(evento: dict[str, Any]) -> str | None:
+    """Feature apagada perde o vínculo (`feature_id` vira NULL); aí vale o code
+    gravado no próprio evento: `valor_para` no created, `texto` no
+    field_changed, `valor_de` no deleted."""
+    if evento.get("feature_code"):
+        return evento["feature_code"]
+    return {
+        EKindEvent.feature_created: evento.get("valor_para"),
+        EKindEvent.feature_field_changed: evento.get("texto"),
+        EKindEvent.feature_deleted: evento.get("valor_de"),
+    }.get(evento["kind"])
+
+
+def linha_curta(valor: str | None, limite: int = 80) -> str | None:
+    """Primeira linha do valor, cortada em `limite` - campo como `description`
+    pode ter texto longo, e resumo é uma linha só."""
+    if valor is None:
+        return None
+    primeira = valor.split("\n", 1)[0]
+    if primeira == valor and len(valor) <= limite:
+        return valor
+    return primeira[:limite] + "…"
+
+
 def envelope(evento: dict[str, Any], com_texto: bool = False) -> dict[str, Any]:
     """Formato público de um evento. `com_texto=False` omite o que é volumoso
     (corpo inteiro, patch)."""
@@ -69,6 +97,7 @@ def envelope(evento: dict[str, Any], com_texto: bool = False) -> dict[str, Any]:
         "created_at": evento["created_at"],
         "project": evento["project_slug"],
         "task": evento.get("task_code"),
+        "feature": _code_da_feature(evento),
         "actor": {
             "person": evento["author_alias"],
             "name": evento["author_name"],
@@ -115,16 +144,16 @@ def assinatura(evento: dict[str, Any]) -> str:
 
 def resumir(evento: dict[str, Any]) -> str:
     """Linha curta do evento, pronta pra mostrar como notificação."""
-    alvo = evento.get("task_code", "-")
+    kind = evento["kind"]
+    alvo = evento.get("task_code") or _code_da_feature(evento) or "-"
     prefixo = f"[{evento['project_slug']}] {alvo} · {assinatura(evento)}"
     if evento.get("branch"):
         prefixo += f" ({evento['branch']})"
-    kind = evento["kind"]
     if kind == EKindEvent.message_created:
         return f"{prefixo} · {evento['type']}: {evento['texto'].splitlines()[0]}"
-    if kind == EKindEvent.task_field_changed:
-        de = evento.get("valor_de", "vazio")
-        para = evento.get("valor_para", "vazio")
+    if kind in (EKindEvent.task_field_changed, EKindEvent.feature_field_changed):
+        de = linha_curta(evento.get("valor_de")) or "vazio"
+        para = linha_curta(evento.get("valor_para")) or "vazio"
         return f"{prefixo} · {evento['campo']}: {de} -> {para}"
     if kind == EKindEvent.body_updated:
         return f"{prefixo} · corpo v{evento['version']}"
@@ -133,4 +162,8 @@ def resumir(evento: dict[str, Any]) -> str:
         base = (evento.get("base_sha") or "")[:7]
         head = (evento.get("commit_sha") or "")[:7]
         return f"{prefixo} · diff {base}..{head}: {len(arquivos)} arquivo(s)"
+    if kind == EKindEvent.feature_created:
+        return f"{prefixo} · feature criada: {evento.get('texto', '')}"
+    if kind == EKindEvent.feature_deleted:
+        return f"{prefixo} · feature apagada"
     return f"{prefixo} · task criada: {evento.get('texto', '')}"

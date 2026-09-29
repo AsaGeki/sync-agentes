@@ -36,11 +36,15 @@ def list_tasks(
     tag: str | None = None,
     q: str | None = None,
     nao_lidas: bool = False,
+    feature: str | None = None,
+    sem_feature: bool = False,
     pessoa: sqlite3.Row = Depends(pessoa_atual),
 ) -> list[dict[str, Any]]:
     conn = conectar()
     try:
-        return service.list_tasks(conn, slug, pessoa["id"], status, tag, q, nao_lidas)
+        return service.list_tasks(
+            conn, slug, pessoa["id"], status, tag, q, nao_lidas, feature, sem_feature
+        )
     finally:
         conn.close()
 

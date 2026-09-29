@@ -2,6 +2,16 @@
 
 Formato livre, mais recente no topo. Versão segue `src/main.py` (`FastAPI(version=...)`), exposta em `GET /health` e este arquivo em `GET /changelog`.
 
+## 3.1.0 — 2026-09-29
+
+- **Feature: agrupador opcional de tasks (`projeto → feature → task`).** Tabela `features` com code `F-003-slug` (mesma regra do code de task), título e descrição. `tasks.feature_id` é opcional - task avulsa continua sendo o caso normal, e nada trava por causa de feature. O status da feature não é gravado: sai das tasks dela (sem task ou tudo `ideia` → `ideia`; tudo `feito` → `feito`; alguma `bloqueado` → `bloqueado`; senão `parcial`), junto com o progresso `feito/total`.
+- **REST:** `POST/GET /projetos/{slug}/features`, `GET/PATCH/DELETE /projetos/{slug}/features/{code}`. Apagar feature deixa as tasks dela avulsas. `GET .../tasks` ganhou `feature=<code>` e `sem_feature=true`; `POST`/`PATCH` de task aceitam `feature` (`""` no PATCH tira a task da feature).
+- **MCP:** tools novas `create_feature`, `list_features`, `update_feature`; `feature` em `create_task`/`update_task`/`list_tasks`. Exclusão de feature fica só no REST.
+- **Eventos:** kinds novos `feature.created`, `feature.field_changed`, `feature.deleted`; coluna `events.feature_id`. O envelope ganhou `feature` (code da feature do evento, ou da feature atual da task). Mover task de feature é `task.field_changed` com `campo='feature'`. Migração recria `events` preservando todo evento e o `seq`.
+- **`X-Operation-Id` vale também em `DELETE`.** Repetir um DELETE com o mesmo id devolve a resposta gravada em vez de 404.
+- **Valor de campo longo não quebra mais o `resumo`** nem o relatório: `valor_de`/`valor_para` aparecem pela primeira linha, cortada em 80 caracteres.
+- **Relatório:** markdown agrupa as tasks por feature (grupo "Sem feature" no fim) e lista status/progresso de cada feature no resumo geral; JSON ganhou `features`, `por_feature` e `features_apagadas`.
+
 ## 3.0.0 — 2026-09-09
 
 Reescrita do modelo de identidade e de escopo. Migração real roda no próximo start e preserva todo o dado (`src/shared/migracao_v3.py`).
