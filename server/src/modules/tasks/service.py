@@ -24,6 +24,19 @@ def _feature_resumida(conn: sqlite3.Connection, feature_id: int | None) -> dict[
     return {"code": feature["code"], "title": feature["title"]}
 
 
+def _fazendo_agora(conn: sqlite3.Connection, task: sqlite3.Row) -> dict[str, str] | None:
+    """Quem pôs a task em andamento, por qual ferramenta e desde quando."""
+    if task["status"] != EStatusTask.em_andamento.value:
+        return None
+    quem = repositorio.quem_esta_fazendo(conn, task["id"])
+    return {
+        "person": quem["alias"],
+        "name": quem["name"],
+        "agent": quem["agent"],
+        "desde": quem["created_at"],
+    }
+
+
 def serializar(
     conn: sqlite3.Connection,
     task: sqlite3.Row,
@@ -47,6 +60,7 @@ def serializar(
         "created_at": task["created_at"],
         "updated_at": task["updated_at"],
     }
+    dados["fazendo_agora"] = _fazendo_agora(conn, task)
     if leitura is not None:
         dados["nao_lidos"] = leitura["nao_lidos"]
         if leitura["ultimo_nao_lido"]:

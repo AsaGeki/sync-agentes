@@ -66,7 +66,10 @@ INSTRUCOES = (
     "assunto, endereçada por code. O code é `T-007-slug-do-titulo`: o número "
     "identifica, o slug é pra humano reconhecer sem abrir. Qualquer tool "
     "aceita só o número (`T-007`, `T-7`) ou o code inteiro. "
-    "title/status/tags/owner_id + um corpo versionado. `dependencies` (codes "
+    "title/status/tags/owner_id + um corpo versionado. status: `ideia` (não "
+    "começou), `em_andamento` (alguém está fazendo agora - o web mostra quem e "
+    "por qual ferramenta), `parcial` (tem parte pronta, ninguém mexendo agora), "
+    "`feito`, `bloqueado`, `aguardando_decisao`. `dependencies` (codes "
     "de outra task) trava o status 'feito' até elas também estarem, e pode ser "
     "trocada depois por `update_task` - a lista mandada substitui a atual.\n"
     "- feature (`create_feature`/`list_features`/`update_feature`): agrupa "
@@ -108,7 +111,9 @@ INSTRUCOES = (
     "de um evento.\n"
     "3. Uma task por assunto. Virou outro assunto, é task nova.\n"
     "4. status reflete estado real, não intenção - 'feito' é feito e "
-    "verificado.\n"
+    "verificado. Ao começar a mexer numa task, marque `em_andamento`; ao "
+    "parar, devolva pra `parcial`, `feito` ou `bloqueado`. Task esquecida em "
+    "andamento aparece como parada pra todo mundo.\n"
     "5. `update_body` leva sempre o texto COMPLETO da task, nunca um "
     "fragmento.\n"
     "6. Toda resposta de tool traz `nao_lidos` quando o outro lado escreveu "
@@ -465,6 +470,10 @@ def update_task(
     Tirar uma task de 'feito' devolve pra 'parcial', em cascata, quem dependia
     dela e já estava fechado.
 
+    `status='em_andamento'` avisa o outro lado que você está nela agora; o
+    servidor guarda quem e por qual ferramenta. Ao parar, volte pra 'parcial',
+    'feito' ou 'bloqueado'.
+
     `feature` move a task pra outra feature; `feature=''` tira ela da feature."""
     corpo = {
         "title": title,
@@ -507,7 +516,7 @@ def create_feature(
 @mcp.tool()
 def list_features(ctx: Context, project: str | None = None) -> Any:
     """Lista as features do projeto com o status derivado das tasks (ideia,
-    parcial, bloqueado, feito) e o progresso `feito/total`. As tasks de uma
+    em_andamento, parcial, bloqueado, feito) e o progresso `feito/total`. As tasks de uma
     feature saem em `list_tasks(feature='F-3')`."""
     return _chamar(
         ctx, project, lambda api, slug: api.request("GET", f"/projetos/{slug}/features")

@@ -14,6 +14,7 @@ from src.shared.enums import EKindEvent
 
 ROTULO_STATUS = {
     "feito": "feito",
+    "em_andamento": "em andamento",
     "parcial": "parcial",
     "ideia": "ideia",
     "bloqueado": "bloqueado",
@@ -182,6 +183,14 @@ def relatorio_markdown(conn: sqlite3.Connection, rel: dict[str, Any], com_diff: 
         f"{n} {ROTULO_STATUS.get(s, s)}" for s, n in sorted(rel["contagem_status"].items())
     )
     linhas.append(f"- **{total} tasks**: {resumo}" if total else "- Nenhuma task cadastrada")
+
+    em_andamento = [t for t in rel["tasks"] if t["fazendo_agora"]]
+    if em_andamento:
+        alvos = ", ".join(
+            f"{t['code']} ({t['fazendo_agora']['person']} · {t['fazendo_agora']['agent']})"
+            for t in em_andamento
+        )
+        linhas.append(f"- **Em andamento:** {alvos}")
 
     bloqueadas = [t for t in rel["tasks"] if t["status"] == "bloqueado"]
     if bloqueadas:

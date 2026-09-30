@@ -16,6 +16,7 @@ class ETypeMessage(StrEnum):
 
 class EStatusTask(StrEnum):
     ideia = "ideia"
+    em_andamento = "em_andamento"
     parcial = "parcial"
     feito = "feito"
     bloqueado = "bloqueado"

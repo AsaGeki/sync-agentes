@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   code       TEXT NOT NULL,
   title      TEXT NOT NULL,
   status     TEXT NOT NULL
-             CHECK (status IN ('ideia','parcial','feito','bloqueado','aguardando_decisao')),
+             CHECK (status IN ('ideia','em_andamento','parcial','feito','bloqueado','aguardando_decisao')),
   tags       TEXT NOT NULL DEFAULT '[]',
   owner_id   INTEGER REFERENCES people(id),
   feature_id INTEGER REFERENCES features(id) ON DELETE SET NULL,
@@ -484,6 +484,60 @@ def _migrar_events_para_features(conn: sqlite3.Connection) -> None:
         )
 
 
+def _tasks_sem_em_andamento(conn: sqlite3.Connection) -> bool:
+    linha = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'tasks'"
+    ).fetchone()
+    return linha is not None and "'em_andamento'" not in linha["sql"]
+
+
+def _migrar_tasks_para_em_andamento(conn: sqlite3.Connection) -> None:
+    """Migração única: o CHECK de `tasks.status` ganha 'em_andamento'. Guardada
+    pelo texto do CHECK - SQLite não altera CHECK de tabela existente. Os índices
+    de `tasks` somem no DROP e o `SCHEMA` recria logo depois."""
+    if not _tasks_sem_em_andamento(conn):
+        return
+
+    conn.execute("DROP TABLE IF EXISTS tasks_novo")
+    contador = conn.execute(
+        "SELECT seq FROM sqlite_sequence WHERE name = 'tasks'"
+    ).fetchone()
+    conn.execute(
+        """CREATE TABLE tasks_novo (
+             id         INTEGER PRIMARY KEY AUTOINCREMENT,
+             project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+             code       TEXT NOT NULL,
+             title      TEXT NOT NULL,
+             status     TEXT NOT NULL
+                        CHECK (status IN ('ideia','em_andamento','parcial','feito','bloqueado','aguardando_decisao')),
+             tags       TEXT NOT NULL DEFAULT '[]',
+             owner_id   INTEGER REFERENCES people(id),
+             feature_id INTEGER REFERENCES features(id) ON DELETE SET NULL,
+             created_at TEXT NOT NULL,
+             updated_at TEXT NOT NULL,
+             UNIQUE (project_id, code)
+           )"""
+    )
+    # Banco anterior às features ainda não tem `feature_id`: a coluna só nasce
+    # depois, no laço de `MIGRACOES`.
+    feature_id = "feature_id" if _coluna_existe(conn, "tasks", "feature_id") else "NULL"
+    conn.execute(
+        f"""INSERT INTO tasks_novo
+               (id, project_id, code, title, status, tags, owner_id, feature_id,
+                created_at, updated_at)
+           SELECT id, project_id, code, title, status, tags, owner_id, {feature_id},
+                  created_at, updated_at
+             FROM tasks"""
+    )
+    conn.execute("DROP TABLE tasks")
+    conn.execute("ALTER TABLE tasks_novo RENAME TO tasks")
+    if contador is not None:
+        conn.execute(
+            "UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name = 'tasks'",
+            (contador["seq"],),
+        )
+
+
 def _backup_antes_de_migrar() -> None:
     """Cópia do banco antes das migrações, que fazem DROP TABLE. Uma por dia."""
     if not DB_PATH.exists():
@@ -509,6 +563,7 @@ def iniciar_banco() -> None:
         migracao_v3.migrar(conn, _tabela_existe, now())
         _migrar_repo_para_muitos_projetos(conn)
         _migrar_events_para_features(conn)
+        _migrar_tasks_para_em_andamento(conn)
     conn.execute("PRAGMA foreign_keys = ON")
     problemas = conn.execute("PRAGMA foreign_key_check").fetchall()
     if problemas:

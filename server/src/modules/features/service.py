@@ -18,13 +18,16 @@ TENTATIVAS_DE_CODIGO = 5
 
 def status_derivado(statuses: list[str]) -> str:
     """Status da feature a partir das tasks dela. Avaliado nesta ordem: sem task
-    ou todas em ideia, todas feito, alguma bloqueada, resto é parcial."""
+    ou todas em ideia, todas feito, alguma bloqueada, alguma em andamento, resto
+    é parcial."""
     if all(s == EStatusTask.ideia.value for s in statuses):
         return EStatusTask.ideia.value
     if all(s == EStatusTask.feito.value for s in statuses):
         return EStatusTask.feito.value
     if any(s == EStatusTask.bloqueado.value for s in statuses):
         return EStatusTask.bloqueado.value
+    if any(s == EStatusTask.em_andamento.value for s in statuses):
+        return EStatusTask.em_andamento.value
     return EStatusTask.parcial.value
 
 

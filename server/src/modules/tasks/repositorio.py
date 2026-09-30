@@ -110,6 +110,21 @@ def ultimo_corpo(conn: sqlite3.Connection, task_id: int) -> sqlite3.Row | None:
     ).fetchone()
 
 
+def quem_esta_fazendo(conn: sqlite3.Connection, task_id: int) -> sqlite3.Row | None:
+    """Último evento que pôs a task em 'em_andamento': a mudança de status ou,
+    se ela já nasceu assim, o `task.created`."""
+    return conn.execute(
+        """SELECT e.created_at, e.agent, pe.alias, pe.name
+             FROM events e JOIN people pe ON pe.id = e.author_id
+            WHERE e.task_id = ?
+              AND ((e.kind = 'task.field_changed' AND e.campo = 'status'
+                    AND e.valor_para = 'em_andamento')
+                   OR e.kind = 'task.created')
+            ORDER BY e.seq DESC LIMIT 1""",
+        (task_id,),
+    ).fetchone()
+
+
 def seqs_de_diff(conn: sqlite3.Connection, task_id: int) -> list[int]:
     return [
         linha["seq"]
