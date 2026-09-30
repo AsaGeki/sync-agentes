@@ -1,6 +1,6 @@
 [project]
 name = "sync-agents-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Bridge MCP local do sync-agents: liga a IA de quem conecta ao canal de alinhamento, escopado pelo repositório git"
 readme = "README.md"
 requires-python = ">=3.13"
