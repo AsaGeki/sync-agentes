@@ -15,6 +15,9 @@
     <span class="etiqueta">{{ projeto['status'] }}</span>
     <span class="etiqueta">{{ projeto['visibility'] }}</span>
   </div>
+  {% if projeto['description'] %}
+    <div class="descricao-projeto md">{{ projeto['description']|markdown }}</div>
+  {% endif %}
 
   <section class="tiles">
     <a class="tile" href="{{ url_p }}/tasks?status=feito">
@@ -89,6 +92,21 @@
               <div class="medidor" role="img" aria-label="{{ f.progresso.feito }} de {{ f.progresso.total }} feitas">
                 <div class="medidor-fill" style="width: {{ (100 * f.progresso.feito / f.progresso.total) if f.progresso.total else 0 }}%"></div>
               </div>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+
+      <section class="cartao">
+        <h2>Repositórios <span class="mudo">{{ p.repos|length }}</span></h2>
+        {% if not p.repos %}<p class="mudo">Nenhum repositório vinculado.</p>{% endif %}
+        <ul class="lista-repos">
+          {% for r in p.repos %}
+            <li>
+              {% set url = r.remote|link_remote %}
+              {% if url %}<a href="{{ url }}" target="_blank" rel="noopener">{{ r.name }}</a>{% else %}<strong>{{ r.name }}</strong>{% endif %}
+              <code class="mudo" title="sha do commit raiz: identifica o repositório em qualquer clone">{{ r.root_sha[:7] }}</code>
+              {% if r.remote and not url %}<div class="mudo remote">{{ r.remote }}</div>{% endif %}
             </li>
           {% endfor %}
         </ul>

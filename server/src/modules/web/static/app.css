@@ -130,6 +130,14 @@ h3 { font-size: 0.9rem; margin: 14px 0 6px; }
 .cabeca-pagina { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
 .cabeca-pagina h1 { margin-right: 6px; }
 .cabeca-pagina .alternar { margin-left: auto; }
+.descricao-projeto { color: var(--tinta-2); max-width: 110ch; margin: -8px 0 16px; }
+.lista-repos { list-style: none; padding: 0; margin: 0; }
+.lista-repos li { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; padding: 3px 0; }
+.lista-repos .remote { width: 100%; font-size: 0.8em; overflow-wrap: anywhere; }
+.descricao-card {
+  color: var(--tinta-2); font-size: 0.88em; line-height: 1.5; margin: 0 0 8px; min-height: 4.5em;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
 
 /* ---------- elementos ---------- */
 

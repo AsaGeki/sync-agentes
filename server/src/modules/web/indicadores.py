@@ -34,6 +34,7 @@ def painel(conn: sqlite3.Connection, projeto: sqlite3.Row, person_id: int | None
         "atencao": [t for t in tasks if t["status"] in PEDEM_ATENCAO],
         "perguntas_abertas": perguntas_abertas(conn, projeto["id"], tasks),
         "membros": [dict(m) for m in projects_repositorio.membros_do_projeto(conn, projeto["id"])],
+        "repos": [dict(r) for r in projects_repositorio.repos_do_projeto(conn, projeto["id"])],
         "nao_lidos": sum(t.get("nao_lidos", 0) for t in tasks) if person_id is not None else None,
     }
 
@@ -60,6 +61,7 @@ def cards(
         card = {
             "slug": projeto["slug"],
             "name": projeto["name"],
+            "description": projeto["description"],
             "status": projeto["status"],
             "visibility": projeto["visibility"],
             "total_tasks": len(tasks),

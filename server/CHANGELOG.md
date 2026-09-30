@@ -26,7 +26,7 @@ Sem mudança de API, de contrato REST nem de tools MCP.
 - Layout da web: barra lateral fixa com os projetos (e não lidos de cada um) e as seções do projeto aberto, área de trabalho em largura total e navegação por `hx-boost`.
 - Task em duas colunas: corpo recolhível, conversa e campo de resposta à esquerda; propriedades editáveis, dependências, participantes e diffs à direita. Na conversa, mensagens seguidas do mesmo autor (janela de 10 min) viram um cartão só com avatar, ferramenta e tipo colorido; pergunta sem resposta fica marcada; mudanças de campo e de corpo aparecem como linhas compactas com separador por dia; texto longo fica recolhido com "mostrar tudo". O tipo da mensagem é escolhido em botões e `Ctrl+Enter` envia.
 - Tasks ganharam visão em quadro por status; a lista mostra o code curto (`T-023`), o dono com avatar e a hora relativa.
-- Painel em grade: atenção e gráfico na coluna principal; status (barra empilhada), features e membros na lateral.
+- Painel em grade: atenção e gráfico na coluna principal; status (barra empilhada), features, repositórios e membros na lateral. A descrição do projeto aparece no topo do painel (markdown) e resumida no card da visão geral; cada repositório vinculado mostra o link do remote e o sha do commit raiz.
 - Links dentro de trechos que se atualizam sozinhos (lista, quadro, painel, conversa) não herdam mais `hx-select`/`hx-swap` do trecho: antes, abrir uma task por eles deixava a tela vazia.
 - Dependências novas no grupo `server`: `jinja2`, `python-multipart` e `markdown-it-py`.
 

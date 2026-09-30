@@ -93,6 +93,18 @@ def json_lista(valor: str | None) -> str:
     return ", ".join(json.loads(valor)) if valor else ""
 
 
+def link_remote(remote: str | None) -> str | None:
+    """URL navegável do remote git (`https://...` ou `git@host:org/repo.git`)."""
+    if not remote:
+        return None
+    if remote.startswith("git@") and ":" in remote:
+        host, caminho = remote[4:].split(":", 1)
+        remote = f"https://{host}/{caminho}"
+    if not remote.startswith(("http://", "https://")):
+        return None
+    return remote.removesuffix(".git")
+
+
 def linhas_diff(texto: str | None) -> list[tuple[str, str]]:
     """Cada linha de um diff unificado com a classe CSS que a colore."""
     linhas = []
@@ -123,6 +135,7 @@ def markdown_linha(texto: str | None) -> Markup:
 templates.env.filters["quando"] = quando
 templates.env.filters["relativo"] = relativo
 templates.env.filters["json_lista"] = json_lista
+templates.env.filters["link_remote"] = link_remote
 templates.env.filters["rotulo_dia"] = rotulo_dia
 templates.env.filters["code_curto"] = code_curto
 templates.env.filters["iniciais"] = iniciais

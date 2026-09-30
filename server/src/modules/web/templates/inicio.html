@@ -13,6 +13,7 @@
       <span class="etiqueta">{{ c.status }}</span>
       <span class="etiqueta">{{ c.visibility }}</span>
     </header>
+    {% if c.description %}<p class="descricao-card" title="{{ c.description }}">{{ c.description.splitlines()[0]|truncate(160)|markdown_linha }}</p>{% endif %}
     <div class="medidor" role="img" aria-label="{{ c.feitas }} de {{ c.total_tasks }} tasks feitas">
       <div class="medidor-fill" style="width: {{ (100 * c.feitas / c.total_tasks) if c.total_tasks else 0 }}%"></div>
     </div>
