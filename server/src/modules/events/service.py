@@ -134,6 +134,18 @@ def mudancas_do_projeto(
     }
 
 
+def feed_do_projeto(
+    conn: sqlite3.Connection, projeto_id: int, limite: int, **filtros: Any
+) -> dict[str, Any]:
+    """Uma página do feed. `proximo` é o seq a passar em `antes` pra página
+    seguinte, ou None quando não há mais."""
+    seqs = repositorio.seqs_do_feed(conn, projeto_id, limite + 1, **filtros)
+    return {
+        "eventos": [envelope(hidratar(conn, seq)) for seq in seqs[:limite]],
+        "proximo": seqs[limite - 1] if len(seqs) > limite else None,
+    }
+
+
 def assinatura(evento: dict[str, Any]) -> str:
     """Quem escreveu e por qual ferramenta."""
     agent = evento.get("agent", "outro")

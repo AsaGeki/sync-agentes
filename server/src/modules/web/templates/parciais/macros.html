@@ -16,6 +16,10 @@
   <path d="M5.5 4h8M5.5 8h8M5.5 12h8" stroke="currentColor" stroke-width="1.4"/><circle cx="2.8" cy="4" r="1" fill="currentColor"/><circle cx="2.8" cy="8" r="1" fill="currentColor"/><circle cx="2.8" cy="12" r="1" fill="currentColor"/>
 {%- elif nome == 'quadro' -%}
   <rect x="1.8" y="2" width="3.4" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="6.3" y="2" width="3.4" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="10.8" y="2" width="3.4" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/>
+{%- elif nome == 'atividade' -%}
+  <path d="M1.5 8h3l2-5 3 10 2-5h3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>
+{%- elif nome == 'feature' -%}
+  <path d="M8 2l6 3-6 3-6-3zM2 8l6 3 6-3M2 11l6 3 6-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
 {%- elif nome == 'pessoas' -%}
   <circle cx="6" cy="5.5" r="2.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M1.5 14c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4M11 3.2a2.5 2.5 0 0 1 0 4.8M12.5 10c1.2.5 2 1.8 2 4" fill="none" stroke="currentColor" stroke-width="1.4"/>
 {%- elif nome == 'pasta' -%}
@@ -24,8 +28,30 @@
 </svg>
 {%- endmacro %}
 
-{% macro avatar(chave, nome, tamanho='') -%}
-<span class="avatar {{ chave|cor_avatar }} {{ tamanho }}" title="{{ nome or chave }}" aria-hidden="true">{{ (nome or chave)|iniciais }}</span>
+{% macro avatar(chave, nome, tamanho='', titulo='') -%}
+<span class="avatar {{ chave|cor_avatar }} {{ tamanho }}" title="{{ titulo or nome or chave }}" aria-hidden="true">{{ (nome or chave)|iniciais }}</span>
+{%- endmacro %}
+
+{% macro avatares_participantes(participantes, limite=5) -%}
+{% if participantes %}
+<span class="avatares" role="group" aria-label="Participantes">
+  {% for pa in participantes[:limite] %}{{ avatar(pa.alias, pa.name, 'pequeno', pa.name ~ ' · ' ~ pa.total ~ ' evento(s)') }}{% endfor %}
+  {% if participantes|length > limite %}<span class="mudo">+{{ participantes|length - limite }}</span>{% endif %}
+</span>
+{% endif %}
+{%- endmacro %}
+
+{% macro lista_participantes(participantes) -%}
+{% if not participantes %}<p class="mudo">Ninguém fez nada ainda.</p>{% endif %}
+<ul class="lista-participantes">
+  {% for pa in participantes %}
+    <li>
+      {{ avatar(pa.alias, pa.name, 'pequeno') }} <strong>{{ pa.name }}</strong>
+      <span class="mudo">{{ pa.total }} evento(s) · {{ pa.ultimo|relativo }}</span>
+      <div class="ferramentas">{% for agent, n in pa.ferramentas %}<span class="agente ag-{{ agent }}">{{ ROTULO_AGENT[agent] }} {{ n }}</span>{% endfor %}</div>
+    </li>
+  {% endfor %}
+</ul>
 {%- endmacro %}
 
 {% macro status_pill(status) -%}
@@ -34,6 +60,18 @@
 
 {% macro agente(agent) -%}
 {% if agent in ('claude', 'codex') %}<span class="agente ag-{{ agent }}">{{ ROTULO_AGENT[agent] }}</span>{% endif %}
+{%- endmacro %}
+
+{% macro selo_fazendo(t) -%}
+{% if t.fazendo_agora %}
+{% set f = t.fazendo_agora %}
+{% set sem_atividade = t.updated_at|parada %}
+<span class="selo-fazendo {{ 'parada' if sem_atividade else '' }}" title="{{ f.name }} pôs em andamento em {{ f.desde|quando }}">
+  {{ avatar(f.person, f.name, 'pequeno') }} <strong>{{ f.person }}</strong>{{ agente(f.agent) }}
+  <span class="mudo">{{ f.desde|relativo }}</span>
+  {% if sem_atividade %}<span class="aviso-parada" title="Último evento da task: {{ t.updated_at|quando }}">sem atividade {{ t.updated_at|relativo }}</span>{% endif %}
+</span>
+{% endif %}
 {%- endmacro %}
 
 {% macro hora(iso) -%}

@@ -1,0 +1,33 @@
+{% from "parciais/macros.html" import avatar, status_pill, selo_fazendo %}
+{# Variáveis: `tasks`. Opcionais: `legenda` (leitor de tela), `na_feature` (esconde a etiqueta da feature,
+   quando o agrupamento já a mostra) e `vazio_msg`. #}
+<div class="tabela-rolagem">
+<table class="tabela tabela-tasks">
+  <caption class="sr">{{ legenda or 'Tasks' }}</caption>
+  <colgroup>
+    {% if not admin %}<col class="c-lido">{% endif %}<col class="c-code"><col><col class="c-status"><col class="c-dono"><col class="c-tags"><col class="c-data">
+  </colgroup>
+  <thead><tr>
+    {% if not admin %}<th scope="col" class="col-lido"><span class="sr">Não lidos pela IA</span></th>{% endif %}
+    <th scope="col">Code</th><th scope="col">Título</th><th scope="col">Status</th><th scope="col">Dono</th><th scope="col">Tags</th><th scope="col">Atualizada</th>
+  </tr></thead>
+  <tbody>
+    {% for t in tasks %}
+      <tr class="{{ 'nao-lida' if t.nao_lidos else '' }}">
+        {% if not admin %}<td class="col-lido">{% if t.nao_lidos %}<span class="contador" title="{{ t.nao_lidos }} evento(s) que sua IA ainda não leu">{{ t.nao_lidos }}</span>{% endif %}</td>{% endif %}
+        <td><code title="{{ t.code }}">{{ t.code|code_curto }}</code></td>
+        <td class="col-titulo">
+          <a href="{{ base }}/p/{{ projeto['slug'] }}/t/{{ t.code }}">{{ t.title }}</a>
+          {% if t.feature and not na_feature %}<span class="etiqueta" title="{{ t.feature.title }}">{{ t.feature.code|code_curto }} {{ t.feature.title|truncate(24) }}</span>{% endif %}
+        </td>
+        <td>{{ status_pill(t.status) }}{{ selo_fazendo(t) }}</td>
+        <td>{% if t.owner %}<span class="dono">{{ avatar(t.owner, t.owner, 'pequeno') }} {{ t.owner }}</span>{% else %}<span class="mudo">—</span>{% endif %}</td>
+        <td class="col-tags" title="{{ t.tags|join(', ') }}">{% for tag in t.tags[:3] %}<span class="etiqueta">{{ tag }}</span> {% endfor %}{% if t.tags|length > 3 %}<span class="mudo">+{{ t.tags|length - 3 }}</span>{% endif %}</td>
+        <td class="mudo sem-quebra">{{ t.updated_at|relativo }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="mudo">{{ vazio_msg or 'Nenhuma task com esse filtro.' }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>

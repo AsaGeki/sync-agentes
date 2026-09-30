@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "parciais/macros.html" import avatar, status_pill, hora %}
+{% from "parciais/macros.html" import avatar, status_pill, selo_fazendo, hora, avatares_participantes, lista_participantes %}
 {% block titulo %}{{ projeto['name'] }} · sync-agents{% endblock %}
 {% block conteudo %}
 {% include "parciais/abas.html" %}
@@ -25,15 +25,29 @@
       <span class="valor">{{ p.feitas }}<small>/{{ p.total_tasks }}</small></span>
       <div class="medidor"><div class="medidor-fill" style="width: {{ (100 * p.feitas / p.total_tasks) if p.total_tasks else 0 }}%"></div></div>
     </a>
-    <div class="tile"><span class="rotulo">Precisam de atenção</span><span class="valor">{{ p.atencao|length }}</span><span class="mudo">bloqueadas ou aguardando decisão</span></div>
+    <a class="tile" href="{{ url_p }}/tasks?atencao=true"><span class="rotulo">Precisam de atenção</span><span class="valor">{{ p.atencao|length }}</span><span class="mudo">bloqueadas ou aguardando decisão</span></a>
     <div class="tile"><span class="rotulo">Perguntas abertas</span><span class="valor">{{ p.perguntas_abertas|length }}</span><span class="mudo">sem resposta ainda</span></div>
     {% if p.nao_lidos is not none %}
     <a class="tile" href="{{ url_p }}/tasks?nao_lidas=true"><span class="rotulo">Não lidos pela sua IA</span><span class="valor">{{ p.nao_lidos }}</span><span class="mudo">eventos de outras pessoas</span></a>
     {% endif %}
+    <div class="tile"><span class="rotulo">Tempo médio até feito</span><span class="valor">{{ p.ciclo.segundos|duracao if p.ciclo.segundos is not none else '—' }}</span><span class="mudo">{{ p.ciclo.n }} task(s) feita(s) com histórico</span></div>
   </section>
 
   <div class="painel-grade">
     <div class="painel-principal">
+      <section class="cartao">
+        <h2><a href="{{ url_p }}/tasks?fazendo=true">Fazendo agora</a> <span class="mudo">{{ p.fazendo_agora|length }}</span></h2>
+        {% if not p.fazendo_agora %}<p class="mudo">Ninguém com task em andamento.</p>{% endif %}
+        <ul class="lista-fazendo">
+          {% for t in p.fazendo_agora %}
+            <li>
+              {{ selo_fazendo(t) }}
+              <a href="{{ url_p }}/t/{{ t.code }}"><code>{{ t.code|code_curto }}</code> {{ t.title }}</a>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+
       <section class="cartao">
         <h2>Precisa de atenção</h2>
         {% if not p.atencao and not p.perguntas_abertas %}<p class="mudo">Nada bloqueado nem esperando resposta.</p>{% endif %}
@@ -86,12 +100,13 @@
           {% for f in p.features %}
             <li>
               <div class="linha">
-                <a href="{{ url_p }}/tasks?feature={{ f.code }}"><code>{{ f.code|code_curto }}</code> {{ f.title }}</a>
+                <a href="{{ url_p }}/f/{{ f.code }}"><code>{{ f.code|code_curto }}</code> {{ f.title }}</a>
                 <span class="mudo">{{ f.progresso.feito }}/{{ f.progresso.total }}</span>
               </div>
               <div class="medidor" role="img" aria-label="{{ f.progresso.feito }} de {{ f.progresso.total }} feitas">
                 <div class="medidor-fill" style="width: {{ (100 * f.progresso.feito / f.progresso.total) if f.progresso.total else 0 }}%"></div>
               </div>
+              {{ avatares_participantes(f.participantes) }}
             </li>
           {% endfor %}
         </ul>
@@ -113,10 +128,16 @@
       </section>
 
       <section class="cartao">
+        <h2>Participantes <span class="mudo">{{ p.participantes|length }}</span></h2>
+        {{ lista_participantes(p.participantes) }}
+      </section>
+
+      <section class="cartao">
         <h2>Membros <span class="mudo">{{ p.membros|length }}</span></h2>
+        <p class="mudo">Quem tem acesso ao projeto, tenha feito algo ou não.</p>
         <ul class="lista-lateral">
           {% for m in p.membros %}
-            <li title="{{ m.email }}">{{ avatar(m.email.split('@')[0], m.name, 'pequeno') }} {{ m.name }} {% if m.role == 'owner' %}<span class="etiqueta">owner</span>{% endif %}</li>
+            <li title="{{ m.email }}">{{ avatar(m.email.split('@')[0], m.name, 'pequeno') }} {{ m.name }} {% if m.role == 'owner' %}<span class="etiqueta">owner</span>{% endif %}{% if m.sem_atividade %} <span class="etiqueta">sem atividade</span>{% endif %}</li>
           {% endfor %}
         </ul>
         {% if admin %}

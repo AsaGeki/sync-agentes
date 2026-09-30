@@ -1,0 +1,40 @@
+{% from "parciais/macros.html" import status_pill %}
+
+{# Frase do que o evento fez, sem autor nem hora. `nomes` mapeia id de pessoa -> nome (dono vem como id);
+   `url_task` é a página da task do evento, usada pra carregar o diff do corpo. #}
+{% macro acao_evento(e, nomes, url_task) -%}
+{% set pl = e.payload %}
+{%- if e.kind == 'task.created' -%}
+  criou a task <strong>{{ pl.title }}</strong>
+{%- elif e.kind == 'body.updated' -%}
+  {%- if pl.versao > 1 -%}
+    <details class="inline" hx-get="{{ url_task }}/corpo-diff?versao={{ pl.versao }}" hx-trigger="toggle once" hx-target="find .diff-alvo">
+      <summary>atualizou o corpo para v{{ pl.versao }}</summary>
+      <div class="diff-alvo"><p class="mudo">carregando…</p></div>
+    </details>
+  {%- else -%}escreveu o corpo (v1){%- endif -%}
+{%- elif e.kind in ('task.field_changed', 'feature.field_changed') -%}
+  {% set nome_campo = {'owner_id': 'dono', 'dependencies': 'dependências', 'title': 'título'}.get(pl.campo, pl.campo) %}
+  mudou <strong>{{ nome_campo }}</strong>:
+  {% for v in [pl.valor_de, pl.valor_para] -%}
+    {%- if v is none %}<span class="mudo">vazio</span>
+    {%- elif pl.campo == 'status' %}{{ status_pill(v) }}
+    {%- elif pl.campo == 'owner_id' %}{{ nomes.get(v, '#' ~ v) }}
+    {%- elif pl.campo == 'tags' %}{{ v|json_lista or '—' }}
+    {%- else %}{{ v|truncate(80) }}{% endif %}
+    {%- if loop.first %} <span class="mudo">→</span> {% endif -%}
+  {%- endfor %}
+{%- elif e.kind == 'message.created' -%}
+  enviou <span class="tipo t-{{ pl.type }}">{{ ROTULO_MENSAGEM[pl.type] }}</span>
+  <span class="trecho">{{ pl.texto.splitlines()[0]|truncate(140)|markdown_linha }}</span>
+{%- elif e.kind == 'diff.published' -%}
+  publicou diff <code>{{ (pl.base_sha or '')[:7] }}..{{ (pl.head_sha or '')[:7] }}</code>
+  <span class="mudo">{{ pl.arquivos|length }} arquivo(s)</span>
+{%- elif e.kind == 'feature.created' -%}
+  criou a feature <strong>{{ pl.title }}</strong>
+{%- elif e.kind == 'feature.deleted' -%}
+  apagou a feature <code>{{ pl.code|code_curto }}</code>
+{%- else -%}
+  {{ e.resumo }}
+{%- endif -%}
+{%- endmacro %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% from "parciais/macros.html" import status_pill, avatares_participantes %}
+{% block titulo %}Features · {{ projeto['name'] }}{% endblock %}
+{% block conteudo %}
+{% include "parciais/abas.html" %}
+{% set url_projeto = base ~ '/p/' ~ projeto['slug'] %}
+{% set url_features = url_projeto ~ '/features' %}
+
+<div class="cabeca-pagina">
+  <h1>Features</h1>
+  <span class="mudo">agrupam tasks de um mesmo assunto; escolha uma pra ver tasks, participantes e atividade</span>
+</div>
+
+<form class="filtros" hx-get="{{ url_features }}" hx-select="#features-corpo" hx-target="#features-corpo"
+      hx-swap="outerHTML" hx-push-url="true" hx-trigger="change">
+  <div class="linha-filtros">
+    <select name="status" aria-label="Status da feature">
+      <option value="">Todos os status</option>
+      {% for s in statuses %}<option value="{{ s }}" {% if filtro_status == s %}selected{% endif %}>{{ ROTULO_STATUS[s] }}</option>{% endfor %}
+    </select>
+    {% if filtro_status %}<a href="{{ url_features }}">limpar filtros</a>{% endif %}
+  </div>
+</form>
+
+<div>
+<section id="features-corpo" hx-disinherit="*" {% if not admin %}hx-get="{{ request.url }}" hx-trigger="mudou from:body delay:500ms" hx-select="#features-corpo" hx-swap="outerHTML"{% endif %}>
+  {% if not features and not avulsas.total %}
+    <p class="mudo">Nenhuma feature com esse filtro. Tasks avulsas são o caso normal; crie uma feature quando houver mais de uma task no mesmo assunto.</p>
+  {% endif %}
+  <div class="grade-cards">
+    {% for f in features %}
+      <article class="cartao card-projeto">
+        <header>
+          <h2><a href="{{ url_projeto }}/f/{{ f.code }}"><code title="{{ f.code }}">{{ f.code|code_curto }}</code> {{ f.title }}</a></h2>
+          {{ status_pill(f.status) }}
+        </header>
+        {% if f.description %}<p class="descricao-card" title="{{ f.description }}">{{ f.description.splitlines()[0]|truncate(140)|markdown_linha }}</p>{% endif %}
+        {% if f.progresso.total %}
+          <div class="barra-status" role="img" aria-label="Tasks por status">
+            {% for s in ordem_status if f.contagem_status.get(s) %}
+              <span class="seg st-{{ s }}" style="flex-grow: {{ f.contagem_status[s] }}" title="{{ ROTULO_STATUS[s] }}: {{ f.contagem_status[s] }}"></span>
+            {% endfor %}
+          </div>
+        {% endif %}
+        <p class="mudo">
+          {{ f.progresso.feito }}/{{ f.progresso.total }} feitas
+          {% if f.contagem_status.get('em_andamento') %} · {{ f.contagem_status['em_andamento'] }} em andamento{% endif %}
+          {% if f.contagem_status.get('bloqueado') %} · {{ f.contagem_status['bloqueado'] }} bloqueada(s){% endif %}
+        </p>
+        <footer class="mudo">
+          {{ avatares_participantes(f.participantes) }}
+          <span title="{{ f.ultimo|quando }}">Última atividade {{ f.ultimo|relativo }}</span>
+        </footer>
+      </article>
+    {% endfor %}
+
+    {% if avulsas.total and not filtro_status %}
+      <article class="cartao card-projeto">
+        <header>
+          <h2><a href="{{ url_projeto }}/tasks?feature={{ SEM_FEATURE }}">Sem feature</a></h2>
+        </header>
+        <div class="barra-status" role="img" aria-label="Tasks por status">
+          {% for s in ordem_status if avulsas.contagem_status.get(s) %}
+            <span class="seg st-{{ s }}" style="flex-grow: {{ avulsas.contagem_status[s] }}" title="{{ ROTULO_STATUS[s] }}: {{ avulsas.contagem_status[s] }}"></span>
+          {% endfor %}
+        </div>
+        <p class="mudo">{{ avulsas.feito }}/{{ avulsas.total }} feitas · tasks que não pertencem a nenhuma feature</p>
+      </article>
+    {% endif %}
+  </div>
+</section>
+</div>
+{% endblock %}

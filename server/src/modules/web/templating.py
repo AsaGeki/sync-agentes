@@ -61,6 +61,34 @@ def relativo(iso: str | None) -> str:
     return f"{momento.day} {MESES[momento.month - 1]} {momento.year}"
 
 
+def duracao(segundos: float | None) -> str:
+    """"2d 4h", "3h 12min", "45min": só as duas maiores unidades."""
+    if segundos is None:
+        return "-"
+    total = int(segundos)
+    if total < 60:
+        return "< 1 min"
+    dias, resto = divmod(total, 86400)
+    horas, resto = divmod(resto, 3600)
+    minutos = resto // 60
+    if dias:
+        return f"{dias}d {horas}h" if horas else f"{dias}d"
+    if horas:
+        return f"{horas}h {minutos}min" if minutos else f"{horas}h"
+    return f"{minutos}min"
+
+
+LIMITE_PARADA = timedelta(hours=4)
+
+
+def parada(iso: str | None) -> bool:
+    """Task em andamento sem nenhum evento há mais que `LIMITE_PARADA`."""
+    if not iso:
+        return False
+    momento = datetime.fromisoformat(iso)
+    return datetime.now(momento.tzinfo) - momento > LIMITE_PARADA
+
+
 def rotulo_dia(dia: str) -> str:
     """Separador de dia da conversa: "Hoje", "Ontem", "24 de setembro"."""
     data = datetime.fromisoformat(dia).date()
@@ -134,6 +162,8 @@ def markdown_linha(texto: str | None) -> Markup:
 
 templates.env.filters["quando"] = quando
 templates.env.filters["relativo"] = relativo
+templates.env.filters["parada"] = parada
+templates.env.filters["duracao"] = duracao
 templates.env.filters["json_lista"] = json_lista
 templates.env.filters["link_remote"] = link_remote
 templates.env.filters["rotulo_dia"] = rotulo_dia

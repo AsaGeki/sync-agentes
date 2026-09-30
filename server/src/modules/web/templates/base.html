@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/web/static/app.css">
   <script src="/web/static/htmx.min.js" defer></script>
   <script src="/web/static/tempo-real.js" defer></script>
+  <script src="/web/static/tela.js" defer></script>
 </head>
 <body hx-boost="true">
 <div class="app {{ 'com-lateral' if nav is defined else '' }}">
@@ -38,8 +39,10 @@
         {% if atual %}
           <div class="sub-nav">
             <a href="{{ base }}/p/{{ item.slug }}" {% if aba == 'painel' %}aria-current="page"{% endif %}>{{ icone('painel') }} Painel</a>
+            <a href="{{ base }}/p/{{ item.slug }}/features" {% if aba in ('features', 'feature') %}aria-current="page"{% endif %}>{{ icone('feature') }} Features</a>
             <a href="{{ base }}/p/{{ item.slug }}/tasks" {% if aba == 'tasks' and filtros is defined and filtros.visao == 'lista' or aba == 'task' %}aria-current="page"{% endif %}>{{ icone('lista') }} Tasks</a>
             <a href="{{ base }}/p/{{ item.slug }}/tasks?visao=quadro" {% if aba == 'tasks' and filtros is defined and filtros.visao == 'quadro' %}aria-current="page"{% endif %}>{{ icone('quadro') }} Quadro</a>
+            <a href="{{ base }}/p/{{ item.slug }}/atividade" {% if aba == 'atividade' %}aria-current="page"{% endif %}>{{ icone('atividade') }} Atividade</a>
           </div>
         {% endif %}
       {% endfor %}

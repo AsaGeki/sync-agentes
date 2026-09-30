@@ -12,10 +12,11 @@ from src.modules.projects import repositorio as projects_repositorio
 from src.modules.projects import service as projects_service
 from src.modules.web import indicadores, paginas
 from src.modules.web.auth import COOKIE_ADMIN, admin_web, apagar_cookie, gravar_cookie
+from src.modules.web.filtros import filtros_atividade, filtros_tasks
+from src.modules.web.paginas import FEATURE_STATUSES
 from src.modules.web.templating import templates
 from src.shared.auth import validate_admin
 from src.shared.db import conectar
-from src.shared.enums import EStatusTask
 from src.shared.erros import Unauthorized
 
 router = APIRouter(include_in_schema=False)
@@ -149,20 +150,52 @@ def resolver_pedido(
 
 
 @protegido.get("/web/admin/p/{slug}/tasks")
-def tasks(
+def tasks(request: Request, slug: str, filtros: dict = Depends(filtros_tasks)):
+    with closing(conectar()) as conn:
+        projeto = projects_repositorio.find_by_slug(conn, slug)
+        ctx = paginas.ctx_tasks(conn, projeto, None, filtros)
+        nav = paginas.ctx_nav(conn, None)
+    return templates.TemplateResponse(request, "tasks.html", {**ctx, "nav": nav})
+
+
+@protegido.get("/web/admin/p/{slug}/features")
+def features(
     request: Request,
     slug: str,
-    status: str = Query("", pattern="^(|" + "|".join(s.value for s in EStatusTask) + ")$"),
-    feature: str = "",
-    tag: str = "",
-    q: str = "",
-    visao: str = Query("lista", pattern="^(lista|quadro)$"),
+    status: str = Query("", pattern="^(|" + "|".join(FEATURE_STATUSES) + ")$"),
 ):
     with closing(conectar()) as conn:
         projeto = projects_repositorio.find_by_slug(conn, slug)
-        ctx = paginas.ctx_tasks(conn, projeto, None, status, feature, tag, q, False, visao)
+        ctx = paginas.ctx_features(conn, projeto, None, status)
         nav = paginas.ctx_nav(conn, None)
-    return templates.TemplateResponse(request, "tasks.html", {**ctx, "nav": nav})
+    return templates.TemplateResponse(request, "features.html", {**ctx, "nav": nav})
+
+
+@protegido.get("/web/admin/p/{slug}/f/{code}")
+def feature(request: Request, slug: str, code: str):
+    with closing(conectar()) as conn:
+        projeto = projects_repositorio.find_by_slug(conn, slug)
+        ctx = paginas.ctx_feature(conn, projeto, None, code)
+        nav = paginas.ctx_nav(conn, None)
+    return templates.TemplateResponse(request, "feature.html", {**ctx, "nav": nav})
+
+
+def _pagina_atividade(request: Request, slug: str, filtros: dict, modelo: str):
+    with closing(conectar()) as conn:
+        projeto = projects_repositorio.find_by_slug(conn, slug)
+        ctx = paginas.ctx_atividade(conn, projeto, None, filtros)
+        nav = paginas.ctx_nav(conn, None)
+    return templates.TemplateResponse(request, modelo, {**ctx, "nav": nav})
+
+
+@protegido.get("/web/admin/p/{slug}/atividade")
+def atividade(request: Request, slug: str, filtros: dict = Depends(filtros_atividade)):
+    return _pagina_atividade(request, slug, filtros, "atividade.html")
+
+
+@protegido.get("/web/admin/p/{slug}/atividade/mais")
+def atividade_mais(request: Request, slug: str, filtros: dict = Depends(filtros_atividade)):
+    return _pagina_atividade(request, slug, filtros, "parciais/feed_itens.html")
 
 
 @protegido.get("/web/admin/p/{slug}/t/{code}")

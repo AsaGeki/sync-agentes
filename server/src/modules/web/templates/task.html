@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% from "parciais/macros.html" import icone, avatar, status_pill, agente, hora %}
+{% from "parciais/macros.html" import icone, avatar, status_pill, selo_fazendo, agente, hora %}
+{% from "parciais/eventos.html" import acao_evento %}
 {% block titulo %}{{ task.code|code_curto }} {{ task.title }} · {{ projeto['name'] }}{% endblock %}
 {% block conteudo %}
 {% set url_task = base ~ '/p/' ~ projeto['slug'] ~ '/t/' ~ task.code %}
@@ -13,6 +14,7 @@
   <div class="sub">
     <code title="{{ task.code }}">{{ task.code|code_curto }}</code>
     {{ status_pill(task.status) }}
+    {{ selo_fazendo(task) }}
     <span class="mudo">{{ mensagens|length }} mensagem(ns)</span>
     {% if abertas %}<span class="etiqueta t-pergunta">{{ abertas }} pergunta(s) em aberto</span>{% endif %}
     <span class="mudo">· atualizada {{ hora(task.updated_at) }}</span>
@@ -77,31 +79,7 @@
               <span class="quem"><strong>{{ bloco.actor.person }}</strong>{{ agente(bloco.actor.agent) }}</span>
               <ul>
                 {% for e in bloco.itens %}{% set pl = e.payload %}
-                  <li id="ev-{{ e.seq }}">
-                    {% if e.kind == 'task.created' %}
-                      criou a task
-                    {% elif e.kind == 'body.updated' %}
-                      {% if pl.versao > 1 %}
-                        <details class="inline" hx-get="{{ url_task }}/corpo-diff?versao={{ pl.versao }}" hx-trigger="toggle once" hx-target="find .diff-alvo">
-                          <summary>atualizou o corpo para v{{ pl.versao }}</summary>
-                          <div class="diff-alvo"><p class="mudo">carregando…</p></div>
-                        </details>
-                      {% else %}escreveu o corpo (v1){% endif %}
-                    {% elif e.kind == 'task.field_changed' %}
-                      {% set nome_campo = {'owner_id': 'dono', 'dependencies': 'dependências', 'title': 'título'}.get(pl.campo, pl.campo) %}
-                      mudou <strong>{{ nome_campo }}</strong>:
-                      {% for v in [pl.valor_de, pl.valor_para] -%}
-                        {%- if v is none %}<span class="mudo">vazio</span>
-                        {%- elif pl.campo == 'status' %}{{ status_pill(v) }}
-                        {%- elif pl.campo == 'owner_id' %}{{ nomes.get(v, '#' ~ v) }}
-                        {%- elif pl.campo == 'tags' %}{{ v|json_lista or '—' }}
-                        {%- else %}{{ v|truncate(80) }}{% endif %}
-                        {%- if loop.first %} <span class="mudo">→</span> {% endif -%}
-                      {%- endfor %}
-                    {% else %}
-                      {{ e.resumo }}
-                    {% endif %}
-                  </li>
+                  <li id="ev-{{ e.seq }}">{{ acao_evento(e, nomes, url_task) }}</li>
                 {% endfor %}
               </ul>
             </div>
@@ -183,6 +161,21 @@
           <label>Tags <input type="text" name="tags" value="{{ task.tags|join(', ') }}" placeholder="separadas por vírgula"></label>
         </form>
       {% endif %}
+    </section>
+
+    <section class="bloco-lateral">
+      <h2>Etapas</h2>
+      <ol class="etapas">
+        {% for et in etapas %}
+          <li class="{{ 'atual' if et.atual else '' }}">
+            {{ status_pill(et.status) }}
+            <span class="duracao">{{ et.segundos|duracao }}{% if et.atual %} até agora{% endif %}</span>
+            <span class="mudo por">{{ et.actor.person }}{{ agente(et.actor.agent) }} · {{ et.inicio|relativo }}</span>
+          </li>
+        {% endfor %}
+      </ol>
+      {% if resumo_etapas.ate_feito is not none %}<p class="mudo resumo-etapas">Da criação até feito: {{ resumo_etapas.ate_feito|duracao }}</p>{% endif %}
+      {% if resumo_etapas.em_andamento is not none %}<p class="mudo resumo-etapas">Em andamento no total: {{ resumo_etapas.em_andamento|duracao }}</p>{% endif %}
     </section>
 
     {% if task.dependencies %}

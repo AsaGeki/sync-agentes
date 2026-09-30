@@ -15,6 +15,8 @@ from src.modules.tasks import service as tasks_service
 from src.modules.tasks.models import MensagemIn, TaskPatch
 from src.modules.web import indicadores, paginas
 from src.modules.web.auth import COOKIE_PESSOA, apagar_cookie, gravar_cookie, pessoa_web
+from src.modules.web.filtros import filtros_atividade, filtros_tasks
+from src.modules.web.paginas import FEATURE_STATUSES
 from src.modules.web.templating import templates
 from src.shared.auth import ContextoGit, resolve_person
 from src.shared.db import conectar
@@ -90,19 +92,65 @@ def painel(
 def tasks(
     request: Request,
     slug: str,
-    status: str = Query("", pattern="^(|" + "|".join(s.value for s in EStatusTask) + ")$"),
-    feature: str = "",
-    tag: str = "",
-    q: str = "",
-    nao_lidas: bool = False,
-    visao: str = Query("lista", pattern="^(lista|quadro)$"),
+    filtros: dict = Depends(filtros_tasks),
     pessoa: sqlite3.Row = Depends(pessoa_web),
 ):
     with closing(conectar()) as conn:
         projeto = exigir_acesso(conn, slug, pessoa["id"])
-        ctx = paginas.ctx_tasks(conn, projeto, pessoa["id"], status, feature, tag, q, nao_lidas, visao)
+        ctx = paginas.ctx_tasks(conn, projeto, pessoa["id"], filtros)
         nav = paginas.ctx_nav(conn, pessoa["id"])
     return templates.TemplateResponse(request, "tasks.html", {"pessoa": pessoa, "nav": nav, **ctx})
+
+
+@router.get("/web/p/{slug}/features")
+def features(
+    request: Request,
+    slug: str,
+    status: str = Query("", pattern="^(|" + "|".join(FEATURE_STATUSES) + ")$"),
+    pessoa: sqlite3.Row = Depends(pessoa_web),
+):
+    with closing(conectar()) as conn:
+        projeto = exigir_acesso(conn, slug, pessoa["id"])
+        ctx = paginas.ctx_features(conn, projeto, pessoa["id"], status)
+        nav = paginas.ctx_nav(conn, pessoa["id"])
+    return templates.TemplateResponse(request, "features.html", {"pessoa": pessoa, "nav": nav, **ctx})
+
+
+@router.get("/web/p/{slug}/f/{code}")
+def feature(request: Request, slug: str, code: str, pessoa: sqlite3.Row = Depends(pessoa_web)):
+    with closing(conectar()) as conn:
+        projeto = exigir_acesso(conn, slug, pessoa["id"])
+        ctx = paginas.ctx_feature(conn, projeto, pessoa["id"], code)
+        nav = paginas.ctx_nav(conn, pessoa["id"])
+    return templates.TemplateResponse(request, "feature.html", {"pessoa": pessoa, "nav": nav, **ctx})
+
+
+def _pagina_atividade(request: Request, slug: str, filtros: dict, pessoa: sqlite3.Row, modelo: str):
+    with closing(conectar()) as conn:
+        projeto = exigir_acesso(conn, slug, pessoa["id"])
+        ctx = paginas.ctx_atividade(conn, projeto, pessoa["id"], filtros)
+        nav = paginas.ctx_nav(conn, pessoa["id"])
+    return templates.TemplateResponse(request, modelo, {"pessoa": pessoa, "nav": nav, **ctx})
+
+
+@router.get("/web/p/{slug}/atividade")
+def atividade(
+    request: Request,
+    slug: str,
+    filtros: dict = Depends(filtros_atividade),
+    pessoa: sqlite3.Row = Depends(pessoa_web),
+):
+    return _pagina_atividade(request, slug, filtros, pessoa, "atividade.html")
+
+
+@router.get("/web/p/{slug}/atividade/mais")
+def atividade_mais(
+    request: Request,
+    slug: str,
+    filtros: dict = Depends(filtros_atividade),
+    pessoa: sqlite3.Row = Depends(pessoa_web),
+):
+    return _pagina_atividade(request, slug, filtros, pessoa, "parciais/feed_itens.html")
 
 
 def _pagina_task(request: Request, slug: str, code: str, pessoa: sqlite3.Row):

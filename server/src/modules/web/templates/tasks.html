@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "parciais/macros.html" import icone, avatar, status_pill %}
+{% from "parciais/macros.html" import icone, avatar, status_pill, selo_fazendo, avatares_participantes %}
 {% block titulo %}Tasks · {{ projeto['name'] }}{% endblock %}
 {% block conteudo %}
 {% include "parciais/abas.html" %}
@@ -16,26 +16,58 @@
 <form class="filtros" hx-get="{{ url_tasks }}" hx-select="#lista" hx-target="#lista"
       hx-swap="outerHTML" hx-push-url="true" hx-trigger="change, input from:[name=q] delay:300ms, submit">
   <input type="hidden" name="visao" value="{{ filtros.visao }}">
-  <input type="search" name="q" value="{{ filtros.q }}" placeholder="Buscar em code, título ou corpo">
   {% if filtros.visao == 'lista' %}
-  <select name="status" aria-label="Status">
-    <option value="">Todos os status</option>
-    {% for s in statuses %}<option value="{{ s }}" {% if filtros.status == s %}selected{% endif %}>{{ ROTULO_STATUS[s] }}</option>{% endfor %}
-  </select>
+  <div class="alternar" role="radiogroup" aria-label="Agrupamento das tasks">
+    <label><input type="radio" name="agrupar" value="" {% if not filtros.agrupar %}checked{% endif %}><span>Global</span></label>
+    <label><input type="radio" name="agrupar" value="feature" {% if filtros.agrupar == 'feature' %}checked{% endif %}><span>Em camadas</span></label>
+  </div>
   {% endif %}
-  <select name="feature" aria-label="Feature">
-    <option value="">Todas as features</option>
-    <option value="{{ SEM_FEATURE }}" {% if filtros.feature == SEM_FEATURE %}selected{% endif %}>Sem feature</option>
-    {% for f in features %}<option value="{{ f['code'] }}" {% if filtros.feature == f['code'] %}selected{% endif %}>{{ f['code']|code_curto }} {{ f['title'] }}</option>{% endfor %}
-  </select>
-  <input type="text" name="tag" value="{{ filtros.tag }}" placeholder="Tag" size="10">
-  {% if not admin %}
-    <label class="marcar"><input type="checkbox" name="nao_lidas" value="true" {% if filtros.nao_lidas %}checked{% endif %}> Só não lidas pela IA</label>
+  {% set atalhos = [('fazendo', 'Fazendo agora'), ('atencao', 'Precisam de atenção'), ('paradas', 'Paradas'), ('sem_dono', 'Sem dono')] %}
+  {% if not admin %}{% set atalhos = [('nao_lidas', 'Não lidas pela IA')] + atalhos %}{% endif %}
+  <div class="grupo-chips" role="group" aria-label="Atalhos">
+    {% for chave, rotulo in atalhos %}
+      <label class="chip-filtro"><input type="checkbox" name="{{ chave }}" value="true" {% if filtros[chave] %}checked{% endif %}><span>{{ rotulo }}</span></label>
+    {% endfor %}
+  </div>
+  {% if filtros.visao == 'lista' %}
+  <div class="grupo-chips" role="group" aria-label="Status">
+    {% for s in statuses %}
+      <label class="chip-filtro"><input type="checkbox" name="status" value="{{ s }}" {% if s in filtros.status %}checked{% endif %}><span class="status st-{{ s }}"><span class="ponto"></span>{{ ROTULO_STATUS[s] }}</span></label>
+    {% endfor %}
+  </div>
   {% endif %}
+  <div class="linha-filtros">
+    <input type="search" name="q" value="{{ filtros.q }}" placeholder="Buscar em code, título ou corpo">
+    <select name="dono" aria-label="Dono">
+      <option value="">Todos os donos</option>
+      {% for m in membros %}<option value="{{ m['id'] }}" {% if filtros.dono == m['id']|string %}selected{% endif %}>{{ m['name'] }}</option>{% endfor %}
+    </select>
+    <select name="feature" aria-label="Feature">
+      <option value="">Todas as features</option>
+      <option value="{{ SEM_FEATURE }}" {% if filtros.feature == SEM_FEATURE %}selected{% endif %}>Sem feature</option>
+      {% for f in features %}<option value="{{ f['code'] }}" {% if filtros.feature == f['code'] %}selected{% endif %}>{{ f['code']|code_curto }} {{ f['title'] }}</option>{% endfor %}
+    </select>
+    <select name="tag" aria-label="Tag">
+      <option value="">Todas as tags</option>
+      {% for tag in tags %}<option value="{{ tag }}" {% if filtros.tag == tag %}selected{% endif %}>{{ tag }}</option>{% endfor %}
+    </select>
+    <select name="periodo" aria-label="Atualizada em">
+      <option value="">Qualquer data</option>
+      {% for chave, rotulo in periodos.items() %}<option value="{{ chave }}" {% if filtros.periodo == chave %}selected{% endif %}>Atualizada nas {{ rotulo }}</option>{% endfor %}
+    </select>
+    <select name="ordem" aria-label="Ordenar por">
+      {% for chave, rotulo in ordens.items() %}<option value="{{ chave }}" {% if filtros.ordem == chave %}selected{% endif %}>Ordem: {{ rotulo }}</option>{% endfor %}
+    </select>
+  </div>
 </form>
 
 <div>
 <section id="lista" hx-disinherit="*" {% if not admin %}hx-get="{{ request.url }}" hx-trigger="mudou from:body delay:500ms" hx-select="#lista" hx-swap="outerHTML"{% endif %}>
+  <div class="filtros-ativos">
+    <span class="mudo">{{ tasks|length }} de {{ total_geral }} task(s)</span>
+    {% for a in ativos %}<span class="etiqueta">{{ a }}</span>{% endfor %}
+    {% if ativos %}<a href="{{ url_tasks }}?visao={{ filtros.visao }}">limpar filtros</a>{% endif %}
+  </div>
   {% if filtros.visao == 'quadro' %}
     <div class="quadro">
       {% for status, itens in colunas %}
@@ -48,6 +80,7 @@
                 {% if t.nao_lidos %}<span class="contador">{{ t.nao_lidos }}</span>{% endif %}
               </div>
               <div class="titulo-task">{{ t.title }}</div>
+              {{ selo_fazendo(t) }}
               <div class="linha-base">
                 {% if t.feature %}<span class="etiqueta" title="{{ t.feature.title }}">{{ t.feature.code|code_curto }}</span>{% endif %}
                 {% for tag in t.tags[:3] %}<span class="etiqueta">{{ tag }}</span>{% endfor %}
@@ -61,32 +94,28 @@
         </section>
       {% endfor %}
     </div>
+  {% elif grupos is not none %}
+    <div class="barra-grupos">
+      <button type="button" class="link" onclick="alternarGrupos(true)">expandir tudo</button>
+      <button type="button" class="link" onclick="alternarGrupos(false)">recolher tudo</button>
+    </div>
+    {% for g in grupos %}
+      <details class="grupo-feature cartao" data-estado="grupo-{{ g.feature.code if g.feature else 'avulsas' }}" open>
+        <summary>
+          <h3 class="grupo-titulo">
+            {% if g.feature %}<a href="{{ base }}/p/{{ projeto['slug'] }}/f/{{ g.feature.code }}"><code>{{ g.feature.code|code_curto }}</code> {{ g.feature.title }}</a>{% else %}Sem feature{% endif %}
+          </h3>
+          {% if g.feature %}{{ status_pill(g.feature.status) }}{% endif %}
+          <span class="mudo">{{ g.tasks|length }} task(s){% if g.feature %} · {{ g.feature.progresso.feito }}/{{ g.feature.progresso.total }} feitas{% endif %}</span>
+          {% if g.feature %}{{ avatares_participantes(g.feature.participantes) }}{% endif %}
+        </summary>
+        {% with tasks=g.tasks, na_feature=true, legenda='Tasks de ' ~ (g.feature.title if g.feature else 'sem feature'), vazio_msg='Nenhuma task nesta feature.' %}{% include "parciais/tabela_tasks.html" %}{% endwith %}
+      </details>
+    {% else %}
+      <p class="mudo vazio">Nenhuma task com esse filtro.</p>
+    {% endfor %}
   {% else %}
-    <table class="tabela tabela-tasks">
-      <thead><tr>
-        {% if not admin %}<th class="col-lido"><span class="sr">Não lidos pela IA</span></th>{% endif %}
-        <th>Code</th><th>Título</th><th>Status</th><th>Dono</th><th>Tags</th><th>Atualizada</th>
-      </tr></thead>
-      <tbody>
-        {% for t in tasks %}
-          <tr class="{{ 'nao-lida' if t.nao_lidos else '' }}">
-            {% if not admin %}<td class="col-lido">{% if t.nao_lidos %}<span class="contador" title="{{ t.nao_lidos }} evento(s) que sua IA ainda não leu">{{ t.nao_lidos }}</span>{% endif %}</td>{% endif %}
-            <td><code title="{{ t.code }}">{{ t.code|code_curto }}</code></td>
-            <td class="col-titulo">
-              <a href="{{ base }}/p/{{ projeto['slug'] }}/t/{{ t.code }}">{{ t.title }}</a>
-              {% if t.feature %}<span class="etiqueta" title="{{ t.feature.title }}">{{ t.feature.code|code_curto }} {{ t.feature.title|truncate(24) }}</span>{% endif %}
-            </td>
-            <td>{{ status_pill(t.status) }}</td>
-            <td>{% if t.owner %}<span class="dono">{{ avatar(t.owner, t.owner, 'pequeno') }} {{ t.owner }}</span>{% else %}<span class="mudo">—</span>{% endif %}</td>
-            <td class="col-tags" title="{{ t.tags|join(', ') }}">{% for tag in t.tags[:3] %}<span class="etiqueta">{{ tag }}</span> {% endfor %}{% if t.tags|length > 3 %}<span class="mudo">+{{ t.tags|length - 3 }}</span>{% endif %}</td>
-            <td class="mudo sem-quebra">{{ t.updated_at|relativo }}</td>
-          </tr>
-        {% else %}
-          <tr><td colspan="7" class="mudo">Nenhuma task com esse filtro.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    <p class="mudo rodape-lista">{{ tasks|length }} task(s)</p>
+    {% include "parciais/tabela_tasks.html" %}
   {% endif %}
 </section>
 </div>

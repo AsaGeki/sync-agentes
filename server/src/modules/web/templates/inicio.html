@@ -17,8 +17,9 @@
     <div class="medidor" role="img" aria-label="{{ c.feitas }} de {{ c.total_tasks }} tasks feitas">
       <div class="medidor-fill" style="width: {{ (100 * c.feitas / c.total_tasks) if c.total_tasks else 0 }}%"></div>
     </div>
-    <p class="mudo">{{ c.feitas }}/{{ c.total_tasks }} tasks feitas · {{ c.membros }} membro(s)</p>
+    <p class="mudo">{{ c.feitas }}/{{ c.total_tasks }} tasks feitas · <span title="{{ c.membros }} membro(s) com acesso">{{ c.participantes }} participante(s)</span></p>
     <dl class="numeros">
+      <div><dt>Fazendo agora</dt><dd>{{ c.fazendo_agora }}</dd></div>
       <div><dt>Precisam de atenção</dt><dd>{{ c.atencao }}</dd></div>
       <div><dt>Perguntas abertas</dt><dd>{{ c.perguntas_abertas }}</dd></div>
       {% if c.nao_lidos is not none %}<div><dt title="Eventos que sua IA ainda não leu">Não lidos (IA)</dt><dd>{{ c.nao_lidos }}</dd></div>{% endif %}

@@ -66,6 +66,96 @@ def seqs_do_projeto(
     return [r["seq"] for r in conn.execute(sql, params)]
 
 
+# Condição SQL de cada tipo do feed de atividade. Só literais do código.
+CONDICAO_TIPO = {
+    "mensagem": "e.kind = 'message.created'",
+    "status": "e.kind = 'task.field_changed' AND e.campo = 'status'",
+    "campo": "e.kind = 'task.field_changed' AND e.campo != 'status'",
+    "corpo": "e.kind = 'body.updated'",
+    "diff": "e.kind = 'diff.published'",
+    "criacao": "e.kind = 'task.created'",
+    "feature": "e.kind LIKE 'feature.%'",
+}
+
+
+def seqs_do_feed(
+    conn: sqlite3.Connection,
+    projeto_id: int,
+    limite: int,
+    antes: int = 0,
+    pessoa: str | None = None,
+    agent: str | None = None,
+    tipo: str | None = None,
+    task_id: int | None = None,
+    feature: str | None = None,
+    desde: str | None = None,
+) -> list[int]:
+    """Seqs do projeto do mais novo pro mais antigo, abaixo de `antes` (0 = do
+    começo). `feature` casa o evento da feature e os das tasks dela."""
+    sql = """SELECT e.seq
+               FROM events e
+               JOIN people pe ON pe.id = e.author_id
+               LEFT JOIN tasks t ON t.id = e.task_id
+               LEFT JOIN features f ON f.id = COALESCE(e.feature_id, t.feature_id)
+              WHERE e.project_id = ?"""
+    params: list[Any] = [projeto_id]
+    if antes:
+        sql += " AND e.seq < ?"
+        params.append(antes)
+    if pessoa:
+        sql += " AND pe.alias = ?"
+        params.append(pessoa)
+    if agent:
+        sql += " AND e.agent = ?"
+        params.append(agent)
+    if tipo:
+        sql += f" AND ({CONDICAO_TIPO[tipo]})"
+    if task_id is not None:
+        sql += " AND e.task_id = ?"
+        params.append(task_id)
+    if feature:
+        sql += " AND f.code = ?"
+        params.append(feature)
+    if desde:
+        sql += " AND e.created_at >= ?"
+        params.append(desde)
+    sql += " ORDER BY e.seq DESC LIMIT ?"
+    params.append(limite)
+    return [r["seq"] for r in conn.execute(sql, params)]
+
+
+def atividade_por_pessoa(conn: sqlite3.Connection, projeto_id: int) -> list[sqlite3.Row]:
+    """Eventos do projeto contados por pessoa e ferramenta."""
+    return conn.execute(
+        """SELECT pe.id, pe.alias, pe.name, e.agent, COUNT(*) AS n, MAX(e.created_at) AS ultimo
+             FROM events e JOIN people pe ON pe.id = e.author_id
+            WHERE e.project_id = ?
+            GROUP BY pe.id, e.agent""",
+        (projeto_id,),
+    ).fetchall()
+
+
+def atividade_por_feature(conn: sqlite3.Connection, projeto_id: int) -> list[sqlite3.Row]:
+    """Mesma contagem, por feature: os eventos da feature e os das tasks dela."""
+    return conn.execute(
+        """SELECT f.code AS feature_code, pe.id, pe.alias, pe.name, e.agent,
+                  COUNT(*) AS n, MAX(e.created_at) AS ultimo
+             FROM events e
+             JOIN people pe ON pe.id = e.author_id
+             LEFT JOIN tasks t ON t.id = e.task_id
+             JOIN features f ON f.id = COALESCE(e.feature_id, t.feature_id)
+            WHERE e.project_id = ?
+            GROUP BY f.id, pe.id, e.agent""",
+        (projeto_id,),
+    ).fetchall()
+
+
+def total_participantes(conn: sqlite3.Connection, projeto_id: int) -> int:
+    return conn.execute(
+        "SELECT COUNT(DISTINCT author_id) AS n FROM events WHERE project_id = ?", (projeto_id,)
+    ).fetchone()["n"]
+
+
 def mensagens_da_task(conn: sqlite3.Connection, projeto_id: int, code: str) -> list[sqlite3.Row]:
     return conn.execute(
         """SELECT e.seq, e.type, e.texto, e.agent, e.created_at, pe.alias AS author_alias

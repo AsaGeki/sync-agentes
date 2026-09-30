@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% from "parciais/macros.html" import status_pill, lista_participantes %}
+{% block titulo %}{{ feature.code|code_curto }} {{ feature.title }} · {{ projeto['name'] }}{% endblock %}
+{% block conteudo %}
+{% include "parciais/abas.html" %}
+{% set url_projeto = base ~ '/p/' ~ projeto['slug'] %}
+{% set cont = feature.contagem_status %}
+
+<div>
+<div id="feature-corpo" hx-disinherit="*" {% if not admin %}hx-get="{{ request.url }}" hx-trigger="mudou from:body delay:500ms" hx-select="#feature-corpo" hx-swap="outerHTML"{% endif %}>
+
+  <div class="cabeca-pagina">
+    <h1>{{ feature.title }}</h1>
+    <code title="{{ feature.code }}">{{ feature.code|code_curto }}</code>
+    {{ status_pill(feature.status) }}
+  </div>
+  {% if feature.description %}<div class="descricao-projeto md">{{ feature.description|markdown }}</div>{% endif %}
+
+  <section class="tiles">
+    <div class="tile">
+      <span class="rotulo">Tasks feitas</span>
+      <span class="valor">{{ feature.progresso.feito }}<small>/{{ feature.progresso.total }}</small></span>
+      <div class="medidor"><div class="medidor-fill" style="width: {{ (100 * feature.progresso.feito / feature.progresso.total) if feature.progresso.total else 0 }}%"></div></div>
+    </div>
+    <a class="tile" href="{{ url_projeto }}/tasks?feature={{ feature.code }}&amp;fazendo=true"><span class="rotulo">Fazendo agora</span><span class="valor">{{ cont.get('em_andamento', 0) }}</span><span class="mudo">tasks em andamento</span></a>
+    <a class="tile" href="{{ url_projeto }}/tasks?feature={{ feature.code }}&amp;atencao=true"><span class="rotulo">Precisam de atenção</span><span class="valor">{{ cont.get('bloqueado', 0) + cont.get('aguardando_decisao', 0) }}</span><span class="mudo">bloqueadas ou aguardando decisão</span></a>
+  </section>
+
+  <div class="painel-grade">
+    <div class="painel-principal">
+      <section class="cartao">
+        <h2>Tasks abertas <span class="mudo">{{ abertas|length }}</span></h2>
+        {% with tasks=abertas, na_feature=true, legenda='Tasks abertas da feature', vazio_msg='Nenhuma task aberta.' %}{% include "parciais/tabela_tasks.html" %}{% endwith %}
+        <p class="rodape-cartao"><a href="{{ url_projeto }}/tasks?feature={{ feature.code }}">abrir na lista com filtros</a></p>
+      </section>
+
+      {% if feitas %}
+      <section class="cartao">
+        <details data-estado="feitas">
+          <summary><h2 class="grupo-titulo">Feitas <span class="mudo">{{ feitas|length }}</span></h2></summary>
+          {% with tasks=feitas, na_feature=true, legenda='Tasks feitas da feature' %}{% include "parciais/tabela_tasks.html" %}{% endwith %}
+        </details>
+      </section>
+      {% endif %}
+    </div>
+
+    <aside class="painel-lateral">
+      <section class="cartao">
+        <h2>Tasks por status</h2>
+        {% if feature.progresso.total %}
+        <div class="barra-status" role="img" aria-label="Distribuição de tasks por status">
+          {% for s in ordem_status if cont.get(s) %}
+            <span class="seg st-{{ s }}" style="flex-grow: {{ cont[s] }}" title="{{ ROTULO_STATUS[s] }}: {{ cont[s] }}"></span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <ul class="lista-status">
+          {% for s in ordem_status %}
+            <li><a href="{{ url_projeto }}/tasks?feature={{ feature.code }}&amp;status={{ s }}">{{ status_pill(s) }}</a><span class="numero">{{ cont.get(s, 0) }}</span></li>
+          {% endfor %}
+        </ul>
+      </section>
+
+      <section class="cartao">
+        <h2>Participantes <span class="mudo">{{ participantes|length }}</span></h2>
+        {{ lista_participantes(participantes) }}
+      </section>
+
+      <section class="cartao">
+        <h2>Atividade recente</h2>
+        <ol class="feed feed-compacto">
+          {% include "parciais/feed_itens.html" %}
+        </ol>
+        <p class="rodape-cartao"><a href="{{ url_projeto }}/atividade?feature={{ feature.code }}">ver toda a atividade</a></p>
+      </section>
+    </aside>
+  </div>
+</div>
+</div>
+{% endblock %}

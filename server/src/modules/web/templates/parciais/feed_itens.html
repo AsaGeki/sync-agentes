@@ -1,0 +1,28 @@
+{% from "parciais/macros.html" import avatar, agente, hora %}
+{% from "parciais/eventos.html" import acao_evento %}
+{% set url_projeto = base ~ '/p/' ~ projeto['slug'] %}
+{% for e in eventos %}
+  {% set url_task = url_projeto ~ '/t/' ~ e.task if e.task else '' %}
+  <li class="feed-item" id="ev-{{ e.seq }}">
+    {{ avatar(e.actor.person, e.actor.name, 'pequeno') }}
+    <div class="feed-corpo">
+      <div class="feed-linha">
+        <strong>{{ e.actor.person }}</strong>{{ agente(e.actor.agent) }}
+        {% if e.task %}<a href="{{ url_task }}#ev-{{ e.seq }}" title="{{ e.task }}"><code>{{ e.task|code_curto }}</code></a>
+        {% elif e.feature %}<span class="etiqueta" title="{{ e.feature }}">{{ e.feature|code_curto }}</span>{% endif %}
+        <span class="espaco"></span>{{ hora(e.created_at) }}
+      </div>
+      <div class="feed-acao">{{ acao_evento(e, nomes, url_task) }}</div>
+      {% if e.git.branch %}<div class="mudo feed-git">{{ e.git.branch }}{% if e.git.commit %} · <code>{{ e.git.commit[:7] }}</code>{% endif %}</div>{% endif %}
+    </div>
+  </li>
+{% else %}
+  <li class="mudo vazio">Nenhuma atividade com esse filtro.</li>
+{% endfor %}
+{% if proximo %}
+  <li class="feed-mais">
+    <button type="button" class="link"
+            hx-get="{{ url_projeto }}/atividade/mais?antes={{ proximo }}{% if consulta %}&amp;{{ consulta }}{% endif %}"
+            hx-target="closest li" hx-swap="outerHTML">carregar mais</button>
+  </li>
+{% endif %}

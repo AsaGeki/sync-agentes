@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block titulo %}Atividade · {{ projeto['name'] }}{% endblock %}
+{% block conteudo %}
+{% include "parciais/abas.html" %}
+{% set url_atividade = base ~ '/p/' ~ projeto['slug'] ~ '/atividade' %}
+
+<div class="cabeca-pagina">
+  <h1>Atividade</h1>
+  <span class="mudo">o que cada pessoa e cada ferramenta fez, do mais recente pro mais antigo</span>
+</div>
+
+<form class="filtros" hx-get="{{ url_atividade }}" hx-select="#feed-corpo" hx-target="#feed-corpo"
+      hx-swap="outerHTML" hx-push-url="true" hx-trigger="change, input from:[name=task] delay:400ms, submit">
+  <select name="pessoa" aria-label="Pessoa">
+    <option value="">Todas as pessoas</option>
+    {% for m in membros %}{% set alias = m['email'].split('@')[0] %}<option value="{{ alias }}" {% if filtros.pessoa == alias %}selected{% endif %}>{{ m['name'] }}</option>{% endfor %}
+  </select>
+  <select name="agent" aria-label="Ferramenta">
+    <option value="">Todas as ferramentas</option>
+    {% for chave, rotulo in agents.items() %}<option value="{{ chave }}" {% if filtros.agent == chave %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
+  </select>
+  <select name="tipo" aria-label="Tipo de evento">
+    <option value="">Todos os tipos</option>
+    {% for chave, rotulo in tipos.items() %}<option value="{{ chave }}" {% if filtros.tipo == chave %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
+  </select>
+  <select name="feature" aria-label="Feature">
+    <option value="">Todas as features</option>
+    {% for f in features %}<option value="{{ f['code'] }}" {% if filtros.feature == f['code'] %}selected{% endif %}>{{ f['code']|code_curto }} {{ f['title'] }}</option>{% endfor %}
+  </select>
+  <input type="text" name="task" value="{{ filtros.task }}" placeholder="Task (T-7)" size="10" aria-label="Task">
+  <select name="periodo" aria-label="Período">
+    <option value="">Todo o período</option>
+    {% for chave, rotulo in periodos.items() %}<option value="{{ chave }}" {% if filtros.periodo == chave %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
+  </select>
+  {% if consulta %}<a href="{{ url_atividade }}">limpar filtros</a>{% endif %}
+</form>
+
+<div>
+<section id="feed-corpo" hx-disinherit="*" {% if not admin %}hx-get="{{ request.url }}" hx-trigger="mudou from:body delay:500ms" hx-select="#feed-corpo" hx-swap="outerHTML"{% endif %}>
+  <ol class="feed">
+    {% include "parciais/feed_itens.html" %}
+  </ol>
+</section>
+</div>
+{% endblock %}
