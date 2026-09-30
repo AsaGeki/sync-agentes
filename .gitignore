@@ -19,3 +19,5 @@ sync.db.bak-*
 .idea/
 .DS_Store
 Thumbs.db
+
+dist/

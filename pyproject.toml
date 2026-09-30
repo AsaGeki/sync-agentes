@@ -1,46 +1,18 @@
-[project]
-name = "sync-agents"
-version = "3.0.0"
-description = "Canal de alinhamento entre pessoas e as IAs delas, escopado pelo repositório git do projeto"
-requires-python = ">=3.13"
-# So o que o bridge precisa: quem instala o pacote pra rodar `sync-agents-mcp`
-# (uvx, na maquina de cada pessoa) nao baixa o servidor junto. O servidor mora
-# no grupo `server`, que `uv run` instala aqui no repo mas nao vai junto quando
-# o pacote e instalado como dependencia.
-dependencies = [
-    "mcp>=2.1.1",
-]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src"]
-
-[project.scripts]
-sync-agents-mcp = "src.bridge.server:main"
+[tool.uv.workspace]
+members = ["client", "server"]
 
 [dependency-groups]
-server = [
-    "fastapi>=0.141.1",
-    "uvicorn[standard]>=0.52.4",
-    "python-dotenv>=1.2.3",
-    "psutil>=7.2.2",
-    "jinja2>=3.1.6",
-    "python-multipart>=0.0.32",
-    "markdown-it-py>=4.2.0",
-]
 dev = [
     "ruff>=0.16.4",
 ]
 
 [tool.uv]
-default-groups = ["server", "dev"]
+default-groups = ["dev"]
 
 [tool.ruff]
 line-length = 120
 target-version = "py313"
+src = ["server", "client/src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]

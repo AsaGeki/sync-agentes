@@ -1,5 +1,19 @@
 from enum import StrEnum
 
+# Os enums que o cliente MCP usa moram em `sync_agents_mcp.enums`; reexportados aqui pros imports do servidor.
+from sync_agents_mcp.enums import EStatusProject, EStatusTask, ETypeMessage, EVisibility
+
+__all__ = [
+    "EAgent",
+    "EKindEvent",
+    "ERequestStatus",
+    "ERole",
+    "EStatusProject",
+    "EStatusTask",
+    "ETypeMessage",
+    "EVisibility",
+]
+
 
 class EAgent(StrEnum):
     """Ferramenta pela qual a pessoa escreveu. Quem assina é sempre a pessoa
@@ -16,38 +30,10 @@ class ERole(StrEnum):
     member = "member"
 
 
-class EVisibility(StrEnum):
-    team = "team"
-    private = "private"
-
-
 class ERequestStatus(StrEnum):
     pending = "pending"
     accepted = "accepted"
     rejected = "rejected"
-
-
-class ETypeMessage(StrEnum):
-    mudanca = "mudanca"
-    pergunta = "pergunta"
-    resposta = "resposta"
-    decisao = "decisao"
-    bloqueio = "bloqueio"
-
-
-class EStatusTask(StrEnum):
-    ideia = "ideia"
-    parcial = "parcial"
-    feito = "feito"
-    bloqueado = "bloqueado"
-    aguardando_decisao = "aguardando_decisao"
-
-
-class EStatusProject(StrEnum):
-    ativo = "ativo"
-    pausado = "pausado"
-    concluido = "concluido"
-    arquivado = "arquivado"
 
 
 class EKindEvent(StrEnum):

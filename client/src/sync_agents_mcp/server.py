@@ -20,10 +20,10 @@ from typing import Any, Literal
 
 from mcp.server.mcpserver import Context, MCPServer
 
-from src.bridge import git_context
-from src.bridge.api import Api, ErroApi
-from src.bridge.git_context import ContextoRepo, descobrir
-from src.shared.enums import EStatusProject, EStatusTask, ETypeMessage, EVisibility
+from sync_agents_mcp import git_context
+from sync_agents_mcp.api import Api, ErroApi
+from sync_agents_mcp.enums import EStatusProject, EStatusTask, ETypeMessage, EVisibility
+from sync_agents_mcp.git_context import ContextoRepo, descobrir
 
 INSTRUCOES = (
     "SYNC-AGENTS - canal de alinhamento entre pessoas (e as IAs delas) no mesmo "

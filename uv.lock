@@ -6,6 +6,15 @@ resolution-markers = [
     "python_full_version < '3.14'",
 ]
 
+[manifest]
+members = [
+    "sync-agents-mcp",
+    "sync-agents-server",
+]
+
+[manifest.dependency-groups]
+dev = [{ name = "ruff", specifier = ">=0.16.4" }]
+
 [[package]]
 name = "annotated-doc"
 version = "0.0.5"
@@ -778,39 +787,40 @@ wheels = [
 ]
 
 [[package]]
-name = "sync-agents"
-version = "3.0.0"
-source = { editable = "." }
+name = "sync-agents-mcp"
+version = "0.1.0"
+source = { editable = "client" }
 dependencies = [
     { name = "mcp" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "ruff" },
-]
-server = [
+[package.metadata]
+requires-dist = [{ name = "mcp", specifier = ">=2.1.1" }]
+
+[[package]]
+name = "sync-agents-server"
+version = "3.3.0"
+source = { editable = "server" }
+dependencies = [
     { name = "fastapi" },
     { name = "jinja2" },
     { name = "markdown-it-py" },
     { name = "psutil" },
     { name = "python-dotenv" },
     { name = "python-multipart" },
+    { name = "sync-agents-mcp" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "mcp", specifier = ">=2.1.1" }]
-
-[package.metadata.requires-dev]
-dev = [{ name = "ruff", specifier = ">=0.16.4" }]
-server = [
+requires-dist = [
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "markdown-it-py", specifier = ">=4.2.0" },
     { name = "psutil", specifier = ">=7.2.2" },
     { name = "python-dotenv", specifier = ">=1.2.3" },
     { name = "python-multipart", specifier = ">=0.0.32" },
+    { name = "sync-agents-mcp", editable = "client" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.4" },
 ]
 

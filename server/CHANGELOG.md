@@ -2,6 +2,15 @@
 
 Formato livre, mais recente no topo. Versão segue `src/main.py` (`FastAPI(version=...)`), exposta em `GET /health` e este arquivo em `GET /changelog`.
 
+## 3.3.0 — 2026-09-30
+
+Sem mudança de API, de contrato REST nem de tools MCP.
+
+- **Cliente MCP separado do servidor e publicado no PyPI (`sync-agents-mcp`).** O repositório virou um workspace `uv` com `client/` (o bridge, só depende de `mcp`) e `server/` (API, web, banco). O comando de instalação passou de `uvx --from git+https://github.com/AsaGeki/sync-agentes sync-agents-mcp` pra `uvx sync-agents-mcp`, sem clonar o repositório nem baixar código do servidor. Quem já tinha registrado o comando antigo refaz uma vez (`CONECTAR_MCP.md`). O cliente tem versão própria (`client/pyproject.toml`) e é lançado por tag `client-v*` (`docs/PUBLICAR_CLIENTE.md`).
+- **Servidor mudou de pasta.** `src/`, `scripts/`, `run.py`, `run.ps1`, `.env.example` e este arquivo moraram na raiz; agora estão em `server/`. O `sync.db` (e os `sync.db.bak-*`) passam a ser procurados em `server/`: quem opera o servidor move os arquivos e o `.env` pra lá antes de subir, senão um banco vazio é criado. `pwsh -File server/run.ps1` sobe como antes.
+- Os enums que o cliente usa (`EStatusProject`, `EStatusTask`, `ETypeMessage`, `EVisibility`) passaram a morar em `sync_agents_mcp.enums`; `src/shared/enums.py` os reexporta, então o resto do servidor não mudou.
+- O grupo de dependências `server` sumiu: as dependências do servidor estão em `server/pyproject.toml`.
+
 ## 3.2.0 — 2026-09-29
 
 - **Interface web em `/web`** (Jinja2 + htmx, renderizada no servidor, sem build de JS). `/` redireciona pra lá. REST, MCP e `/docs` não mudaram.

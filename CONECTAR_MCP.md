@@ -72,9 +72,9 @@ Se imprimiu uma versão, terminou. Se disser que o comando não existe, reabra o
 
 > **Já tem Python e prefere não instalar o `uv`?** Funciona também:
 > ```bash
-> pip install --user git+https://github.com/AsaGeki/sync-agentes
+> pip install --user sync-agents-mcp
 > ```
-> Depois, em toda configuração abaixo, troque `uvx` por `sync-agents-mcp` e apague a linha dos `args` que começa com `--from`.
+> Depois, em toda configuração abaixo, troque `uvx sync-agents-mcp` por `sync-agents-mcp`: no JSON, `command` vira `"sync-agents-mcp"` e a linha `args` some.
 
 ---
 
@@ -87,12 +87,12 @@ Ache o seu caso abaixo. Troque **`http://SERVIDOR:8787`** pelo endereço que te 
 Uma linha, e serve pra todos os seus projetos:
 
 ```bash
-claude mcp add --scope user sync-agents --env SYNC_AGENTS_URL=http://SERVIDOR:8787 --env SYNC_AGENTS_TOKEN=SEU-TOKEN -- uvx --from git+https://github.com/AsaGeki/sync-agentes sync-agents-mcp
+claude mcp add --scope user sync-agents --env SYNC_AGENTS_URL=http://SERVIDOR:8787 --env SYNC_AGENTS_TOKEN=SEU-TOKEN -- uvx sync-agents-mcp
 ```
 
 `--scope user` grava a configuração no seu perfil, fora de qualquer repositório — seu token não corre risco de ir pra um commit.
 
-Depois de rodar, confira com `claude mcp list`. **A primeira checagem costuma falhar** ("Failed to connect" / "Request timed out") - é o `uvx` baixando e compilando o pacote a frio na sua máquina, não um problema de configuração. Roda `claude mcp list` de novo: da segunda vez o pacote já está em cache e conecta rápido.
+Depois de rodar, confira com `claude mcp list`. **A primeira checagem pode falhar** ("Failed to connect" / "Request timed out") - é o `uvx` baixando o pacote a frio na sua máquina, não um problema de configuração. Roda `claude mcp list` de novo: da segunda vez o pacote já está em cache e conecta rápido.
 
 ### Cursor
 
@@ -103,7 +103,7 @@ Crie ou edite `~/.cursor/mcp.json` (no Windows: `C:\Users\SEU-USUARIO\.cursor\mc
   "mcpServers": {
     "sync-agents": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/AsaGeki/sync-agentes", "sync-agents-mcp"],
+      "args": ["sync-agents-mcp"],
       "env": {
         "SYNC_AGENTS_URL": "http://SERVIDOR:8787",
         "SYNC_AGENTS_TOKEN": "SEU-TOKEN"
@@ -133,7 +133,7 @@ Edite o arquivo de configuração:
   "mcpServers": {
     "sync-loja": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/AsaGeki/sync-agentes", "sync-agents-mcp"],
+      "args": ["sync-agents-mcp"],
       "env": {
         "SYNC_AGENTS_URL": "http://SERVIDOR:8787",
         "SYNC_AGENTS_TOKEN": "SEU-TOKEN",
@@ -153,10 +153,23 @@ Reinicie o Claude Desktop.
 Qualquer cliente MCP serve. Ele precisa executar este comando:
 
 ```
-uvx --from git+https://github.com/AsaGeki/sync-agentes sync-agents-mcp
+uvx sync-agents-mcp
 ```
 
 com as variáveis `SYNC_AGENTS_URL` e `SYNC_AGENTS_TOKEN` no ambiente, e — se o app não abre uma pasta de projeto — também `SYNC_AGENTS_REPO` apontando o repositório.
+
+### Atualizar ou fixar a versão
+
+O `uvx` guarda o pacote em cache e não busca versão nova sozinho. Pra pegar a mais recente, troque `sync-agents-mcp` por `sync-agents-mcp@latest` no comando (ou no `args` do JSON) uma vez, e volte ao nome simples depois. Pra travar numa versão, use `sync-agents-mcp==0.1.0`.
+
+### Já tinha conectado com o comando antigo?
+
+Se a sua configuração tem `git+https://github.com/AsaGeki/sync-agentes` (o cliente vinha direto do repositório), ela vai parar de funcionar quando o cache do `uv` expirar. Refaça uma vez com o comando novo:
+
+- **Claude Code:** `claude mcp remove sync-agents` e depois o `claude mcp add ...` do começo deste passo.
+- **Cursor, VS Code, Claude Desktop:** no JSON, troque `"args": ["--from", "git+https://github.com/AsaGeki/sync-agentes", "sync-agents-mcp"]` por `"args": ["sync-agents-mcp"]`.
+
+Servidor, token e projetos não mudam.
 
 ---
 

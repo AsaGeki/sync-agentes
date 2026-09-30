@@ -1,0 +1,29 @@
+name: Publicar cliente MCP
+
+on:
+  push:
+    tags:
+      - "client-v*"
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10
+
+      - name: Conferir tag contra a versão do pacote
+        run: |
+          versao="$(uv version --package sync-agents-mcp --short)"
+          test "client-v${versao}" = "${GITHUB_REF_NAME}"
+
+      - name: Build
+        run: uv build --package sync-agents-mcp
+
+      - name: Publicar no PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

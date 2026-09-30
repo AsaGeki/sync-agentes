@@ -14,7 +14,7 @@ import urllib.request
 import uuid
 from typing import Any
 
-from src.bridge.git_context import ContextoRepo
+from sync_agents_mcp.git_context import ContextoRepo
 
 METODOS_MUTADORES = {"POST", "PUT", "PATCH"}
 TENTATIVAS_DE_REDE = 3
