@@ -23,9 +23,9 @@ def filtros_tasks(
     paradas: bool = False,
     nao_lidas: bool = False,
     periodo: str = Query("", pattern=PADRAO_PERIODO),
-    ordem: str = Query("code", pattern="^(code|recentes|status)$"),
+    ordem: str = Query("code", pattern="^(code|titulo|dono|recentes|status)$"),
     visao: str = Query("lista", pattern="^(lista|quadro)$"),
-    agrupar: str = Query("", pattern="^(|feature)$"),
+    agrupar: str = Query("", pattern="^(|feature|status)$"),
 ) -> dict[str, Any]:
     return {
         "status": [s.value for s in status],

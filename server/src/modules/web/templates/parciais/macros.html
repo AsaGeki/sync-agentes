@@ -18,6 +18,8 @@
   <path d="M5.5 4h8M5.5 8h8M5.5 12h8" stroke="currentColor" stroke-width="1.4"/><circle cx="2.8" cy="4" r="1" fill="currentColor"/><circle cx="2.8" cy="8" r="1" fill="currentColor"/><circle cx="2.8" cy="12" r="1" fill="currentColor"/>
 {%- elif nome == 'quadro' -%}
   <rect x="1.8" y="2" width="3.4" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="6.3" y="2" width="3.4" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="10.8" y="2" width="3.4" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/>
+{%- elif nome == 'filtro' -%}
+  <path d="M1.8 2.5h12.4L9.3 8v4.4l-2.6 1.2V8z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
 {%- elif nome == 'atividade' -%}
   <path d="M1.5 8h3l2-5 3 10 2-5h3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>
 {%- elif nome == 'feature' -%}
@@ -68,7 +70,7 @@
 {% if t.fazendo_agora %}
 {% set f = t.fazendo_agora %}
 {% set sem_atividade = t.updated_at|parada %}
-<span class="selo-fazendo {{ 'parada' if sem_atividade else '' }}" title="{{ f.name }} pôs em andamento em {{ f.desde|quando }}">
+<span class="selo-fazendo {{ 'parada' if sem_atividade else '' }}" title="{{ f.name }} pôs em andamento em {{ f.desde|quando }}{% if sem_atividade %} · sem atividade desde {{ t.updated_at|quando }}{% endif %}">
   {{ avatar(f.person, f.name, 'pequeno') }} <strong>{{ f.person }}</strong>{{ agente(f.agent) }}
   <span class="mudo">{{ f.desde|relativo }}</span>
   {% if sem_atividade %}<span class="aviso-parada" title="Último evento da task: {{ t.updated_at|quando }}">sem atividade {{ t.updated_at|relativo }}</span>{% endif %}

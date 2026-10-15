@@ -12,6 +12,104 @@
     }
   });
 
+  // Paginação local mantém cada tabela de grupo independente, inclusive as
+  // tabelas abertas/feitas da página de feature. Os registros já vêm filtrados
+  // pelo servidor; aqui só controlamos as linhas visíveis.
+  const rotulosOrdenacao = new Intl.Collator("pt-BR", { numeric: true, sensitivity: "base" });
+
+  function atualizarContagemFiltros(form) {
+    const contador = form.querySelector("[data-filter-count]");
+    if (!contador) return;
+    const marcados = form.querySelectorAll('input[type="checkbox"]:checked').length;
+    const selecionados = ["dono", "feature", "tag", "periodo"].filter((nome) => form.elements.namedItem(nome)?.value).length;
+    const total = marcados + selecionados;
+    contador.textContent = String(total);
+    contador.hidden = total === 0;
+    contador.setAttribute("aria-label", `${total} filtros ativos`);
+  }
+
+  function atualizarTabela(frame) {
+    const tabela = frame.querySelector("table.tabela-tasks");
+    const rodape = frame.querySelector("[data-table-footer]");
+    const corpo = tabela?.tBodies[0];
+    if (!tabela || !rodape || !corpo) return;
+
+    const linhas = [...corpo.querySelectorAll("tr[data-task-row]")];
+    const tamanho = Math.max(1, Number(rodape.querySelector("[data-table-page-size]")?.value || 10));
+    const total = linhas.length;
+    const paginas = Math.max(1, Math.ceil(total / tamanho));
+    const pagina = Math.min(paginas, Math.max(1, Number(rodape.dataset.page || 1)));
+    const inicio = total ? (pagina - 1) * tamanho : 0;
+    const fim = Math.min(inicio + tamanho, total);
+
+    rodape.dataset.page = String(pagina);
+    linhas.forEach((linha, indice) => { linha.hidden = indice < inicio || indice >= fim; });
+    const faixa = rodape.querySelector("[data-page-range]");
+    const paginaTexto = rodape.querySelector("[data-page-label]");
+    const anterior = rodape.querySelector('[data-table-page-step="-1"]');
+    const proxima = rodape.querySelector('[data-table-page-step="1"]');
+    if (faixa) faixa.textContent = total ? `${inicio + 1}–${fim} de ${total} ${total === 1 ? "tarefa" : "tarefas"}` : "0 tarefas";
+    if (paginaTexto) paginaTexto.textContent = `Página ${pagina} de ${paginas}`;
+    if (anterior) anterior.disabled = pagina <= 1;
+    if (proxima) proxima.disabled = pagina >= paginas;
+  }
+
+  function iniciarTabelas() {
+    document.querySelectorAll("[data-data-table]").forEach(atualizarTabela);
+  }
+
+  document.addEventListener("change", (e) => {
+    const form = e.target.closest && e.target.closest("form.filtros");
+    if (form) atualizarContagemFiltros(form);
+
+    const seletor = e.target.closest && e.target.closest("[data-table-page-size]");
+    if (!seletor) return;
+    const frame = seletor.closest("[data-data-table]");
+    const rodape = frame?.querySelector("[data-table-footer]");
+    if (!frame || !rodape) return;
+    rodape.dataset.page = "1";
+    atualizarTabela(frame);
+  });
+
+  document.addEventListener("click", (e) => {
+    const controlePagina = e.target.closest && e.target.closest("[data-table-page-step]");
+    if (controlePagina) {
+      const frame = controlePagina.closest("[data-data-table]");
+      const rodape = frame?.querySelector("[data-table-footer]");
+      if (!frame || !rodape || controlePagina.disabled) return;
+      rodape.dataset.page = String(Number(rodape.dataset.page || 1) + Number(controlePagina.dataset.tablePageStep));
+      atualizarTabela(frame);
+      return;
+    }
+
+    const botaoOrdenacao = e.target.closest && e.target.closest("[data-table-sort]");
+    if (!botaoOrdenacao) return;
+    const frame = botaoOrdenacao.closest("[data-data-table]");
+    const tabela = frame?.querySelector("table.tabela-tasks");
+    const corpo = tabela?.tBodies[0];
+    const rodape = frame?.querySelector("[data-table-footer]");
+    const cabecalho = botaoOrdenacao.closest("th");
+    if (!frame || !tabela || !corpo || !rodape || !cabecalho) return;
+
+    const direcao = cabecalho.getAttribute("aria-sort") === "ascending" ? -1 : 1;
+    tabela.querySelectorAll("th[aria-sort]").forEach((celula) => celula.removeAttribute("aria-sort"));
+    cabecalho.setAttribute("aria-sort", direcao === 1 ? "ascending" : "descending");
+    const chave = botaoOrdenacao.dataset.tableSort;
+    const linhas = [...corpo.querySelectorAll("tr[data-task-row]")];
+    linhas.sort((a, b) => {
+      const valor = (linha) => [...linha.cells].find((celula) => celula.dataset.sortKey === chave)?.dataset.sortValue || "";
+      const primeiro = valor(a);
+      const segundo = valor(b);
+      const comparacao = chave === "progress"
+        ? Number(primeiro) - Number(segundo)
+        : rotulosOrdenacao.compare(primeiro, segundo);
+      return comparacao * direcao;
+    });
+    linhas.forEach((linha) => corpo.append(linha));
+    rodape.dataset.page = "1";
+    atualizarTabela(frame);
+  });
+
   // `<details data-estado="chave">` lembra aberto/fechado por página, pra a
   // atualização em tempo real não reabrir o que a pessoa recolheu. Só o clique
   // na pessoa grava: o `toggle` também dispara na carga inicial e na restauração.
@@ -40,7 +138,7 @@
 
   // Botões "expandir tudo" / "recolher tudo" dos grupos de feature.
   window.alternarGrupos = function (abrir) {
-    document.querySelectorAll("details.grupo-feature").forEach((d) => {
+    document.querySelectorAll("details.grupo-feature, details.grupo-status").forEach((d) => {
       d.open = abrir;
       guardar(d, abrir);
     });
@@ -293,7 +391,10 @@
   }
 
   document.addEventListener("DOMContentLoaded", restaurar);
+  document.addEventListener("DOMContentLoaded", () => document.querySelectorAll("form.filtros").forEach(atualizarContagemFiltros));
+  document.addEventListener("DOMContentLoaded", iniciarTabelas);
   document.addEventListener("DOMContentLoaded", iniciarSidebar);
   document.addEventListener("htmx:afterSettle", restaurar);
+  document.addEventListener("htmx:afterSettle", iniciarTabelas);
   document.addEventListener("htmx:afterSettle", iniciarSidebar);
 })();
