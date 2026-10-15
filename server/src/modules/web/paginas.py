@@ -23,7 +23,13 @@ from src.shared.enums import EKindEvent, EStatusTask, ETypeMessage
 SEM_FEATURE = "_sem"
 PERIODOS = {"24h": timedelta(hours=24), "7d": timedelta(days=7), "30d": timedelta(days=30)}
 ROTULO_PERIODO = {"24h": "últimas 24h", "7d": "últimos 7 dias", "30d": "últimos 30 dias"}
-ROTULO_ORDEM = {"code": "code", "recentes": "mais recentes", "status": "fluxo de status"}
+ROTULO_ORDEM = {
+    "code": "código",
+    "titulo": "título",
+    "dono": "responsável",
+    "recentes": "mais recentes",
+    "status": "fluxo de status",
+}
 # As chaves são as de `events.repositorio.CONDICAO_TIPO`.
 ROTULO_TIPO = {
     "mensagem": "mensagens",
@@ -110,6 +116,10 @@ def _ordenar(tasks: list[dict[str, Any]], ordem: str) -> list[dict[str, Any]]:
     if ordem == "status":
         fluxo = {s.value: i for i, s in enumerate(EStatusTask)}
         return sorted(tasks, key=lambda t: fluxo[t["status"]])
+    if ordem == "titulo":
+        return sorted(tasks, key=lambda t: t["title"].casefold())
+    if ordem == "dono":
+        return sorted(tasks, key=lambda t: (t["owner"] is None, (t["owner"] or "").casefold()))
     return tasks
 
 
@@ -155,6 +165,15 @@ def _agrupar_por_feature(
     return grupos
 
 
+def _agrupar_por_status(tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Uma seção por status, seguindo a ordem do fluxo do projeto."""
+    return [
+        {"status": status.value, "tasks": [task for task in tasks if task["status"] == status.value]}
+        for status in EStatusTask
+        if any(task["status"] == status.value for task in tasks)
+    ]
+
+
 def ctx_tasks(
     conn: sqlite3.Connection, projeto: sqlite3.Row, person_id: int | None, f: dict[str, Any]
 ) -> dict[str, Any]:
@@ -178,6 +197,7 @@ def ctx_tasks(
     membros = projects_repositorio.membros_do_projeto(conn, projeto["id"])
     ativos = _rotulos_ativos(f, membros)
     camadas = f["agrupar"] == "feature" and f["visao"] == "lista"
+    por_status = f["agrupar"] == "status" and f["visao"] == "lista"
     return {
         **_base(person_id),
         "aba": "tasks",
@@ -191,6 +211,7 @@ def ctx_tasks(
         "filtros": f,
         "ativos": ativos,
         "grupos": _agrupar_por_feature(conn, projeto, tasks, bool(ativos)) if camadas else None,
+        "grupos_status": _agrupar_por_status(tasks) if por_status else None,
         "total_geral": len(todas),
         "periodos": ROTULO_PERIODO,
         "ordens": ROTULO_ORDEM,

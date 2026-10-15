@@ -13,51 +13,70 @@
   </div>
 </div>
 
-<form class="filtros" hx-get="{{ url_tasks }}" hx-select="#lista" hx-target="#lista"
+{% set contagem_filtros = namespace(total=filtros.status|length) %}
+{% for chave in ('fazendo', 'atencao', 'paradas', 'nao_lidas', 'sem_dono') %}
+  {% if filtros[chave] %}{% set contagem_filtros.total = contagem_filtros.total + 1 %}{% endif %}
+{% endfor %}
+{% for chave in ('dono', 'feature', 'tag', 'periodo') %}
+  {% if filtros[chave] %}{% set contagem_filtros.total = contagem_filtros.total + 1 %}{% endif %}
+{% endfor %}
+
+<form class="filtros filtros-tasks" hx-get="{{ url_tasks }}" hx-select="#lista" hx-target="#lista"
       hx-swap="outerHTML" hx-push-url="true" hx-trigger="change, input from:[name=q] delay:300ms, submit">
   <input type="hidden" name="visao" value="{{ filtros.visao }}">
-  {% if filtros.visao == 'lista' %}
-  <div class="alternar" role="radiogroup" aria-label="Agrupamento das tasks">
-    <label><input type="radio" name="agrupar" value="" {% if not filtros.agrupar %}checked{% endif %}><span>Global</span></label>
-    <label><input type="radio" name="agrupar" value="feature" {% if filtros.agrupar == 'feature' %}checked{% endif %}><span>Em camadas</span></label>
-  </div>
-  {% endif %}
-  {% set atalhos = [('fazendo', 'Fazendo agora'), ('atencao', 'Precisam de atenção'), ('paradas', 'Paradas'), ('sem_dono', 'Sem dono')] %}
-  {% if not admin %}{% set atalhos = [('nao_lidas', 'Não lidas pela IA')] + atalhos %}{% endif %}
-  <div class="grupo-chips" role="group" aria-label="Atalhos">
-    {% for chave, rotulo in atalhos %}
-      <label class="chip-filtro"><input type="checkbox" name="{{ chave }}" value="true" {% if filtros[chave] %}checked{% endif %}><span>{{ rotulo }}</span></label>
-    {% endfor %}
-  </div>
-  {% if filtros.visao == 'lista' %}
-  <div class="grupo-chips" role="group" aria-label="Status">
-    {% for s in statuses %}
-      <label class="chip-filtro"><input type="checkbox" name="status" value="{{ s }}" {% if s in filtros.status %}checked{% endif %}><span class="status st-{{ s }}"><span class="ponto"></span>{{ ROTULO_STATUS[s] }}</span></label>
-    {% endfor %}
-  </div>
-  {% endif %}
-  <div class="linha-filtros">
-    <input type="search" name="q" value="{{ filtros.q }}" placeholder="Buscar em code, título ou corpo">
-    <select name="dono" aria-label="Dono">
-      <option value="">Todos os donos</option>
-      {% for m in membros %}<option value="{{ m['id'] }}" {% if filtros.dono == m['id']|string %}selected{% endif %}>{{ m['name'] }}</option>{% endfor %}
-    </select>
-    <select name="feature" aria-label="Feature">
-      <option value="">Todas as features</option>
-      <option value="{{ SEM_FEATURE }}" {% if filtros.feature == SEM_FEATURE %}selected{% endif %}>Sem feature</option>
-      {% for f in features %}<option value="{{ f['code'] }}" {% if filtros.feature == f['code'] %}selected{% endif %}>{{ f['code']|code_curto }} {{ f['title'] }}</option>{% endfor %}
-    </select>
-    <select name="tag" aria-label="Tag">
-      <option value="">Todas as tags</option>
-      {% for tag in tags %}<option value="{{ tag }}" {% if filtros.tag == tag %}selected{% endif %}>{{ tag }}</option>{% endfor %}
-    </select>
-    <select name="periodo" aria-label="Atualizada em">
-      <option value="">Qualquer data</option>
-      {% for chave, rotulo in periodos.items() %}<option value="{{ chave }}" {% if filtros.periodo == chave %}selected{% endif %}>Atualizada nas {{ rotulo }}</option>{% endfor %}
-    </select>
-    <select name="ordem" aria-label="Ordenar por">
-      {% for chave, rotulo in ordens.items() %}<option value="{{ chave }}" {% if filtros.ordem == chave %}selected{% endif %}>Ordem: {{ rotulo }}</option>{% endfor %}
-    </select>
+  <div class="filtros-barra">
+    <label class="busca-tasks">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+      <span class="sr">Buscar tasks</span>
+      <input type="search" name="q" value="{{ filtros.q }}" placeholder="Buscar por código, título ou corpo" autocomplete="off">
+    </label>
+    <div class="filtros-controles">
+      {% if filtros.visao == 'lista' %}
+      <label class="sr" for="agrupar-tasks">Agrupar tasks por</label>
+      <select id="agrupar-tasks" name="agrupar" aria-label="Agrupar tasks por">
+        <option value="" {% if not filtros.agrupar %}selected{% endif %}>Sem agrupamento</option>
+        <option value="status" {% if filtros.agrupar == 'status' %}selected{% endif %}>Agrupar por status</option>
+        <option value="feature" {% if filtros.agrupar == 'feature' %}selected{% endif %}>Agrupar por feature</option>
+      </select>
+      {% endif %}
+      <label class="sr" for="ordem-tasks">Ordenar tasks por</label>
+      <select id="ordem-tasks" name="ordem" aria-label="Ordenar tasks por">
+        {% for chave, rotulo in ordens.items() %}<option value="{{ chave }}" {% if filtros.ordem == chave %}selected{% endif %}>{{ rotulo|capitalize }}</option>{% endfor %}
+      </select>
+      <details class="filtros-menu" data-estado="filtros-tasks">
+        <summary>{{ icone('filtro') }}<span>Filtros</span><span class="contador" data-filter-count aria-live="polite" aria-label="{{ contagem_filtros.total }} filtros ativos" {% if not contagem_filtros.total %}hidden{% endif %}>{{ contagem_filtros.total }}</span></summary>
+        <div class="filtros-painel">
+          <fieldset class="grupo-filtros">
+            <legend>Atalhos</legend>
+            {% set atalhos = [('fazendo', 'Fazendo agora'), ('atencao', 'Precisam de atenção'), ('paradas', 'Paradas'), ('sem_dono', 'Sem dono')] %}
+            {% if not admin %}{% set atalhos = [('nao_lidas', 'Não lidas pela IA')] + atalhos %}{% endif %}
+            <div class="grupo-chips" role="group" aria-label="Atalhos de filtro">
+              {% for chave, rotulo in atalhos %}<label class="chip-filtro"><input type="checkbox" name="{{ chave }}" value="true" {% if filtros[chave] %}checked{% endif %}><span>{{ rotulo }}</span></label>{% endfor %}
+            </div>
+          </fieldset>
+          {% if filtros.visao == 'lista' %}
+          <fieldset class="grupo-filtros">
+            <legend>Status</legend>
+            <div class="grupo-chips" role="group" aria-label="Filtrar por status">
+              {% for s in statuses %}<label class="chip-filtro"><input type="checkbox" name="status" value="{{ s }}" {% if s in filtros.status %}checked{% endif %}><span class="status st-{{ s }}"><span class="ponto"></span>{{ ROTULO_STATUS[s] }}</span></label>{% endfor %}
+            </div>
+          </fieldset>
+          {% endif %}
+          <fieldset class="grupo-filtros">
+            <legend>Responsável e organização</legend>
+            <div class="filtros-campos">
+              <label><span class="sr">Dono</span><select name="dono" aria-label="Dono"><option value="">Todos os donos</option>{% for m in membros %}<option value="{{ m['id'] }}" {% if filtros.dono == m['id']|string %}selected{% endif %}>{{ m['name'] }}</option>{% endfor %}</select></label>
+              <label><span class="sr">Feature</span><select name="feature" aria-label="Feature"><option value="">Todas as features</option><option value="{{ SEM_FEATURE }}" {% if filtros.feature == SEM_FEATURE %}selected{% endif %}>Sem feature</option>{% for f in features %}<option value="{{ f['code'] }}" {% if filtros.feature == f['code'] %}selected{% endif %}>{{ f['code']|code_curto }} {{ f['title'] }}</option>{% endfor %}</select></label>
+              <label><span class="sr">Tag</span><select name="tag" aria-label="Tag"><option value="">Todas as tags</option>{% for tag in tags %}<option value="{{ tag }}" {% if filtros.tag == tag %}selected{% endif %}>{{ tag }}</option>{% endfor %}</select></label>
+            </div>
+          </fieldset>
+          <fieldset class="grupo-filtros">
+            <legend>Atualização</legend>
+            <label><span class="sr">Período de atualização</span><select name="periodo" aria-label="Atualizada em"><option value="">Qualquer data</option>{% for chave, rotulo in periodos.items() %}<option value="{{ chave }}" {% if filtros.periodo == chave %}selected{% endif %}>{{ rotulo|capitalize }}</option>{% endfor %}</select></label>
+          </fieldset>
+        </div>
+      </details>
+    </div>
   </div>
 </form>
 
@@ -94,6 +113,23 @@
         </section>
       {% endfor %}
     </div>
+  {% elif filtros.agrupar == 'status' %}
+    <div class="barra-grupos">
+      <span class="mudo">{{ grupos_status|length }} grupo(s) por status</span>
+      <button type="button" class="link" onclick="alternarGrupos(true)">expandir grupos</button>
+      <button type="button" class="link" onclick="alternarGrupos(false)">recolher grupos</button>
+    </div>
+    {% for g in grupos_status %}
+      <details class="grupo-status cartao" data-estado="status-{{ g.status }}" open>
+        <summary>
+          {{ status_pill(g.status) }}
+          <span class="mudo">{{ g.tasks|length }} task(s)</span>
+        </summary>
+        {% with tasks=g.tasks, na_feature=true, legenda='Tasks com status ' ~ ROTULO_STATUS[g.status], vazio_msg='Nenhuma task neste status.' %}{% include "parciais/tabela_tasks.html" %}{% endwith %}
+      </details>
+    {% else %}
+      <p class="mudo vazio">Nenhuma task com esse filtro.</p>
+    {% endfor %}
   {% elif grupos is not none %}
     <div class="barra-grupos">
       <button type="button" class="link" onclick="alternarGrupos(true)">expandir tudo</button>
