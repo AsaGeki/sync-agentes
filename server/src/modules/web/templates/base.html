@@ -13,6 +13,12 @@
 </head>
 <body hx-boost="true">
 <div class="app {{ 'com-lateral' if nav is defined else '' }}" data-sidebar-app>
+  {% set notificacoes = namespace(total=0) %}
+  {% if projeto is defined and nav is defined and not admin %}
+    {% for item in nav %}
+      {% if item.slug == projeto['slug'] %}{% set notificacoes.total = item.nao_lidos %}{% endif %}
+    {% endfor %}
+  {% endif %}
   {% if nav is defined %}
   <aside class="sidebar" id="app-sidebar" aria-label="Navegação principal">
     <header class="sidebar-header">
@@ -57,7 +63,7 @@
           {% for item in nav %}
             {% set atual = projeto is defined and projeto['slug'] == item.slug %}
             <div class="sidebar-project" data-sidebar-project-item data-project-name="{{ item.name }}">
-              <a href="{{ base }}/p/{{ item.slug }}" class="sidebar-link projeto-nav {{ 'aberto' if atual else '' }}" {% if request.url.path == base ~ '/p/' ~ item.slug %}aria-current="page"{% endif %} title="{{ item.name }}">
+              <a href="{{ base }}/p/{{ item.slug }}{% if not admin %}/tasks?nao_lidas=true{% endif %}" class="sidebar-link projeto-nav {{ 'aberto' if atual else '' }}" {% if (admin and request.url.path == base ~ '/p/' ~ item.slug) or (not admin and atual and aba == 'tasks' and filtros is defined and filtros.nao_lidas) %}aria-current="page"{% endif %} title="{{ item.name }}">
                 {{ icone('pasta') }}<span class="sidebar-link-label">{{ item.name }}</span>
                 {% if item.nao_lidos %}<span class="contador" title="{{ item.nao_lidos }} evento(s) que sua IA ainda não leu">{{ item.nao_lidos }}</span>{% endif %}
               </a>
@@ -115,6 +121,14 @@
       <button class="sidebar-trigger" type="button" data-sidebar-toggle aria-label="Recolher navegação" aria-controls="app-sidebar" aria-expanded="true" title="Recolher navegação">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></svg>
       </button>
+      {% if projeto is defined and not admin %}
+      <a class="sidebar-topbar-notifications {{ 'tem-notificacoes' if notificacoes.total else '' }}" href="{{ base }}/p/{{ projeto['slug'] }}/tasks?nao_lidas=true"
+         aria-label="Abrir notificações em aberto{% if notificacoes.total %}. {{ notificacoes.total }} evento{% if notificacoes.total != 1 %}s{% endif %} pendente{% if notificacoes.total != 1 %}s{% endif %}{% endif %}"
+         title="{% if notificacoes.total %}{{ notificacoes.total }} evento{% if notificacoes.total != 1 %}s{% endif %} ainda não lido{% if notificacoes.total != 1 %}s{% endif %} pela sua IA{% else %}Nenhuma notificação em aberto{% endif %}">
+        {{ icone('sino') }}
+        {% if notificacoes.total %}<span class="sidebar-topbar-notification-count" aria-hidden="true">{{ notificacoes.total if notificacoes.total < 100 else '99+' }}</span>{% endif %}
+      </a>
+      {% endif %}
       <span class="sidebar-topbar-divider" aria-hidden="true"></span>
       <span class="sidebar-topbar-context">{{ projeto['name'] if projeto is defined else ('Administração' if admin else 'Área pessoal') }}</span>
     </header>

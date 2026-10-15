@@ -745,6 +745,44 @@ body.sidebar-drawer-aberto { overflow: hidden; }
 .sidebar-topbar { display: flex; align-items: center; gap: 10px; height: 48px; margin: 0 0 12px; }
 .sidebar-topbar-divider { width: 1px; height: 18px; background: var(--grade); }
 .sidebar-topbar-context { overflow: hidden; color: var(--tinta-2); font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-topbar-notifications {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  color: var(--tinta-2);
+  border-radius: 7px;
+  text-decoration: none;
+}
+.sidebar-topbar-notifications:hover { color: var(--tinta); text-decoration: none; background: var(--hover); }
+.sidebar-topbar-notifications:focus-visible { outline: 2px solid var(--acento); outline-offset: 1px; }
+.sidebar-topbar-notifications .icone { width: 18px; height: 18px; vertical-align: 0; }
+.sidebar-topbar-notifications.tem-notificacoes { color: var(--acento); }
+.sidebar-topbar-notifications.tem-notificacoes .icone { transform-origin: 50% 10%; animation: sidebar-sino-sacudir 1.8s ease-in-out infinite; }
+.sidebar-topbar-notification-count {
+  position: absolute;
+  top: -2px;
+  right: -5px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  color: #fff;
+  background: var(--perigo);
+  border: 2px solid var(--fundo);
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 13px;
+  text-align: center;
+}
+@keyframes sidebar-sino-sacudir {
+  0%, 72%, 100% { transform: rotate(0); }
+  76%, 84%, 92% { transform: rotate(13deg); }
+  80%, 88%, 96% { transform: rotate(-13deg); }
+}
 
 .app.sidebar-recolhida .sidebar { width: var(--sidebar-trilho, 64px); padding-right: 8px; padding-left: 8px; }
 .app.sidebar-recolhida .sidebar-header { justify-content: center; padding-right: 0; padding-left: 0; }
@@ -838,4 +876,5 @@ body.sidebar-drawer-aberto { overflow: hidden; }
 
 @media (prefers-reduced-motion: reduce) {
   .app.com-lateral, .sidebar, .sidebar-link, .sidebar-section-summary svg { transition-duration: 0.01ms !important; }
+  .sidebar-topbar-notifications.tem-notificacoes .icone { animation: none; }
 }
