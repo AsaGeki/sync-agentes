@@ -21,7 +21,7 @@
   {% if filtros[chave] %}{% set contagem_filtros.total = contagem_filtros.total + 1 %}{% endif %}
 {% endfor %}
 
-<form class="filtros" hx-get="{{ url_tasks }}" hx-select="#lista" hx-target="#lista"
+<form class="filtros filtros-tasks" hx-get="{{ url_tasks }}" hx-select="#lista" hx-target="#lista"
       hx-swap="outerHTML" hx-push-url="true" hx-trigger="change, input from:[name=q] delay:300ms, submit">
   <input type="hidden" name="visao" value="{{ filtros.visao }}">
   <div class="filtros-barra">
