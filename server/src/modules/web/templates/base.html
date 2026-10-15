@@ -6,7 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="htmx-config" content='{"responseHandling":[{"code":"204","swap":false},{"code":"[2345]..","swap":true}]}'>
   <title>{% block titulo %}sync-agents{% endblock %}</title>
-  <link rel="stylesheet" href="/web/static/app.css">
+  <link rel="icon" href="/web/assets/favicon.ico?v=brand-2" type="image/x-icon">
+  <link rel="icon" href="/web/assets/favicon-dark.ico?v=brand-2" type="image/x-icon" media="(prefers-color-scheme: dark)">
+  <link rel="stylesheet" href="/web/static/app.css?v=brand-2">
   <script src="/web/static/htmx.min.js" defer></script>
   <script src="/web/static/tempo-real.js" defer></script>
   <script src="/web/static/tela.js" defer></script>
@@ -23,7 +25,10 @@
   <aside class="sidebar" id="app-sidebar" aria-label="Navegação principal">
     <header class="sidebar-header">
       <a class="sidebar-brand" href="{{ base }}" aria-label="sync-agents — início">
-        <span class="sidebar-brand-mark" aria-hidden="true">S</span>
+        <picture class="sidebar-brand-mark" aria-hidden="true">
+          <source srcset="/web/assets/sidebar-logo-escuro.png?v=brand-2" media="(prefers-color-scheme: dark)">
+          <img src="/web/assets/sidebar-logo-claro.png?v=brand-2" alt="" width="22" height="22">
+        </picture>
         <span class="sidebar-brand-copy"><strong>sync-agents</strong><small>workspace</small></span>
       </a>
     </header>
