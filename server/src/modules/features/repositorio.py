@@ -63,6 +63,47 @@ def delete(conn: sqlite3.Connection, feature_id: int) -> None:
     conn.execute("DELETE FROM features WHERE id = ?", (feature_id,))
 
 
+def eventos_nao_lidos(conn: sqlite3.Connection, projeto_id: int, person_id: int) -> dict[str, int]:
+    """Eventos de feature (criar, editar, apagar) de outras pessoas acima da marca
+    de leitura desta pessoa, e o seq do mais recente. Nada anterior à entrada
+    dela no projeto conta."""
+    linha = conn.execute(
+        """SELECT COUNT(e.seq) AS nao_lidos, MAX(e.seq) AS ultimo
+             FROM events e
+            WHERE e.project_id = ?
+              AND e.kind LIKE 'feature.%'
+              AND e.author_id != ?
+              AND e.seq > COALESCE(
+                    (SELECT last_read_seq FROM feature_reads
+                      WHERE project_id = ? AND person_id = ?), 0)
+              AND datetime(e.created_at) >= datetime(
+                    (SELECT created_at FROM memberships
+                      WHERE project_id = ? AND person_id = ?))""",
+        (projeto_id, person_id, projeto_id, person_id, projeto_id, person_id),
+    ).fetchone()
+    return {"nao_lidos": int(linha["nao_lidos"]), "ultimo_nao_lido": int(linha["ultimo"] or 0)}
+
+
+def ultimo_seq_de_eventos(conn: sqlite3.Connection, projeto_id: int) -> int:
+    linha = conn.execute(
+        "SELECT MAX(seq) AS ultimo FROM events WHERE project_id = ? AND kind LIKE 'feature.%'",
+        (projeto_id,),
+    ).fetchone()
+    return int(linha["ultimo"] or 0)
+
+
+def marcar_lidos(conn: sqlite3.Connection, projeto_id: int, person_id: int, seq: int) -> None:
+    """A marca só anda pra frente."""
+    conn.execute(
+        """INSERT INTO feature_reads (project_id, person_id, last_read_seq, updated_at)
+           VALUES (?,?,?,?)
+           ON CONFLICT (project_id, person_id)
+           DO UPDATE SET last_read_seq = MAX(last_read_seq, excluded.last_read_seq),
+                         updated_at = excluded.updated_at""",
+        (projeto_id, person_id, seq, now()),
+    )
+
+
 def tasks_da_feature(conn: sqlite3.Connection, feature_id: int) -> list[sqlite3.Row]:
     return conn.execute(
         "SELECT code, title, status, owner_id FROM tasks WHERE feature_id = ? ORDER BY code",

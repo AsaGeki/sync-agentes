@@ -25,6 +25,7 @@
   --st-ideia: #a8a69f;
   --st-bloqueado: #d03b3b;
   --st-aguardando: #fab219;
+  --st-cancelada: #8a8882;
 
   --add: #e6f4e6;
   --del: #fbe7e7;
@@ -58,6 +59,7 @@
     --st-parcial: #3987e5;
     --st-andamento: #a58af0;
     --st-ideia: #6f6d68;
+    --st-cancelada: #85837d;
 
     --add: #13301a;
     --del: #3a1717;
@@ -176,6 +178,7 @@ button[disabled] { opacity: 0.6; cursor: progress; }
   display: inline-block; font-size: 0.75rem; line-height: 1.5; padding: 0 7px;
   border-radius: 999px; background: var(--lavado); color: var(--tinta-2); white-space: nowrap;
 }
+.contador[hidden] { display: none !important; }
 .contador {
   display: inline-block; min-width: 20px; text-align: center; font-size: 0.72rem; font-weight: 700; line-height: 18px;
   border-radius: 999px; background: var(--acento); color: #fff; padding: 0 6px;
@@ -206,6 +209,8 @@ button[disabled] { opacity: 0.6; cursor: progress; }
 .st-bloqueado .ponto, .seg.st-bloqueado { background: var(--st-bloqueado); }
 .st-aguardando_decisao .ponto, .seg.st-aguardando_decisao { background: var(--st-aguardando); }
 .seg.st-ideia { background: var(--st-ideia); }
+.st-cancelada .ponto, .seg.st-cancelada { background: var(--st-cancelada); }
+.status.st-cancelada { color: var(--tinta-2); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--st-cancelada) 70%, transparent); }
 
 /* Tipo de mensagem */
 .tipo { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 0 7px; border-radius: 4px; background: var(--lavado); color: var(--tinta-2); }
@@ -553,7 +558,7 @@ a.tile:hover { border-color: var(--acento); text-decoration: none; }
 #lista { overflow-x: auto; }
 .acoes { white-space: nowrap; }
 
-.quadro { display: grid; grid-template-columns: repeat(6, minmax(170px, 1fr)); gap: 12px; align-items: start; overflow-x: auto; padding-bottom: 8px; }
+.quadro { display: grid; grid-template-columns: repeat(7, minmax(170px, 1fr)); gap: 12px; align-items: start; overflow-x: auto; padding-bottom: 8px; }
 .coluna-quadro { background: var(--lavado); border-radius: var(--raio); padding: 8px; display: flex; flex-direction: column; gap: 8px; min-height: 120px; }
 .coluna-quadro > header { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 2px 4px; font-weight: 600; }
 .cartao-task {

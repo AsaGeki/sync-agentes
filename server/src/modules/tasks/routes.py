@@ -52,7 +52,7 @@ def list_tasks(
 @router.get("/projetos/{slug}/nao-lidos")
 def nao_lidos(
     slug: str, pessoa: sqlite3.Row = Depends(pessoa_atual)
-) -> list[dict[str, Any]]:
+) -> dict[str, Any]:
     conn = conectar()
     try:
         return service.nao_lidos(conn, slug, pessoa["id"])

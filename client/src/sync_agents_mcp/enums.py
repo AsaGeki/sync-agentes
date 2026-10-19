@@ -21,6 +21,7 @@ class EStatusTask(StrEnum):
     feito = "feito"
     bloqueado = "bloqueado"
     aguardando_decisao = "aguardando_decisao"
+    cancelada = "cancelada"
 
 
 class EStatusProject(StrEnum):

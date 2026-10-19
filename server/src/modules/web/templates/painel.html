@@ -139,9 +139,9 @@
     <aside class="painel-lateral">
       <section class="cartao painel-cartao">
         <header class="painel-card-cabeca painel-card-cabeca-simples">
-          <div><h2>Tasks por status</h2><p class="painel-card-desc">{{ p.total_tasks }} tasks no projeto.</p></div>
+          <div><h2>Tasks por status</h2><p class="painel-card-desc">{{ p.total_tasks + p.canceladas }} tasks no projeto{% if p.canceladas %}, {{ p.canceladas }} cancelada(s) fora do progresso{% endif %}.</p></div>
         </header>
-        {% if p.total_tasks %}
+        {% if p.total_tasks + p.canceladas %}
         <div class="barra-status" role="img" aria-label="Distribuição de tasks por status">
           {% for status, n in p.contagem_status if n %}
             <span class="seg st-{{ status }}" style="flex-grow: {{ n }}" title="{{ ROTULO_STATUS[status] }}: {{ n }}"></span>

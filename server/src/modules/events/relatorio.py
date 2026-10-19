@@ -19,6 +19,7 @@ ROTULO_STATUS = {
     "ideia": "ideia",
     "bloqueado": "bloqueado",
     "aguardando_decisao": "aguardando decisão",
+    "cancelada": "cancelada",
 }
 
 

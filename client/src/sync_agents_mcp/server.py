@@ -66,11 +66,13 @@ INSTRUCOES = (
     "assunto, endereçada por code. O code é `T-007-slug-do-titulo`: o número "
     "identifica, o slug é pra humano reconhecer sem abrir. Qualquer tool "
     "aceita só o número (`T-007`, `T-7`) ou o code inteiro. "
-    "title/status/tags/owner_id + um corpo versionado. status: `ideia` (não "
-    "começou), `em_andamento` (alguém está fazendo agora - o web mostra quem e "
-    "por qual ferramenta), `parcial` (tem parte pronta, ninguém mexendo agora), "
-    "`feito`, `bloqueado`, `aguardando_decisao`. `dependencies` (codes "
-    "de outra task) trava o status 'feito' até elas também estarem, e pode ser "
+    "title/status/tags/owner_id + um corpo versionado (`update_task(owner_id=0)` "
+    "tira o dono). status: `ideia` (não começou), `em_andamento` (alguém está "
+    "fazendo agora - o web mostra quem e por qual ferramenta), `parcial` (tem "
+    "parte pronta, ninguém mexendo agora), `feito`, `bloqueado`, "
+    "`aguardando_decisao`, `cancelada` (não vai mais ser feita: não trava quem "
+    "depende dela e sai do progresso). `dependencies` (codes de outra task) "
+    "trava o status 'feito' até elas estarem 'feito' ou 'cancelada', e pode ser "
     "trocada depois por `update_task` - a lista mandada substitui a atual.\n"
     "- feature (`create_feature`/`list_features`/`update_feature`): agrupa "
     "tasks de um mesmo assunto maior, endereçada por code `F-003-slug` (aceita "
@@ -91,8 +93,13 @@ INSTRUCOES = (
     "lido, e a task só some do `nao_lidos` depois que você abrir ela. Nada "
     "expira sozinho e nada é consumido por você ter chamado outra tool, então "
     "não existe 'perdi a mensagem'.\n"
-    "`list_tasks(nao_lidas=True)` lista só o que está pendente de leitura; "
-    "`list_tasks(q='texto')` procura no code, no título e no corpo.\n\n"
+    "Task com pergunta não lida vem primeiro; se a pergunta não for o evento "
+    "mais recente da task, ela vem em `pergunta`. O aviso mostra no máximo 20 "
+    "tasks: `nao_lidos_omitidos` diz quantas ficaram de fora. Criar, editar ou "
+    "apagar feature vem em `nao_lidos_features`; quem marca lido é "
+    "`list_features` (`read_feature` não marca).\n"
+    "`list_tasks(nao_lidas=True)` lista só o que está pendente de leitura, sem "
+    "corte; `list_tasks(q='texto')` procura no code, no título e no corpo.\n\n"
     ""
     "TIPO DE MENSAGEM (`send_message`)\n"
     "- mudanca: 'fiz/mudei isso'.\n"
@@ -112,7 +119,8 @@ INSTRUCOES = (
     "3. Uma task por assunto. Virou outro assunto, é task nova.\n"
     "4. status reflete estado real, não intenção - 'feito' é feito e "
     "verificado. Ao começar a mexer numa task, marque `em_andamento`; ao "
-    "parar, devolva pra `parcial`, `feito` ou `bloqueado`. Task esquecida em "
+    "parar, devolva pra `parcial`, `feito` ou `bloqueado` (ou `cancelada`, se "
+    "deixou de valer a pena). Task esquecida em "
     "andamento aparece como parada pra todo mundo.\n"
     "5. `update_body` leva sempre o texto COMPLETO da task, nunca um "
     "fragmento.\n"
@@ -219,8 +227,9 @@ def _agent_do_cliente(ctx: Context) -> str:
         return "outro"
 
 
-def _nao_lidos(api: Api, slug: str) -> list[dict[str, Any]]:
-    """As tasks com evento que esta pessoa ainda não leu. Vai anexado em toda
+def _nao_lidos(api: Api, slug: str) -> dict[str, Any]:
+    """As tasks com evento que esta pessoa ainda não leu (`tasks`, cortada pelo
+    servidor) e quantas existem antes do corte (`total`). Vai anexado em toda
     resposta - é o que dispensa alguém pedir 'sincroniza no sync'.
 
     Não consome nada: a task só sai daqui quando `read_task` abrir ela. Por isso
@@ -266,10 +275,18 @@ def _chamar(ctx: Context, project: str | None, acao) -> Any:
     # erro, senão o agente repete a escrita. Mas ela aparece na resposta - sem
     # isso, "não consegui buscar" chegaria como "nada novo".
     try:
-        pendentes = _nao_lidos(api, slug)
+        aviso = _nao_lidos(api, slug)
     except ErroApi as erro:
         return {**envelope, "nao_lidos_indisponivel": erro.detalhe}
-    return {**envelope, "nao_lidos": pendentes} if pendentes else envelope
+    resposta = dict(envelope)
+    if aviso["tasks"]:
+        resposta["nao_lidos"] = aviso["tasks"]
+        omitidos = aviso["total"] - len(aviso["tasks"])
+        if omitidos:
+            resposta["nao_lidos_omitidos"] = omitidos
+    if aviso.get("features"):
+        resposta["nao_lidos_features"] = aviso["features"]
+    return resposta
 
 
 # ---------- contexto ---------- #
@@ -467,8 +484,13 @@ def update_task(
     substitui as dependências atuais, e `[]` remove todas. Dependência que
     fecharia ciclo é recusada.
 
-    Tirar uma task de 'feito' devolve pra 'parcial', em cascata, quem dependia
-    dela e já estava fechado.
+    Tirar uma task de 'feito' ou 'cancelada' pra um status aberto devolve pra
+    'parcial', em cascata, quem dependia dela e já estava fechado.
+
+    `owner_id=0` tira o dono; omitir `owner_id` não mexe nele.
+
+    `status='cancelada'` diz que a task não vai mais ser feita: quem depende
+    dela pode fechar e ela sai do total do progresso.
 
     `status='em_andamento'` avisa o outro lado que você está nela agora; o
     servidor guarda quem e por qual ferramenta. Ao parar, volte pra 'parcial',
@@ -483,14 +505,13 @@ def update_task(
         "dependencies": dependencies,
         "feature": feature,
     }
+    enviado = {k: v for k, v in corpo.items() if v is not None}
+    if owner_id == 0:
+        enviado["owner_id"] = None
     return _chamar(
         ctx,
         project,
-        lambda api, slug: api.request(
-            "PATCH",
-            f"/projetos/{slug}/tasks/{code}",
-            {k: v for k, v in corpo.items() if v is not None},
-        ),
+        lambda api, slug: api.request("PATCH", f"/projetos/{slug}/tasks/{code}", enviado),
     )
 
 
@@ -516,8 +537,11 @@ def create_feature(
 @mcp.tool()
 def list_features(ctx: Context, project: str | None = None) -> Any:
     """Lista as features do projeto com o status derivado das tasks (ideia,
-    em_andamento, parcial, bloqueado, feito) e o progresso `feito/total`. As tasks de uma
-    feature saem em `list_tasks(feature='F-3')`."""
+    em_andamento, parcial, bloqueado, feito) e o progresso `feito/total`, sem
+    contar as tasks canceladas. As tasks de uma feature saem em
+    `list_tasks(feature='F-3')`.
+
+    Marca como lido o que mudou nas features (`nao_lidos_features`)."""
     return _chamar(
         ctx, project, lambda api, slug: api.request("GET", f"/projetos/{slug}/features")
     )

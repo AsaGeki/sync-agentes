@@ -42,6 +42,15 @@
         </details>
       </section>
       {% endif %}
+
+      {% if canceladas %}
+      <section class="cartao">
+        <details data-estado="canceladas">
+          <summary><h2 class="grupo-titulo">Canceladas <span class="mudo">{{ canceladas|length }}</span></h2></summary>
+          {% with tasks=canceladas, na_feature=true, legenda='Tasks canceladas da feature' %}{% include "parciais/tabela_tasks.html" %}{% endwith %}
+        </details>
+      </section>
+      {% endif %}
     </div>
 
     <aside class="painel-lateral">

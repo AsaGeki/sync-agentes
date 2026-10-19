@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   code       TEXT NOT NULL,
   title      TEXT NOT NULL,
   status     TEXT NOT NULL
-             CHECK (status IN ('ideia','em_andamento','parcial','feito','bloqueado','aguardando_decisao')),
+             CHECK (status IN ('ideia','em_andamento','parcial','feito','bloqueado','aguardando_decisao','cancelada')),
   tags       TEXT NOT NULL DEFAULT '[]',
   owner_id   INTEGER REFERENCES people(id),
   feature_id INTEGER REFERENCES features(id) ON DELETE SET NULL,
@@ -129,6 +129,17 @@ CREATE TABLE IF NOT EXISTS task_reads (
   last_read_seq INTEGER NOT NULL,
   updated_at    TEXT NOT NULL,
   PRIMARY KEY (task_id, person_id)
+);
+
+-- Marca d'água de leitura dos eventos de feature (kind 'feature.*'), por pessoa e
+-- projeto. Eles não têm task, então não cabem em `task_reads`. `list_features`
+-- é o que avança a marca.
+CREATE TABLE IF NOT EXISTS feature_reads (
+  project_id    INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  person_id     INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+  last_read_seq INTEGER NOT NULL,
+  updated_at    TEXT NOT NULL,
+  PRIMARY KEY (project_id, person_id)
 );
 
 CREATE TABLE IF NOT EXISTS events (
@@ -484,18 +495,21 @@ def _migrar_events_para_features(conn: sqlite3.Connection) -> None:
         )
 
 
-def _tasks_sem_em_andamento(conn: sqlite3.Connection) -> bool:
+def _tasks_com_check_desatualizado(conn: sqlite3.Connection) -> bool:
+    """O CHECK de `tasks.status` mais novo é o que lista 'cancelada'; banco que
+    ainda não tem 'em_andamento' também cai aqui."""
     linha = conn.execute(
         "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'tasks'"
     ).fetchone()
-    return linha is not None and "'em_andamento'" not in linha["sql"]
+    return linha is not None and "'cancelada'" not in linha["sql"]
 
 
-def _migrar_tasks_para_em_andamento(conn: sqlite3.Connection) -> None:
-    """Migração única: o CHECK de `tasks.status` ganha 'em_andamento'. Guardada
-    pelo texto do CHECK - SQLite não altera CHECK de tabela existente. Os índices
-    de `tasks` somem no DROP e o `SCHEMA` recria logo depois."""
-    if not _tasks_sem_em_andamento(conn):
+def _migrar_tasks_status(conn: sqlite3.Connection) -> None:
+    """Migração única: o CHECK de `tasks.status` ganha 'em_andamento' e
+    'cancelada'. Guardada pelo texto do CHECK - SQLite não altera CHECK de
+    tabela existente. Os índices de `tasks` somem no DROP e o `SCHEMA` recria
+    logo depois."""
+    if not _tasks_com_check_desatualizado(conn):
         return
 
     conn.execute("DROP TABLE IF EXISTS tasks_novo")
@@ -509,7 +523,8 @@ def _migrar_tasks_para_em_andamento(conn: sqlite3.Connection) -> None:
              code       TEXT NOT NULL,
              title      TEXT NOT NULL,
              status     TEXT NOT NULL
-                        CHECK (status IN ('ideia','em_andamento','parcial','feito','bloqueado','aguardando_decisao')),
+                        CHECK (status IN ('ideia','em_andamento','parcial','feito','bloqueado',
+                                          'aguardando_decisao','cancelada')),
              tags       TEXT NOT NULL DEFAULT '[]',
              owner_id   INTEGER REFERENCES people(id),
              feature_id INTEGER REFERENCES features(id) ON DELETE SET NULL,
@@ -563,7 +578,7 @@ def iniciar_banco() -> None:
         migracao_v3.migrar(conn, _tabela_existe, now())
         _migrar_repo_para_muitos_projetos(conn)
         _migrar_events_para_features(conn)
-        _migrar_tasks_para_em_andamento(conn)
+        _migrar_tasks_status(conn)
     conn.execute("PRAGMA foreign_keys = ON")
     problemas = conn.execute("PRAGMA foreign_key_check").fetchall()
     if problemas:

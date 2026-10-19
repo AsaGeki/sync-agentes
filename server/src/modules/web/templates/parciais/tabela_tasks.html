@@ -1,6 +1,6 @@
 {% from "parciais/macros.html" import avatar, status_pill, selo_fazendo %}
 {# Variáveis: `tasks`. Opcionais: `legenda`, `na_feature` e `vazio_msg`. #}
-{% set progresso_status = {'ideia': 0, 'em_andamento': 40, 'parcial': 70, 'bloqueado': 40, 'aguardando_decisao': 85, 'feito': 100} %}
+{% set progresso_status = {'ideia': 0, 'em_andamento': 40, 'parcial': 70, 'bloqueado': 40, 'aguardando_decisao': 85, 'feito': 100, 'cancelada': 0} %}
 <div class="data-table-shell" data-data-table>
   <div class="tabela-rolagem">
     <table class="tabela tabela-tasks">

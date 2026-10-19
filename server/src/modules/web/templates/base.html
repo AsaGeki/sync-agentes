@@ -8,7 +8,7 @@
   <title>{% block titulo %}sync-agents{% endblock %}</title>
   <link rel="icon" href="/web/assets/favicon.ico?v=brand-2" type="image/x-icon">
   <link rel="icon" href="/web/assets/favicon-dark.ico?v=brand-2" type="image/x-icon" media="(prefers-color-scheme: dark)">
-  <link rel="stylesheet" href="/web/static/app.css?v=spacing-activity-1">
+  <link rel="stylesheet" href="/web/static/app.css?v=contador-vivo-1">
   <script src="/web/static/htmx.min.js" defer></script>
   <script src="/web/static/tempo-real.js" defer></script>
   <script src="/web/static/tela.js" defer></script>
@@ -70,12 +70,12 @@
             <div class="sidebar-project" data-sidebar-project-item data-project-name="{{ item.name }}">
               <a href="{{ base }}/p/{{ item.slug }}{% if not admin %}/tasks?nao_lidas=true{% endif %}" class="sidebar-link projeto-nav {{ 'aberto' if atual else '' }}" {% if (admin and request.url.path == base ~ '/p/' ~ item.slug) or (not admin and atual and aba == 'tasks' and filtros is defined and filtros.nao_lidas) %}aria-current="page"{% endif %} title="{{ item.name }}">
                 {{ icone('pasta') }}<span class="sidebar-link-label">{{ item.name }}</span>
-                {% if item.nao_lidos %}<span class="contador" title="{{ item.nao_lidos }} evento(s) que sua IA ainda não leu">{{ item.nao_lidos }}</span>{% endif %}
+                {% if not admin %}<span class="contador" id="contador-{{ item.slug }}" {% if not item.nao_lidos %}hidden{% endif %} title="{{ item.nao_lidos }} evento(s) que sua IA ainda não leu">{{ item.nao_lidos or '' }}</span>{% endif %}
               </a>
               {% if atual %}
                 <div class="sidebar-submenu">
                   <a class="sidebar-link" href="{{ base }}/p/{{ item.slug }}" {% if aba == 'painel' %}aria-current="page"{% endif %} title="Painel"><span class="sidebar-link-label">Painel</span></a>
-                  <a class="sidebar-link" href="{{ base }}/p/{{ item.slug }}/features" {% if aba in ('features', 'feature') %}aria-current="page"{% endif %} title="Features"><span class="sidebar-link-label">Features</span></a>
+                  <a class="sidebar-link" href="{{ base }}/p/{{ item.slug }}/features" {% if aba in ('features', 'feature') %}aria-current="page"{% endif %} title="Features"><span class="sidebar-link-label">Features</span>{% if not admin %}<span class="contador" id="contador-features" {% if not item.nao_lidos_features %}hidden{% endif %} title="{{ item.nao_lidos_features }} mudança(s) de feature que sua IA ainda não leu">{{ item.nao_lidos_features or '' }}</span>{% endif %}</a>
                   <a class="sidebar-link" href="{{ base }}/p/{{ item.slug }}/tasks" {% if aba == 'tasks' and filtros is defined and filtros.visao == 'lista' or aba == 'task' %}aria-current="page"{% endif %} title="Tasks"><span class="sidebar-link-label">Tasks</span></a>
                   <a class="sidebar-link" href="{{ base }}/p/{{ item.slug }}/tasks?visao=quadro" {% if aba == 'tasks' and filtros is defined and filtros.visao == 'quadro' %}aria-current="page"{% endif %} title="Quadro"><span class="sidebar-link-label">Quadro</span></a>
                   <a class="sidebar-link" href="{{ base }}/p/{{ item.slug }}/atividade" {% if aba == 'atividade' %}aria-current="page"{% endif %} title="Atividade"><span class="sidebar-link-label">Atividade</span></a>
@@ -127,7 +127,7 @@
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></svg>
       </button>
       {% if projeto is defined and not admin %}
-      <a class="sidebar-topbar-notifications {{ 'tem-notificacoes' if notificacoes.total else '' }}" href="{{ base }}/p/{{ projeto['slug'] }}/tasks?nao_lidas=true"
+      <a id="sino-notificacoes" class="sidebar-topbar-notifications {{ 'tem-notificacoes' if notificacoes.total else '' }}" href="{{ base }}/p/{{ projeto['slug'] }}/tasks?nao_lidas=true"
          aria-label="Abrir notificações em aberto{% if notificacoes.total %}. {{ notificacoes.total }} evento{% if notificacoes.total != 1 %}s{% endif %} pendente{% if notificacoes.total != 1 %}s{% endif %}{% endif %}"
          title="{% if notificacoes.total %}{{ notificacoes.total }} evento{% if notificacoes.total != 1 %}s{% endif %} ainda não lido{% if notificacoes.total != 1 %}s{% endif %} pela sua IA{% else %}Nenhuma notificação em aberto{% endif %}">
         {{ icone('sino') }}
@@ -139,6 +139,11 @@
     </header>
     {% endif %}
     <div id="erro" role="alert"></div>
+    {# Contadores de não lido (sino e barra lateral) não ficam dentro de nenhum trecho que se recarrega; este refaz só eles a cada aviso de mudança. #}
+    {% if nav is defined and pessoa and not admin %}
+    <div hidden hx-get="{{ request.url }}" hx-trigger="mudou from:body delay:600ms" hx-swap="none"
+         hx-select-oob="#sino-notificacoes{% for item in nav %},#contador-{{ item.slug }}{% endfor %},#contador-features"></div>
+    {% endif %}
     {% block conteudo %}{% endblock %}
   </main>
 </div>

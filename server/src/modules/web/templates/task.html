@@ -111,7 +111,7 @@
     {% if not admin %}
     <form class="composer cartao" hx-post="{{ url_task }}/mensagens" hx-target="#conversa" hx-select="#conversa"
           hx-select-oob="#task-titulo,#corpo-card,#propriedades" hx-swap="outerHTML" hx-disabled-elt="find button"
-          hx-on::after-request="if (event.detail.successful) this.reset()">
+          hx-on::after-request="if (event.detail.xhr.status < 400) this.reset()">
       <div class="tipos" role="radiogroup" aria-label="Tipo da mensagem">
         {% for t in tipos_mensagem %}
           <label class="tipo-opcao t-{{ t }}"><input type="radio" name="tipo" value="{{ t }}" {% if loop.first %}checked{% endif %}><span>{{ ROTULO_MENSAGEM[t] }}</span></label>
@@ -139,7 +139,8 @@
         </dl>
       {% else %}
         <form class="props" hx-post="{{ url_task }}/campos" hx-trigger="change" hx-target="#propriedades" hx-select="#propriedades"
-              hx-select-oob="#task-titulo,#conversa" hx-swap="outerHTML">
+              hx-select-oob="#task-titulo,#conversa" hx-swap="outerHTML"
+              hx-on::after-request="if (event.detail.xhr.status >= 400) this.reset()">
           <label>Status
             <select name="status">
               {% for s in statuses %}<option value="{{ s }}" {% if task.status == s %}selected{% endif %}>{{ ROTULO_STATUS[s] }}</option>{% endfor %}
@@ -147,8 +148,9 @@
           </label>
           <label>Dono
             <select name="owner_id">
-              {# Vazio não muda o dono; cobre também dono que já saiu do projeto. #}
-              <option value="" {% if task.owner_id not in membros|map(attribute='id') %}selected{% endif %}>{{ task.owner or 'sem dono' }}</option>
+              {# Vazio não muda o dono: só aparece com dono que já saiu do projeto. "0" tira o dono. #}
+              {% if task.owner_id and task.owner_id not in membros|map(attribute='id')|list %}<option value="" selected>{{ task.owner }}</option>{% endif %}
+              <option value="0" {% if not task.owner_id %}selected{% endif %}>sem dono</option>
               {% for m in membros %}<option value="{{ m['id'] }}" {% if task.owner_id == m['id'] %}selected{% endif %}>{{ m['name'] }}</option>{% endfor %}
             </select>
           </label>

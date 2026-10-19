@@ -76,19 +76,23 @@ def find_all(
 
 
 def ids_que_casam(conn: sqlite3.Connection, projeto_id: int, termo: str) -> set[int]:
-    """Tasks cujo code, título ou corpo contém `termo`."""
-    like = f"%{termo}%"
+    """Tasks cujo code, título ou corpo atual contém `termo`, sem diferenciar
+    caixa. Compara em Python: o `LIKE` do SQLite só ignora caixa em ASCII e
+    trata `%` e `_` do termo como curinga."""
+    alvo = termo.casefold()
     linhas = conn.execute(
-        """SELECT t.id FROM tasks t
-            WHERE t.project_id = ?
-              AND (t.code LIKE ? OR t.title LIKE ?
-                   OR EXISTS (SELECT 1 FROM events e
-                               WHERE e.task_id = t.id
-                                 AND e.kind = 'body.updated'
-                                 AND e.texto LIKE ?))""",
-        (projeto_id, like, like, like),
+        """SELECT t.id, t.code, t.title,
+                  (SELECT e.texto FROM events e
+                    WHERE e.task_id = t.id AND e.kind = 'body.updated'
+                    ORDER BY e.version DESC LIMIT 1) AS corpo
+             FROM tasks t WHERE t.project_id = ?""",
+        (projeto_id,),
     )
-    return {linha["id"] for linha in linhas}
+    return {
+        linha["id"]
+        for linha in linhas
+        if any(alvo in (campo or "").casefold() for campo in (linha["code"], linha["title"], linha["corpo"]))
+    }
 
 
 def update_campo(conn: sqlite3.Connection, task_id: int, campo: str, valor: Any) -> None:
@@ -203,13 +207,6 @@ def alcanca(conn: sqlite3.Connection, origem_id: int, alvo_id: int) -> bool:
 # ---------- leitura ---------- #
 
 
-def ultimo_seq(conn: sqlite3.Connection, task_id: int) -> int:
-    linha = conn.execute(
-        "SELECT MAX(seq) AS ultimo FROM events WHERE task_id = ?", (task_id,)
-    ).fetchone()
-    return int(linha["ultimo"] or 0)
-
-
 def marcar_lida(conn: sqlite3.Connection, task_id: int, person_id: int, seq: int) -> None:
     """A marca só anda pra frente - releitura de trecho antigo não desmarca o
     que já tinha sido visto."""
@@ -227,12 +224,16 @@ def leitura_do_projeto(
     conn: sqlite3.Connection, projeto_id: int, person_id: int
 ) -> dict[int, dict[str, int]]:
     """Por task: quantos eventos de outras pessoas estão acima da marca de
-    leitura desta pessoa, e o seq do mais recente deles. O próprio eco não
-    conta como não lido."""
+    leitura desta pessoa, o seq do mais recente deles e o seq da pergunta mais
+    recente entre eles (0 se não há). O próprio eco não conta como não lido, e
+    nada anterior à entrada da pessoa no projeto também não: quem acabou de
+    entrar não tem o histórico inteiro como não lido."""
     linhas = conn.execute(
         """SELECT t.id         AS task_id,
                   COUNT(e.seq) AS nao_lidos,
-                  MAX(e.seq)   AS ultimo_nao_lido
+                  MAX(e.seq)   AS ultimo_nao_lido,
+                  MAX(CASE WHEN e.kind = 'message.created' AND e.type = 'pergunta'
+                           THEN e.seq END) AS ultima_pergunta
              FROM tasks t
              LEFT JOIN events e
                     ON e.task_id = t.id
@@ -240,14 +241,18 @@ def leitura_do_projeto(
                    AND e.seq > COALESCE(
                          (SELECT last_read_seq FROM task_reads
                            WHERE task_id = t.id AND person_id = ?), 0)
+                   AND datetime(e.created_at) >= datetime(
+                         (SELECT created_at FROM memberships
+                           WHERE project_id = t.project_id AND person_id = ?))
             WHERE t.project_id = ?
             GROUP BY t.id""",
-        (person_id, person_id, projeto_id),
+        (person_id, person_id, person_id, projeto_id),
     )
     return {
         linha["task_id"]: {
             "nao_lidos": int(linha["nao_lidos"]),
             "ultimo_nao_lido": int(linha["ultimo_nao_lido"] or 0),
+            "ultima_pergunta": int(linha["ultima_pergunta"] or 0),
         }
         for linha in linhas
     }

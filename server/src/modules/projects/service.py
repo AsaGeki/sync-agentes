@@ -1,5 +1,6 @@
 import re
 import sqlite3
+import unicodedata
 from typing import Any
 
 from src.modules.people import repositorio as people_repositorio
@@ -10,7 +11,8 @@ from src.shared.erros import AlreadyExists, Forbidden, Invalid, NotFound
 
 
 def _slug_de(nome: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", nome.lower()).strip("-")
+    sem_acento = unicodedata.normalize("NFKD", nome).encode("ascii", "ignore").decode()
+    slug = re.sub(r"[^a-z0-9]+", "-", sem_acento.lower()).strip("-")
     return slug or "projeto"
 
 

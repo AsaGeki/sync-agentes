@@ -1,3 +1,4 @@
+import hashlib
 import platform
 import sqlite3
 import time
@@ -70,11 +71,16 @@ async def tratar_erro_dominio(request: Request, exc: DomainError) -> Response:
 
 # Retry de rede do bridge reenvia o mesmo X-Operation-Id: a 2ª chamada devolve
 # a resposta já gravada em vez de repetir a escrita. GET nunca passa por aqui.
+# A chave mistura o token de quem chamou: o mesmo id vindo de outra pessoa é
+# outra operação, não um retry.
 @app.middleware("http")
 async def idempotencia(request: Request, call_next):
     operation_id = request.headers.get("X-Operation-Id")
     if not operation_id or request.method not in ("POST", "PUT", "PATCH", "DELETE"):
         return await call_next(request)
+    operation_id = hashlib.sha256(
+        f"{request.headers.get('Authorization', '')}|{operation_id}".encode()
+    ).hexdigest()
 
     conn = conectar()
     try:

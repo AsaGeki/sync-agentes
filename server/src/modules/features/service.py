@@ -17,9 +17,10 @@ TENTATIVAS_DE_CODIGO = 5
 
 
 def status_derivado(statuses: list[str]) -> str:
-    """Status da feature a partir das tasks dela. Avaliado nesta ordem: sem task
-    ou todas em ideia, todas feito, alguma bloqueada, alguma em andamento, resto
-    é parcial."""
+    """Status da feature a partir das tasks dela, sem as canceladas. Avaliado
+    nesta ordem: sem task ou todas em ideia, todas feito, alguma bloqueada,
+    alguma em andamento, resto é parcial."""
+    statuses = [s for s in statuses if s != EStatusTask.cancelada.value]
     if all(s == EStatusTask.ideia.value for s in statuses):
         return EStatusTask.ideia.value
     if all(s == EStatusTask.feito.value for s in statuses):
@@ -39,7 +40,10 @@ def serializar(conn: sqlite3.Connection, feature: sqlite3.Row) -> dict[str, Any]
         "title": feature["title"],
         "description": feature["description"],
         "status": status_derivado(statuses),
-        "progresso": {"feito": contagem[EStatusTask.feito.value], "total": len(statuses)},
+        "progresso": {
+            "feito": contagem[EStatusTask.feito.value],
+            "total": len(statuses) - contagem[EStatusTask.cancelada.value],
+        },
         "contagem_status": dict(contagem),
         "created_at": feature["created_at"],
         "updated_at": feature["updated_at"],
@@ -75,8 +79,16 @@ async def create_feature(
 
 
 def list_features(conn: sqlite3.Connection, slug: str, person_id: int) -> list[dict[str, Any]]:
+    """Listar as features é o que marca lido os eventos de feature: a lista
+    mostra título e descrição atuais de todas. O corte é o último evento de antes
+    de montar a lista - o que chegar durante a leitura segue não lido."""
     projeto = exigir_acesso(conn, slug, person_id)
-    return [serializar(conn, f) for f in repositorio.find_all(conn, projeto["id"])]
+    ate = repositorio.ultimo_seq_de_eventos(conn, projeto["id"])
+    features = [serializar(conn, f) for f in repositorio.find_all(conn, projeto["id"])]
+    if ate:
+        with conn:
+            repositorio.marcar_lidos(conn, projeto["id"], person_id, ate)
+    return features
 
 
 def read_feature(

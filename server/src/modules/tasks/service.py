@@ -6,6 +6,7 @@ from typing import Any
 from src.modules.events import service as eventos_service
 from src.modules.events.bus import publish
 from src.modules.features import repositorio as features_repositorio
+from src.modules.projects import repositorio as projetos_repositorio
 from src.modules.projects.service import exigir_acesso
 from src.modules.tasks import repositorio
 from src.modules.tasks.models import CorpoIn, DiffIn, MensagemIn, TaskIn, TaskPatch
@@ -15,6 +16,9 @@ from src.shared.enums import EKindEvent, EStatusTask, ETypeMessage
 from src.shared.erros import AlreadyExists, Conflict, Invalid, MissingRequirement
 
 TENTATIVAS_DE_CODIGO = 5
+
+# Task resolvida não trava quem depende dela: 'cancelada' conta como 'feito'.
+RESOLVIDAS = (EStatusTask.feito.value, EStatusTask.cancelada.value)
 
 
 def _feature_resumida(conn: sqlite3.Connection, feature_id: int | None) -> dict[str, str] | None:
@@ -56,7 +60,7 @@ def serializar(
         "feature": _feature_resumida(conn, task["feature_id"]),
         "versao_corpo": corpo["version"] if corpo else 0,
         "dependencies": [d["code"] for d in deps],
-        "dependencias_pendentes": [d["code"] for d in deps if d["status"] != EStatusTask.feito.value],
+        "dependencias_pendentes": [d["code"] for d in deps if d["status"] not in RESOLVIDAS],
         "created_at": task["created_at"],
         "updated_at": task["updated_at"],
     }
@@ -70,18 +74,26 @@ def serializar(
 
 
 def _checar_dependencias_prontas(conn: sqlite3.Connection, task: sqlite3.Row, novo_status: str) -> None:
-    """Task só fecha quando toda dependência já estiver 'feito' - senão o
-    outro lado marca terminado algo que ainda depende de trabalho pendente."""
+    """Task só fecha quando toda dependência já estiver 'feito' ou 'cancelada' -
+    senão o outro lado marca terminado algo que ainda depende de trabalho
+    pendente."""
     if novo_status != EStatusTask.feito.value:
         return
     pendentes = [
-        d["code"] for d in repositorio.dependencies(conn, task["id"]) if d["status"] != EStatusTask.feito.value
+        d["code"] for d in repositorio.dependencies(conn, task["id"]) if d["status"] not in RESOLVIDAS
     ]
     if pendentes:
         raise Conflict(
-            f"Task depende de {', '.join(pendentes)}, que ainda não está 'feito' - "
+            f"Task depende de {', '.join(pendentes)}, que ainda não está 'feito' nem 'cancelada' - "
             "não dá pra marcar esta como 'feito' antes."
         )
+
+
+def _exigir_dono(conn: sqlite3.Connection, projeto_id: int, owner_id: int) -> None:
+    """Dono da task é membro do projeto: pessoa de fora nem aparece pro projeto
+    e, sem esta checagem, o id inexistente estoura na FK."""
+    if projetos_repositorio.find_membership(conn, projeto_id, owner_id) is None:
+        raise Invalid(f"Pessoa {owner_id} não é membro deste projeto")
 
 
 def _resolver_dependencias(
@@ -112,9 +124,9 @@ def _reabrir_dependentes(
     author_id: int,
     ctx: ContextoGit,
 ) -> list[int]:
-    """Task saiu de 'feito': quem dependia dela e já estava 'feito' volta pra
-    'parcial', em cascata. Sem isso a dependente segue dizendo 'feito' apoiada
-    em trabalho que voltou a ser pendente."""
+    """Task saiu de 'feito'/'cancelada' pra um status aberto: quem dependia dela
+    e já estava 'feito' volta pra 'parcial', em cascata. Sem isso a dependente
+    segue dizendo 'feito' apoiada em trabalho que voltou a ser pendente."""
     sequencias: list[int] = []
     fila = [task_id]
     vistos: set[int] = set()
@@ -215,6 +227,19 @@ async def create_task(
     # Dois lados criando ao mesmo tempo chegam no mesmo número. Se ele foi gerado
     # aqui, tenta o seguinte; se veio de quem chamou, o conflito é resposta.
     depends_on_ids = _resolver_dependencias(conn, projeto["id"], None, dados.dependencies)
+    if dados.status == EStatusTask.feito:
+        pendentes = [
+            dependencia["code"]
+            for dependencia in map(lambda i: repositorio.find_by_id(conn, i), depends_on_ids)
+            if dependencia["status"] not in RESOLVIDAS
+        ]
+        if pendentes:
+            raise Conflict(
+                f"Task depende de {', '.join(pendentes)}, que ainda não está 'feito' nem 'cancelada' - "
+                "não dá pra criar esta como 'feito'."
+            )
+    if dados.owner_id is not None:
+        _exigir_dono(conn, projeto["id"], dados.owner_id)
     feature_id = (
         features_repositorio.find_by_code(conn, projeto["id"], dados.feature)["id"]
         if dados.feature
@@ -306,13 +331,17 @@ LIMITE_NAO_LIDOS = 20
 
 def nao_lidos(
     conn: sqlite3.Connection, slug: str, person_id: int, limite: int = LIMITE_NAO_LIDOS
-) -> list[dict[str, Any]]:
-    """Uma linha curta por task com evento ainda não lido, da mais recente pra
-    mais antiga. É o que o bridge cola em toda resposta de tool - ler isto não
-    marca nada, só `read_task` marca.
+) -> dict[str, Any]:
+    """Uma linha curta por task com evento ainda não lido: primeiro as que têm
+    pergunta não lida, depois da mais recente pra mais antiga. É o que o bridge
+    cola em toda resposta de tool - ler isto não marca nada, só `read_task`
+    marca.
 
-    Corta em `limite` tasks: isto viaja em toda resposta, e quem quer a lista
-    inteira chama `list_tasks(nao_lidas=True)`."""
+    `tasks` corta em `limite`: isto viaja em toda resposta, e quem quer a lista
+    inteira chama `list_tasks(nao_lidas=True)`. `total` é quantas existem antes
+    do corte. `pergunta` só aparece quando a pergunta não é o evento mais
+    recente da task - senão `ultimo` já é ela. `features` só aparece quando há
+    evento de feature não lido (só `list_features` marca)."""
     projeto = exigir_acesso(conn, slug, person_id)
     leitura = repositorio.leitura_do_projeto(conn, projeto["id"], person_id)
     pendentes = []
@@ -321,20 +350,32 @@ def nao_lidos(
         if not marca or not marca["nao_lidos"]:
             continue
         evento = eventos_service.hidratar(conn, marca["ultimo_nao_lido"])
-        pendentes.append(
-            {
-                "code": task["code"],
-                "title": task["title"],
-                "status": task["status"],
-                "nao_lidos": marca["nao_lidos"],
-                "ultimo": eventos_service.resumir(evento),
-                "_seq": marca["ultimo_nao_lido"],
-            }
-        )
-    pendentes.sort(key=lambda pendente: pendente["_seq"], reverse=True)
-    for pendente in pendentes:
-        del pendente["_seq"]
-    return pendentes[:limite]
+        aviso = {
+            "code": task["code"],
+            "title": task["title"],
+            "status": task["status"],
+            "nao_lidos": marca["nao_lidos"],
+            "ultimo": eventos_service.resumir(evento),
+        }
+        seq_pergunta = marca["ultima_pergunta"]
+        if seq_pergunta and seq_pergunta != marca["ultimo_nao_lido"]:
+            aviso["pergunta"] = eventos_service.resumir(
+                eventos_service.hidratar(conn, seq_pergunta)
+            )
+        pendentes.append(((bool(seq_pergunta), marca["ultimo_nao_lido"]), aviso))
+    pendentes.sort(key=lambda par: par[0], reverse=True)
+    resposta: dict[str, Any] = {
+        "total": len(pendentes),
+        "tasks": [aviso for _, aviso in pendentes[:limite]],
+    }
+    das_features = features_repositorio.eventos_nao_lidos(conn, projeto["id"], person_id)
+    if das_features["nao_lidos"]:
+        ultimo = eventos_service.hidratar(conn, das_features["ultimo_nao_lido"])
+        resposta["features"] = {
+            "nao_lidos": das_features["nao_lidos"],
+            "ultimo": eventos_service.resumir(ultimo),
+        }
+    return resposta
 
 
 def read_task(
@@ -365,11 +406,13 @@ def montar_task(
         dados["corpo"] = corpo["texto"] if corpo else None
     dados["eventos"] = eventos_service.eventos_da_task(conn, task["id"])
     # Abrir a task é o que marca lido: daqui pra frente ela só volta a aparecer
-    # em `nao_lidas` se o outro lado escrever de novo.
-    if person_id is not None and marcar_lida:
+    # em `nao_lidas` se o outro lado escrever de novo. Marca até o último evento
+    # devolvido, não até o que existe agora: o que chegou durante a leitura
+    # continua não lido.
+    if person_id is not None and marcar_lida and dados["eventos"]:
         with conn:
             repositorio.marcar_lida(
-                conn, task["id"], person_id, repositorio.ultimo_seq(conn, task["id"])
+                conn, task["id"], person_id, dados["eventos"][-1]["seq"]
             )
     return dados
 
@@ -385,12 +428,17 @@ async def update_task(
     projeto = exigir_acesso(conn, slug, author_id)
     task = repositorio.find_by_code(conn, projeto["id"], code)
     mudancas = dados.model_dump(mode="json", exclude_none=True)
+    # `owner_id: null` explícito tira o dono; campo omitido não mexe nele.
+    if "owner_id" in dados.model_fields_set and dados.owner_id is None:
+        mudancas["owner_id"] = None
     if not mudancas:
         raise Invalid("Nada pra atualizar")
 
     # `dependencies` não é coluna de `tasks` - sai daqui antes do laço de campos
     # e vira linha em `task_dependencies`.
     novas_dependencias = mudancas.pop("dependencies", None)
+    if mudancas.get("owner_id") is not None:
+        _exigir_dono(conn, projeto["id"], mudancas["owner_id"])
     depends_on_ids: list[int] = []
     if novas_dependencias is not None:
         depends_on_ids = _resolver_dependencias(
@@ -470,10 +518,10 @@ async def update_task(
                 )
             )
 
-        saiu_de_feito = task["status"] == EStatusTask.feito.value and mudancas.get(
+        voltou_a_aberta = task["status"] in RESOLVIDAS and mudancas.get(
             "status", task["status"]
-        ) != EStatusTask.feito.value
-        if saiu_de_feito:
+        ) not in RESOLVIDAS
+        if voltou_a_aberta:
             sequencias += _reabrir_dependentes(
                 conn, projeto["id"], task["id"], author_id, ctx
             )

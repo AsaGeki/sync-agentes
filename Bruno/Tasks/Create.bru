@@ -31,7 +31,8 @@ docs {
 
   code (T-001) e gerado sozinho se omitido. corpo, se enviado, vira a v1.
   feature (opcional): code da feature (F-1). Omitido, a task fica avulsa.
-  status: ideia | parcial | feito | bloqueado | aguardando_decisao.
+  status: ideia | em_andamento | parcial | feito | bloqueado | aguardando_decisao | cancelada.
+  cancelada: nao vai mais ser feita; nao trava quem depende dela e sai do progresso.
 
   Headers opcionais de contexto, que ficam carimbados no evento:
   X-Agent (claude|codex|cursor|copilot|human), X-Git-Branch, X-Git-Commit.

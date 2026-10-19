@@ -58,15 +58,20 @@ def _base(person_id: int | None) -> dict[str, Any]:
 def ctx_nav(conn: sqlite3.Connection, person_id: int | None) -> list[dict[str, Any]]:
     """Projetos da barra lateral: os da pessoa (com não lidos) ou todos, pro admin."""
     if person_id is None:
-        return [{"slug": p["slug"], "name": p["name"], "nao_lidos": 0} for p in indicadores.todos_projetos(conn)]
+        return [
+            {"slug": p["slug"], "name": p["name"], "nao_lidos": 0, "nao_lidos_features": 0}
+            for p in indicadores.todos_projetos(conn)
+        ]
     itens = []
     for projeto in sorted(indicadores.projetos_da_pessoa(conn, person_id), key=lambda p: p["name"]):
         leitura = tasks_repositorio.leitura_do_projeto(conn, projeto["id"], person_id)
+        das_features = features_repositorio.eventos_nao_lidos(conn, projeto["id"], person_id)["nao_lidos"]
         itens.append(
             {
                 "slug": projeto["slug"],
                 "name": projeto["name"],
-                "nao_lidos": sum(marca["nao_lidos"] for marca in leitura.values()),
+                "nao_lidos": sum(marca["nao_lidos"] for marca in leitura.values()) + das_features,
+                "nao_lidos_features": das_features,
             }
         )
     return itens
@@ -248,7 +253,7 @@ def ctx_feature(
     feature = features_service.serializar(conn, linha)
     tasks = tasks_service.filtrar_tasks(conn, projeto, person_id, None, None, None, False, feature["code"], False)
     abertas = sorted(
-        (t for t in tasks if t["status"] != EStatusTask.feito.value),
+        (t for t in tasks if t["status"] in ORDEM_ABERTAS),
         key=lambda t: ORDEM_ABERTAS.index(t["status"]),
     )
     return {
@@ -258,6 +263,7 @@ def ctx_feature(
         "feature": feature,
         "abertas": abertas,
         "feitas": [t for t in tasks if t["status"] == EStatusTask.feito.value],
+        "canceladas": [t for t in tasks if t["status"] == EStatusTask.cancelada.value],
         "participantes": indicadores.participantes_por_feature(conn, projeto["id"]).get(feature["code"], []),
         "eventos": eventos_service.feed_do_projeto(conn, projeto["id"], 10, feature=feature["code"])["eventos"],
         "nomes": nomes_das_pessoas(conn),

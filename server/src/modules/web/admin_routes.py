@@ -5,6 +5,7 @@ from contextlib import closing
 
 from fastapi import APIRouter, Depends, Form, Path, Query, Request
 from fastapi.responses import RedirectResponse, Response
+from pydantic import BaseModel, ValidationError
 
 from src.modules.people import service as people_service
 from src.modules.people.models import PersonPatch, PessoaIn
@@ -17,7 +18,7 @@ from src.modules.web.paginas import FEATURE_STATUSES
 from src.modules.web.templating import templates
 from src.shared.auth import validate_admin
 from src.shared.db import conectar
-from src.shared.erros import Unauthorized
+from src.shared.erros import Invalid, Unauthorized
 
 router = APIRouter(include_in_schema=False)
 protegido = APIRouter(include_in_schema=False, dependencies=[Depends(admin_web)])
@@ -54,6 +55,15 @@ def logout() -> RedirectResponse:
 # ---------- people ---------- #
 
 
+def _validar[M: BaseModel](modelo: type[M], **campos: str) -> M:
+    """Formulário não passa pela validação do FastAPI: o erro do pydantic vira
+    422 com aviso na tela, em vez de 500."""
+    try:
+        return modelo(**campos)
+    except ValidationError as erro:
+        raise Invalid(f"Campo '{erro.errors()[0]['loc'][0]}' inválido") from None
+
+
 def _pagina_people(request: Request, token_emitido: dict | None = None):
     with closing(conectar()) as conn:
         people = people_service.list_people(conn)
@@ -78,14 +88,16 @@ def people(request: Request):
 @protegido.post("/web/admin/people")
 def criar_pessoa(request: Request, email: str = Form(...), name: str = Form(...)):
     with closing(conectar()) as conn:
-        people_service.create_person(conn, PessoaIn(email=email.strip(), name=name.strip()))
+        people_service.create_person(conn, _validar(PessoaIn, email=email.strip(), name=name.strip()))
     return _pagina_people(request)
 
 
 @protegido.post("/web/admin/people/{person_id}")
 def editar_pessoa(request: Request, person_id: int, email: str = Form(...), name: str = Form(...)):
     with closing(conectar()) as conn:
-        people_service.patch_person(conn, person_id, PersonPatch(email=email.strip(), name=name.strip()))
+        people_service.patch_person(
+            conn, person_id, _validar(PersonPatch, email=email.strip(), name=name.strip())
+        )
     return _pagina_people(request)
 
 

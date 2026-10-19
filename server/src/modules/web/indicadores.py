@@ -71,7 +71,7 @@ def lista_de_features(conn: sqlite3.Connection, projeto_id: int) -> dict[str, An
     return {
         "features": features,
         "avulsas": {
-            "total": sum(avulsas.values()),
+            "total": sum(avulsas.values()) - avulsas[EStatusTask.cancelada.value],
             "feito": avulsas[EStatusTask.feito.value],
             "contagem_status": dict(avulsas),
         },
@@ -91,7 +91,8 @@ def painel(conn: sqlite3.Connection, projeto: sqlite3.Row, person_id: int | None
     for feature in features:
         feature["participantes"] = por_feature.get(feature["code"], [])
     return {
-        "total_tasks": len(tasks),
+        "total_tasks": len(tasks) - contagem[EStatusTask.cancelada.value],
+        "canceladas": contagem[EStatusTask.cancelada.value],
         "feitas": contagem[EStatusTask.feito.value],
         "contagem_status": [(s, contagem[s]) for s in ORDEM_STATUS],
         "features": features,
@@ -108,7 +109,12 @@ def painel(conn: sqlite3.Connection, projeto: sqlite3.Row, person_id: int | None
             for m in projects_repositorio.membros_do_projeto(conn, projeto["id"])
         ],
         "repos": [dict(r) for r in projects_repositorio.repos_do_projeto(conn, projeto["id"])],
-        "nao_lidos": sum(t.get("nao_lidos", 0) for t in tasks) if person_id is not None else None,
+        "nao_lidos": (
+            sum(t.get("nao_lidos", 0) for t in tasks)
+            + features_repositorio.eventos_nao_lidos(conn, projeto["id"], person_id)["nao_lidos"]
+            if person_id is not None
+            else None
+        ),
         "ciclo": ciclo_medio(conn, projeto["id"]),
     }
 
@@ -157,7 +163,7 @@ def cards(
             "description": projeto["description"],
             "status": projeto["status"],
             "visibility": projeto["visibility"],
-            "total_tasks": len(tasks),
+            "total_tasks": len(tasks) - contagem[EStatusTask.cancelada.value],
             "feitas": contagem[EStatusTask.feito.value],
             "fazendo_agora": contagem[EStatusTask.em_andamento.value],
             "atencao": sum(contagem[s] for s in PEDEM_ATENCAO),
@@ -169,7 +175,10 @@ def cards(
         }
         if person_id is not None:
             leitura = tasks_repositorio.leitura_do_projeto(conn, projeto["id"], person_id)
-            card["nao_lidos"] = sum(marca["nao_lidos"] for marca in leitura.values())
+            card["nao_lidos"] = (
+                sum(marca["nao_lidos"] for marca in leitura.values())
+                + features_repositorio.eventos_nao_lidos(conn, projeto["id"], person_id)["nao_lidos"]
+            )
         resultado.append(card)
     return resultado
 

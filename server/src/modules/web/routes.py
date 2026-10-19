@@ -189,17 +189,22 @@ async def editar_campos(
     slug: str,
     code: str,
     status: EStatusTask = Form(...),
-    owner_id: str = Form(""),
+    owner_id: str = Form("", pattern=r"^\d{0,18}$"),
     feature: str = Form(""),
     tags: str = Form(""),
     pessoa: sqlite3.Row = Depends(pessoa_web),
 ):
-    dados = TaskPatch(
-        status=status,
-        owner_id=int(owner_id) if owner_id else None,
-        feature=feature,
-        tags=[t.strip() for t in tags.split(",") if t.strip()],
-    )
+    campos = {
+        "status": status,
+        "feature": feature,
+        "tags": [t.strip() for t in tags.split(",") if t.strip()],
+    }
+    # Vazio não muda o dono; "0" é "sem dono" e vira `null` explícito.
+    if owner_id == "0":
+        campos["owner_id"] = None
+    elif owner_id:
+        campos["owner_id"] = int(owner_id)
+    dados = TaskPatch(**campos)
     with closing(conectar()) as conn:
         await tasks_service.update_task(conn, slug, code, pessoa["id"], CTX_WEB, dados)
     return _pagina_task(request, slug, code, pessoa)
