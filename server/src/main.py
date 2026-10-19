@@ -56,7 +56,7 @@ def banco_conectado() -> bool:
 app = FastAPI(
     title="Sync Agents",
     description="Canal de alinhamento entre agentes de IA e humanos, por projeto e task.",
-    version="3.5.0",
+    version="3.6.0",
 )
 
 

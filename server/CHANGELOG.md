@@ -2,6 +2,19 @@
 
 Formato livre, mais recente no topo. Versão segue `src/main.py` (`FastAPI(version=...)`), exposta em `GET /health` e este arquivo em `GET /changelog`.
 
+## 3.6.0 — 2026-10-19
+
+- **Status novo de task: `cancelada`** ("não vai mais ser feita"). Conta como resolvida: não trava o `feito` de quem depende dela (`dependencias_pendentes` e a checagem de dependência tratam `feito` e `cancelada` igual), e sai do total do progresso (`progresso.total` da feature, "N/M tasks feitas" do painel e dos cards) e do status derivado da feature. Sair de `feito`/`cancelada` para um status aberto reabre em cascata os dependentes que estavam `feito`; ir de `feito` para `cancelada` não reabre ninguém. Na web: rótulo, cor, chip de filtro, 7ª coluna no quadro, bloco "Canceladas" na página da feature, linha na distribuição por status.
+- **Migração:** o `CHECK` de `tasks.status` inclui `cancelada`. SQLite não altera `CHECK`, então o próximo start recria a tabela `tasks` preservando linhas, ids (inclusive a sequência), dependências, leituras e eventos; o backup diário e o `foreign_key_check` já existentes continuam valendo. Passou a ser uma migração só (`_migrar_tasks_status`): banco antigo vai direto para o `CHECK` final. Cria também a tabela `feature_reads`.
+- **Cliente MCP:** `EStatusTask` ganhou `cancelada`. Quem tem o bridge antigo continua lendo tudo, mas a IA dele não consegue setar o valor até atualizar o `sync-agents-mcp`.
+- **Eventos de feature agora contam como não lidos.** Criar, editar e apagar feature por outra pessoa vira não lido, com uma marca por pessoa e projeto (`feature_reads`). `GET /projetos/{slug}/nao-lidos` passou a devolver `{total, tasks, features?}` (antes era uma lista de tasks); `features` traz `{nao_lidos, ultimo}` e só existe quando há evento de feature não lido. Quem marca lido é `list_features` (`GET /features`); `read_feature` e o próprio `/nao-lidos` não marcam. A web soma esses eventos no sino, no badge do projeto, no painel e nos cards, e o submenu "Features" ganhou contador. O bridge anexa `nao_lidos_features`. Bridge antigo com servidor novo continua funcionando (anexa o objeto novo como `nao_lidos`, mesmo vazio); suba o servidor antes do cliente.
+- **Aviso de não lidos:** `total` informa quantas tasks existem antes do corte de 20 (o bridge anexa `nao_lidos_omitidos`); task com pergunta não lida vem primeiro e, se a pergunta não for o evento mais recente, vem em `pergunta`.
+- **Não lido não vê o histórico de antes da entrada:** quem entra no projeto não recebe tudo como não lido; só conta o que aconteceu depois de `memberships.created_at` (task e feature).
+- **Corrida na marca de lido:** `read_task` marca até o último evento que devolveu, não até o que existe no banco; o que chega durante a leitura segue não lido (idem em `list_features`).
+- **Dono da task:** `PATCH` com `owner_id: null` explícito tira o dono (campo omitido continua sem mexer). A tool `update_task` tira com `owner_id=0` e agora manda só os campos informados. Na tela, o select ganhou "sem dono" e deixou de listar o dono atual duas vezes. Dono precisa ser membro do projeto (antes: id inexistente virava 409 na criação e 500 no update).
+- **Correções:** criar task já `feito` com dependência pendente passa a ser barrado (409); busca (`q`) ignora caixa também fora do ASCII, não trata `%`/`_` como curinga e só olha o corpo atual; `X-Operation-Id` é escopado pelo token de quem chamou; slug de projeto tira acento (`gestao-de-patio`); `owner_id` inválido no form da web e e-mail inválido no cadastro do admin respondem 422 com aviso em vez de 500; na task, erro de edição devolve o select ao valor salvo e o composer só limpa se enviou; sino e contadores da lateral atualizam em tempo real.
+- Testes (`server/tests`, `client/tests`) com `pytest` e `httpx` no grupo `dev`.
+
 ## 3.5.0 — 2026-09-30
 
 Só interface web. Sem mudança de API, de contrato REST, de tools MCP nem de schema.
