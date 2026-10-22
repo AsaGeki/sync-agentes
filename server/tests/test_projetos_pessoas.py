@@ -25,6 +25,7 @@ def test_rotas_de_admin_exigem_token_de_admin(mundo):
     assert c.delete(f"/people/{ana.id}", headers=ana.h).status_code == 401
     assert c.post(f"/people/{ana.id}/token", headers=ana.h).status_code == 401
     assert c.post("/people", json=corpo, headers={"Authorization": f"Basic {ADMIN}"}).status_code == 401
+    assert c.get("/people", headers={"Authorization": f"Bearer {ADMIN}"}).status_code == 400
 
 
 def test_criar_pessoa_validacoes_e_alias(mundo):
@@ -51,7 +52,9 @@ def test_token_reemitido_invalida_o_anterior(mundo):
     novo = mundo.cliente.post(f"/people/{ana.id}/token", headers=mundo.admin).json()["token"]
     assert novo != antigo
     assert mundo.cliente.get("/me", headers={"Authorization": f"Bearer {antigo}"}).status_code == 401
-    assert mundo.cliente.get("/me", headers={"Authorization": f"Bearer {novo}"}).status_code == 200
+    assert mundo.cliente.get(
+        "/me", headers={"Authorization": f"Bearer {novo}", "X-Agent": "claude-code"}
+    ).status_code == 200
 
 
 def test_token_de_pessoa_inexistente_404_e_guarda_so_o_hash(mundo):
@@ -70,7 +73,10 @@ def test_me_e_tokens_malformados(mundo):
     assert c.get("/me", headers={"Authorization": "Bearer"}).status_code == 401
     assert c.get("/me", headers={"Authorization": "Bearer "}).status_code == 401
     assert c.get("/me", headers={"Authorization": ana.token}).status_code == 401
-    assert c.get("/me", headers={"Authorization": f"bearer {ana.token}"}).status_code == 200
+    assert c.get("/me", headers={"Authorization": f"Bearer {ana.token}"}).status_code == 400
+    assert c.get(
+        "/me", headers={"Authorization": f"bearer {ana.token}", "X-Agent": "claude-code"}
+    ).status_code == 200
 
 
 def test_pessoa_sem_token_nao_autentica(mundo):

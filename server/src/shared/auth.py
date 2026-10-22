@@ -19,7 +19,7 @@ from src.modules.people.service import hash_token
 from src.shared.config import ADMIN_TOKEN
 from src.shared.db import conectar
 from src.shared.enums import EAgent
-from src.shared.erros import Unauthorized
+from src.shared.erros import MissingRequirement, Unauthorized
 
 
 @dataclass(frozen=True)
@@ -54,12 +54,21 @@ def resolve_person(authorization: str | None) -> sqlite3.Row:
     return pessoa
 
 
-def exigir_admin(authorization: str | None = Header(None)) -> None:
+def exigir_admin(
+    authorization: str | None = Header(None),
+    x_agent: str | None = Header(None, alias="X-Agent"),
+) -> None:
     validate_admin(authorization)
+    normalizar_agent(x_agent)
 
 
-def pessoa_atual(authorization: str | None = Header(None)) -> sqlite3.Row:
-    return resolve_person(authorization)
+def pessoa_atual(
+    authorization: str | None = Header(None),
+    x_agent: str | None = Header(None, alias="X-Agent"),
+) -> sqlite3.Row:
+    pessoa = resolve_person(authorization)
+    normalizar_agent(x_agent)
+    return pessoa
 
 
 def contexto_git(
@@ -75,12 +84,12 @@ def contexto_git(
 
 
 def normalizar_agent(bruto: str | None) -> EAgent:
-    """Casa o nome que o cliente MCP se dá ('claude-code', 'Codex CLI'...) com um
-    valor conhecido. Desconhecido vira 'outro'."""
-    if not bruto:
-        return EAgent.outro
-    texto = bruto.lower()
-    for agent in (EAgent.claude, EAgent.codex):
-        if agent.value in texto:
-            return agent
-    return EAgent.outro
+    """Reconhece a ferramenta declarada pelo cliente MCP."""
+    texto = bruto.strip().casefold() if bruto else ""
+    if texto in ("claude", "claude-code"):
+        return EAgent.claude
+    if texto in ("codex", "codex cli"):
+        return EAgent.codex
+    if not texto:
+        raise MissingRequirement("X-Agent ausente; informe claude ou codex")
+    raise MissingRequirement(f"X-Agent não reconhecido: {bruto}; informe claude ou codex")

@@ -8,7 +8,7 @@ Bridge MCP local do [sync-agents](https://github.com/AsaGeki/sync-agentes): roda
 uvx sync-agents-mcp
 ```
 
-Não é pra rodar na mão: o app de IA (Claude Code, Cursor, Claude Desktop, VS Code, Codex) executa esse comando como servidor MCP stdio.
+Não é pra rodar na mão: o app de IA (Claude Code, Claude Desktop ou Codex) executa esse comando como servidor MCP stdio. O servidor exige que o cliente se identifique como Claude ou Codex nas chamadas autenticadas.
 
 ## Variáveis de ambiente
 

@@ -219,6 +219,7 @@ def test_stream_exige_token_e_membership(cena):
     c = mundo.cliente
     assert c.get("/stream", params={"projeto": slug}).status_code == 401
     assert c.get("/stream", params={"projeto": slug, "token": "errado"}).status_code == 401
+    assert c.get("/stream", params={"projeto": slug}, headers={"Authorization": ana.h["Authorization"]}).status_code == 400
     assert c.get("/stream", params={"projeto": slug}, headers=intruso.h).status_code == 404
     assert c.get("/stream", params={"projeto": "nada"}, headers=ana.h).status_code == 404
 

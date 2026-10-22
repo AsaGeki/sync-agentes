@@ -69,7 +69,7 @@ class Mundo:
 
     def __init__(self, cliente: TestClient) -> None:
         self.cliente = cliente
-        self.admin = {"Authorization": f"Bearer {ADMIN}"}
+        self.admin = {"Authorization": f"Bearer {ADMIN}", "X-Agent": "claude-code"}
 
     def pessoa(self, nome: str = "Pessoa") -> Pessoa:
         n = next(_contador)

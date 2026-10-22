@@ -3,9 +3,7 @@
 O frame é o mesmo envelope de evento que `/mudancas` devolve - quem consome os
 dois não tem dois formatos pra tratar.
 
-Autenticação é a mesma do REST: token pessoal, no header `Authorization` ou em
-`?token=` para cliente que não manda header. Token inválido ou projeto onde a
-pessoa não é membro recusam a conexão com 403.
+Autenticação exige token pessoal (`Authorization` ou `?token=`) e `X-Agent`.
 """
 
 import asyncio
@@ -17,16 +15,19 @@ from fastapi.responses import StreamingResponse
 from src.modules.events.bus import INSCRITOS
 from src.modules.events.service import envelope
 from src.modules.projects.service import exigir_acesso
-from src.shared.auth import resolve_person
+from src.shared.auth import normalizar_agent, resolve_person
 from src.shared.db import conectar
 from src.shared.erros import DomainError
 
 router = APIRouter()
 
 
-def _autenticar(authorization: str | None, token: str | None, projeto: str) -> int:
+def _autenticar(
+    authorization: str | None, token: str | None, projeto: str, x_agent: str | None
+) -> int:
     cabecalho = authorization or (f"Bearer {token}" if token else None)
     pessoa = resolve_person(cabecalho)
+    normalizar_agent(x_agent)
     conn = conectar()
     try:
         exigir_acesso(conn, projeto, pessoa["id"])
@@ -37,10 +38,13 @@ def _autenticar(authorization: str | None, token: str | None, projeto: str) -> i
 
 @router.get("/stream")
 async def sse_eventos(
-    projeto: str, token: str | None = None, authorization: str | None = Header(None)
+    projeto: str,
+    token: str | None = None,
+    authorization: str | None = Header(None),
+    x_agent: str | None = Header(None, alias="X-Agent"),
 ):
     try:
-        person_id = _autenticar(authorization, token, projeto)
+        person_id = _autenticar(authorization, token, projeto, x_agent)
     except DomainError as erro:
         raise HTTPException(erro.status, str(erro)) from None
 

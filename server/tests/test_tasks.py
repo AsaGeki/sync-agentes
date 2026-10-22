@@ -356,14 +356,17 @@ def test_mensagem_assina_pessoa_e_ferramenta(cena):
     assert ev["payload"] == {"type": "decisao", "texto": "fechado"}
 
 
-def test_agent_desconhecido_vira_outro_e_codex_e_reconhecido(cena):
+def test_agent_desconhecido_e_recusado_e_codex_e_reconhecido(cena):
     mundo, ana, _, slug = cena
     code = mundo.task(ana, slug)
-    for header, esperado in (("Codex CLI", "codex"), ("Cursor", "outro"), ("", "outro")):
+    for header in ("Codex CLI", "Cursor", ""):
         resp = ana.post(
             f"{_t(slug, code)}/mensagens", {"type": "mudanca", "texto": "x"}, headers={"X-Agent": header}
         )
-        assert resp.json()["actor"]["agent"] == esperado
+        if header == "Codex CLI":
+            assert resp.status_code == 201 and resp.json()["actor"]["agent"] == "codex"
+        else:
+            assert resp.status_code == 400
 
 
 # ---------- perguntas abertas ---------- #
@@ -520,6 +523,9 @@ def test_mesmo_operation_id_nao_duplica_a_escrita(cena):
     r1 = ana.post(_t(slug), {"title": "Uma vez"}, headers={"X-Operation-Id": op})
     r2 = ana.post(_t(slug), {"title": "Uma vez"}, headers={"X-Operation-Id": op})
     assert r1.status_code == r2.status_code == 201 and r1.json() == r2.json()
+    assert ana.post(
+        _t(slug), {"title": "Uma vez"}, headers={"X-Operation-Id": op, "X-Agent": ""}
+    ).status_code == 400
     assert len(ana.get(_t(slug)).json()) == 1
 
 

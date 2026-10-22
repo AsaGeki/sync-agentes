@@ -19,6 +19,7 @@ from src.modules.web.admin_routes import router as web_admin_router
 from src.modules.web.erros import resposta_erro_web
 from src.modules.web.routes import router as web_router
 from src.modules.web.templating import PASTA_WEB
+from src.shared.auth import normalizar_agent
 from src.shared.db import BASE_DIR, DB_PATH, conectar, iniciar_banco, now
 from src.shared.erros import DomainError
 
@@ -78,6 +79,11 @@ async def idempotencia(request: Request, call_next):
     operation_id = request.headers.get("X-Operation-Id")
     if not operation_id or request.method not in ("POST", "PUT", "PATCH", "DELETE"):
         return await call_next(request)
+    if not request.url.path.startswith("/web"):
+        try:
+            normalizar_agent(request.headers.get("X-Agent"))
+        except DomainError as erro:
+            return JSONResponse(status_code=erro.status, content={"detail": str(erro)})
     operation_id = hashlib.sha256(
         f"{request.headers.get('Authorization', '')}|{operation_id}".encode()
     ).hexdigest()

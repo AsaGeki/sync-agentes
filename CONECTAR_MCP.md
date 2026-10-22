@@ -1,11 +1,5 @@
 # Conectar ao sync-agents
 
-Você e outra pessoa estão mexendo no mesmo produto, de máquinas diferentes, cada um com sua IA. O sync-agents é o canal onde os dois lados registram o que está acontecendo — tarefas, decisões, perguntas, o diff do que mudou no código — e cada IA lê e escreve nele direto, sem ninguém copiar markdown na mão.
-
-O que muda pra você depois de conectar: **você abre o chat na pasta do projeto e pronto**. A sua IA já sabe em que projeto está (é o repositório git), já sabe assinar com o seu nome, e já recebe o que o outro lado escreveu. Você não digita nome de projeto, não cria usuário, não fica pedindo "dá uma olhada no sync".
-
-Conectar leva uns 5 minutos e é uma vez só por máquina — vale pra todos os seus projetos.
-
 ---
 
 ## Antes de começar
@@ -34,7 +28,7 @@ token:    kR7x2mQp...
 
 O token é seu e pessoal — é ele que diz que foi você quem escreveu. Não passe pra ninguém e não commite em lugar nenhum.
 
-**3. Seu app de IA**: Claude Code, Claude Desktop, Cursor, VS Code com Copilot, Codex — qualquer um que aceite MCP.
+**3. Seu app de IA**: Claude Code ou Codex.
 
 ---
 
@@ -68,108 +62,29 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv --version
 ```
 
-Se imprimiu uma versão, terminou. Se disser que o comando não existe, reabra o terminal de novo — em Windows às vezes precisa de duas.
-
-> **Já tem Python e prefere não instalar o `uv`?** Funciona também:
-> ```bash
-> pip install --user sync-agents-mcp
-> ```
-> Depois, em toda configuração abaixo, troque `uvx sync-agents-mcp` por `sync-agents-mcp`: no JSON, `command` vira `"sync-agents-mcp"` e a linha `args` some.
-
 ---
 
 ## Passo 2 — Ligar no seu app de IA
 
-Ache o seu caso abaixo. Troque **`http://SERVIDOR:8787`** pelo endereço que te passaram e **`SEU-TOKEN`** pelo seu token; o resto vai como está.
+Troque `http://SERVIDOR:8787` pelo endereço recebido e `SEU-TOKEN` pelo seu token.
 
-### Claude Code (terminal ou extensão de IDE)
-
-Uma linha, e serve pra todos os seus projetos:
+### Claude Code
 
 ```bash
 claude mcp add --scope user sync-agents --env SYNC_AGENTS_URL=http://SERVIDOR:8787 --env SYNC_AGENTS_TOKEN=SEU-TOKEN -- uvx sync-agents-mcp
 ```
 
-`--scope user` grava a configuração no seu perfil, fora de qualquer repositório — seu token não corre risco de ir pra um commit.
+Esse comando configura o Claude Code. Para usar o Claude Desktop, configure o MCP nele separadamente; depois, feche e abra o Claude Desktop novamente para carregar a conexão.
 
-Depois de rodar, confira com `claude mcp list`. **A primeira checagem pode falhar** ("Failed to connect" / "Request timed out") - é o `uvx` baixando o pacote a frio na sua máquina, não um problema de configuração. Roda `claude mcp list` de novo: da segunda vez o pacote já está em cache e conecta rápido.
+### Codex
 
-### Cursor
+No terminal, registre o MCP para o Codex:
 
-Crie ou edite `~/.cursor/mcp.json` (no Windows: `C:\Users\SEU-USUARIO\.cursor\mcp.json`):
-
-```json
-{
-  "mcpServers": {
-    "sync-agents": {
-      "command": "uvx",
-      "args": ["sync-agents-mcp"],
-      "env": {
-        "SYNC_AGENTS_URL": "http://SERVIDOR:8787",
-        "SYNC_AGENTS_TOKEN": "SEU-TOKEN"
-      }
-    }
-  }
-}
+```bash
+codex mcp add --env SYNC_AGENTS_URL=http://SERVIDOR:8787 --env SYNC_AGENTS_TOKEN=SEU-TOKEN sync-agents -- uvx sync-agents-mcp
 ```
 
-Reinicie o Cursor.
-
-### VS Code (GitHub Copilot)
-
-Mesmo conteúdo do Cursor, no arquivo `.vscode/mcp.json` dentro do projeto — mas troque `"mcpServers"` por `"servers"`. Como esse arquivo mora no repositório, **não coloque o token ali**: deixe `"SYNC_AGENTS_TOKEN": "${env:SYNC_AGENTS_TOKEN}"` e defina a variável de ambiente na sua máquina.
-
-### Claude Desktop
-
-O Claude Desktop é um chat solto — ele não tem "a pasta do projeto aberta". Então aqui você aponta o repositório na mão, e faz **uma entrada por projeto**.
-
-Edite o arquivo de configuração:
-
-- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
-- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "sync-loja": {
-      "command": "uvx",
-      "args": ["sync-agents-mcp"],
-      "env": {
-        "SYNC_AGENTS_URL": "http://SERVIDOR:8787",
-        "SYNC_AGENTS_TOKEN": "SEU-TOKEN",
-        "SYNC_AGENTS_REPO": "C:\\Users\\voce\\projetos\\loja-api"
-      }
-    }
-  }
-}
-```
-
-`SYNC_AGENTS_REPO` é o caminho da pasta do repositório na sua máquina. No Windows, as barras invertidas vão dobradas (`\\`), como no exemplo. Pra um segundo projeto, adicione outra entrada com outro nome (`"sync-portal"`) e outro caminho.
-
-Reinicie o Claude Desktop.
-
-### Outro app
-
-Qualquer cliente MCP serve. Ele precisa executar este comando:
-
-```
-uvx sync-agents-mcp
-```
-
-com as variáveis `SYNC_AGENTS_URL` e `SYNC_AGENTS_TOKEN` no ambiente, e — se o app não abre uma pasta de projeto — também `SYNC_AGENTS_REPO` apontando o repositório.
-
-### Atualizar ou fixar a versão
-
-O `uvx` guarda o pacote em cache e não busca versão nova sozinho. Pra pegar a mais recente, troque `sync-agents-mcp` por `sync-agents-mcp@latest` no comando (ou no `args` do JSON) uma vez, e volte ao nome simples depois. Pra travar numa versão, use `sync-agents-mcp==0.1.0`.
-
-### Já tinha conectado com o comando antigo?
-
-Se a sua configuração tem `git+https://github.com/AsaGeki/sync-agentes` (o cliente vinha direto do repositório), ela vai parar de funcionar quando o cache do `uv` expirar. Refaça uma vez com o comando novo:
-
-- **Claude Code:** `claude mcp remove sync-agents` e depois o `claude mcp add ...` do começo deste passo.
-- **Cursor, VS Code, Claude Desktop:** no JSON, troque `"args": ["--from", "git+https://github.com/AsaGeki/sync-agentes", "sync-agents-mcp"]` por `"args": ["sync-agents-mcp"]`.
-
-Servidor, token e projetos não mudam.
+Feche e abra o Codex novamente para carregar a conexão.
 
 ---
 
@@ -205,96 +120,3 @@ Se for `private`, primeiro peça acesso:
 > Pede acesso ao projeto X.
 
 Fica pendente até um owner aceitar - só depois dá pra linkar.
-
----
-
-## Como isso funciona no dia a dia
-
-Você conversa com a sua IA normalmente. Quando algo interessa ao outro lado, é ela quem registra:
-
-> "Terminei o endpoint de login, avisa o pessoal no sync."
-
-A IA cria ou atualiza a task e publica o diff do que você mudou — arquivos e tudo. Do outro lado, a IA da outra pessoa recebe isso na próxima coisa que ela fizer, sem ninguém pedir.
-
-Vocabulário que vale conhecer, porque é o que aparece no relatório:
-
-| O quê | Pra quê |
-|---|---|
-| **task** | um assunto. Tem código (`T-001`), status, dono e um texto de referência versionado |
-| **feature** | agrupa tasks de um mesmo assunto maior. Tem código (`F-001`), e o status sai das tasks dela. Opcional |
-| **mudanca** | "fiz isso" |
-| **pergunta** | você travou e precisa do outro lado. Fica listada como pendente até alguém responder |
-| **resposta** | destrava a pergunta da task |
-| **decisao** | "ficou combinado assim" — é o que você quer poder achar daqui a três meses |
-| **bloqueio** | não dá pra seguir, e por quê |
-| **diff** | o que mudou no código entre dois commits, publicado na task |
-
-Pra saber onde tudo está:
-
-> "Me dá o relatório do projeto."
-
-Volta um resumo por task: status atual, o que mudou, em que branch e entre quais commits, e o que está esperando resposta.
-
-**Uma regra que importa:** você só toca nos projetos afiliados ao repositório desta sessão — não existe jeito de a IA alcançar o projeto de outro repositório. O comum é 1 projeto por repositório, mas o mesmo repositório pode servir mais de 1 projeto (times diferentes usando o mesmo código pra assuntos diferentes); nesse caso a IA pergunta qual antes de agir.
-
----
-
-## Deu problema?
-
-| O que aparece | Por quê | O que fazer |
-|---|---|---|
-| "não está dentro de um repositório git" | o chat foi aberto fora da pasta do projeto, ou o repositório ainda não tem nenhum commit | abra o chat na pasta certa; se o repositório é novo, faça o primeiro commit. No Claude Desktop, confira o caminho em `SYNC_AGENTS_REPO` |
-| "SYNC_AGENTS_TOKEN não está no ambiente" | o token não chegou no programa | confira se está escrito certo na configuração e reinicie o app inteiro, não só o chat |
-| "Token não corresponde a nenhuma pessoa cadastrada" | token errado, ou foi gerado outro pra você (gerar um novo cancela o anterior) | peça o token atual pra quem administra |
-| "Servidor inacessível" | o servidor está desligado, o endereço está errado, ou o firewall está bloqueando | confira abrindo `http://SERVIDOR:8787/health` no navegador. Se não abrir, o problema é do servidor ou da rede, não seu |
-| "é privado - peça a um owner pra te adicionar" | o projeto está fechado | peça pra alguém que já está nele te adicionar pelo seu email |
-| `link_repo`/tarefa numa task devolve "Projeto 'X' não existe" mesmo você sabendo que existe | você não é membro - a mensagem não distingue "não existe" de "existe mas você não tem acesso" (de propósito, pra `private` não vazar quem está fechado) | `list_projects` confirma se existe e mostra a visibility; se for `private`, `request_access(project=X)` pede acesso - funciona mesmo com o repositório desta sessão ainda sem nenhum projeto afiliado |
-| `uvx` não é reconhecido | terminal aberto antes da instalação do `uv`, ou instalação incompleta | feche e reabra o terminal (e o app de IA). Confira com `uv --version` |
-| a IA não sabe que o sync existe | o app não carregou o MCP | reinicie o app; no Claude Code, `claude mcp list` mostra se está registrado |
-| tempo real recusado com 403 | token inválido, ou você não é membro desse projeto | confira o token e peça acesso ao projeto se ele for privado |
-
----
-
-## Referência
-
-Precisa de detalhe? Está tudo aqui.
-
-### O que a IA consegue fazer
-
-`status` (onde estou) · `list_projects` · `create_project` · `request_access` · `list_requests` · `approve_request` · `reject_request` · `list_tasks` · `read_task` · `create_task` · `update_task` · `create_feature` · `list_features` · `update_feature` · `send_message` · `update_body` · `read_body_diff` · `publish_diff` · `list_diffs` · `read_changes` · `read_report` · `list_members` · `add_member` · `update_project` · `link_repo`
-
-Todas aceitam `project` (slug) opcional. Com 1 projeto só afiliado ao repositório, pode omitir. Com mais de 1, é obrigatório — chamar sem devolve a lista de candidatos em vez de adivinhar. Toda resposta traz `novidades` quando o outro lado escreveu algo desde a última chamada — é por isso que ninguém precisa mandar sincronizar.
-
-As regras de conduta do canal (quando usar cada tipo de mensagem, não reescrever o texto do outro lado, mandar o corpo sempre inteiro) vêm nas instruções do próprio servidor MCP: todo cliente mostra isso pra IA assim que ela conecta, então você não precisa repassar nada.
-
-### Modelo de dados
-
-- **`people`** — quem escreve. O email é a chave e a parte antes do `@` vira o `alias` da assinatura. **A IA não é um cadastro**: quem assina é sempre uma pessoa, e a ferramenta usada (claude, codex, cursor) fica no campo `agent` do evento.
-- **`projects`** — criado explícito por `create_project` (repositório desconhecido não cria projeto sozinho, devolve 404), ligado ao repositório pelo sha do commit raiz (igual em todo clone, não muda se a pasta for renomeada). A relação é N-pra-N: um projeto pode ter mais de um repositório (`link_repo` junta frontend e backend no mesmo canal) e o mesmo repositório pode estar em mais de um projeto (times diferentes usando o mesmo código pra assuntos diferentes) - nesse caso as tools pedem `project=<slug>`. A lista de projetos (`list_projects`/`GET /projetos`) é pública - todo mundo vê que um projeto existe; ler e escrever o conteúdo dele (tasks, corpo, eventos) continua exigindo membership.
-- **`memberships`** — quem tem acesso de escrita, como `owner` ou `member`. Projeto `team` deixa quem tem o repositório entrar sozinho; projeto `private` exige pedido (`request_access`) que um owner aceita ou recusa (`list_requests`/aceitar/recusar).
-- **`features`** — agrupador opcional de tasks, endereçado por `code` (`F-001`). Não tem status próprio: sai das tasks dela. Apagar feature deixa as tasks avulsas.
-- **`tasks`** — assunto, endereçado por `code` (`T-001`), com corpo versionado (cada atualização gera diff contra a anterior). Pode pertencer a uma feature (opcional).
-- **`events`** — a trilha de tudo, carimbada com quem, qual ferramenta, qual branch e qual commit. É dela que saem "o que mudou desde X", o relatório e a notificação em tempo real.
-
-Todo evento chega no mesmo formato, seja pela API, pelo tempo real ou pelo relatório:
-
-```json
-{
-  "seq": 42,
-  "kind": "diff.published",
-  "created_at": "2026-09-09T14:03:00-03:00",
-  "project": "loja-api",
-  "task": "T-003",
-  "feature": null,
-  "actor": { "person": "arthur.macedo", "name": "Arthur", "agent": "claude" },
-  "git": { "branch": "feat/T-003-login", "commit": "d4e5f6a" },
-  "payload": { "base_sha": "a1b2c3d", "head_sha": "d4e5f6a", "arquivos": ["src/auth.py"] },
-  "resumo": "[loja-api] T-003 · arthur.macedo · claude (feat/T-003-login) · diff a1b2c3d..d4e5f6a: 1 arquivo(s)"
-}
-```
-
-`kind` é um destes: `task.created`, `task.field_changed`, `body.updated`, `message.created`, `diff.published`, `feature.created`, `feature.field_changed`, `feature.deleted`. O `agent` é `claude`, `codex`, `human` ou `outro`.
-
-### Sem MCP, ou pra montar uma tela
-
-O mesmo contrato existe como API REST, navegável em `http://SERVIDOR:8787/docs`, com o seu token no cabeçalho `Authorization: Bearer`. Pra acompanhar em tempo real fora de um agente, `GET /stream` (SSE) manda o mesmo envelope acima. `GET /health` diz a versão no ar; `GET /changelog` traz o histórico de mudanças de contrato.
