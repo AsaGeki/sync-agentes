@@ -39,6 +39,8 @@ O banco (`sync.db`) fica em `server/`. Variável obrigatória em `.env`: `ADMIN_
 
 Quer ligar sua IA no canal? Veja [`CONECTAR_MCP.md`](CONECTAR_MCP.md).
 
+Para exportar um projeto para o Project Tasks MCP, consulte [`docs/EXPORTAR_PROJECT_TASKS.md`](docs/EXPORTAR_PROJECT_TASKS.md).
+
 ## Sobre
 
 Comecei este projeto depois de uma conversa sobre como duas IAs — cada uma do seu lado, cada uma com seu dev — acabam se desalinhando sem um canal comum. Queria algo que não dependesse de copiar markdown na mão nem de lembrar de avisar o outro lado.

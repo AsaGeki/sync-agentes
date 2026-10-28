@@ -139,6 +139,25 @@
     <aside class="painel-lateral">
       <section class="cartao painel-cartao">
         <header class="painel-card-cabeca painel-card-cabeca-simples">
+          <div><h2>Exportar projeto</h2><p class="painel-card-desc">Baixe os dados para importar no Project Tasks MCP.</p></div>
+        </header>
+        {% if p.repos %}
+        <form action="{{ url_p }}/exportar" method="post" hx-boost="false">
+          <label for="exportar-repositorio">Repositório padrão das tasks</label>
+          <select id="exportar-repositorio" name="repositorio" required>
+            <option value="" selected disabled>Escolha um repositório</option>
+            {% for r in p.repos %}<option value="{{ r.root_sha }}">{{ r.name }}</option>{% endfor %}
+          </select>
+          <p class="mudo">Todas as tasks serão vinculadas ao repositório escolhido no destino.</p>
+          {% if projeto['visibility'] == 'team' %}<p class="mudo">No destino, a visibilidade será pública. Revise os acessos após importar.</p>{% endif %}
+          <button type="submit">Baixar JSON</button>
+        </form>
+        {% else %}
+        <p class="mudo">Vincule um repositório ao projeto para exportar.</p>
+        {% endif %}
+      </section>
+      <section class="cartao painel-cartao">
+        <header class="painel-card-cabeca painel-card-cabeca-simples">
           <div><h2>Tasks por status</h2><p class="painel-card-desc">{{ p.total_tasks + p.canceladas }} tasks no projeto{% if p.canceladas %}, {{ p.canceladas }} cancelada(s) fora do progresso{% endif %}.</p></div>
         </header>
         {% if p.total_tasks + p.canceladas %}

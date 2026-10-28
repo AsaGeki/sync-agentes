@@ -11,7 +11,7 @@ from src.modules.people import service as people_service
 from src.modules.people.models import PersonPatch, PessoaIn
 from src.modules.projects import repositorio as projects_repositorio
 from src.modules.projects import service as projects_service
-from src.modules.web import indicadores, paginas
+from src.modules.web import exportacao, indicadores, paginas
 from src.modules.web.auth import COOKIE_ADMIN, admin_web, apagar_cookie, gravar_cookie
 from src.modules.web.filtros import filtros_atividade, filtros_tasks
 from src.modules.web.paginas import FEATURE_STATUSES
@@ -143,6 +143,14 @@ def painel(request: Request, slug: str, por: str = Query("pessoa", pattern="^(pe
         pedidos = projects_repositorio.pending_requests_do_projeto(conn, projeto["id"])
         nav = paginas.ctx_nav(conn, None)
     return templates.TemplateResponse(request, "painel.html", {**ctx, "pedidos": pedidos, "nav": nav})
+
+
+@protegido.post("/web/admin/p/{slug}/exportar")
+def exportar_projeto(slug: str, repositorio: str = Form(...)):
+    with closing(conectar()) as conn:
+        conn.execute("BEGIN")
+        projeto = projects_repositorio.find_by_slug(conn, slug)
+        return exportacao.baixar_projeto(conn, projeto, repositorio)
 
 
 @protegido.post("/web/admin/p/{slug}/membros")

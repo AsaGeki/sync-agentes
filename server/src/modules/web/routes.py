@@ -13,7 +13,7 @@ from src.modules.events.bus import INSCRITOS
 from src.modules.projects.service import exigir_acesso
 from src.modules.tasks import service as tasks_service
 from src.modules.tasks.models import MensagemIn, TaskPatch
-from src.modules.web import indicadores, paginas
+from src.modules.web import exportacao, indicadores, paginas
 from src.modules.web.auth import COOKIE_PESSOA, apagar_cookie, gravar_cookie, pessoa_web
 from src.modules.web.filtros import filtros_atividade, filtros_tasks
 from src.modules.web.paginas import FEATURE_STATUSES
@@ -86,6 +86,14 @@ def painel(
         ctx = paginas.ctx_painel(conn, projeto, pessoa["id"], por)
         nav = paginas.ctx_nav(conn, pessoa["id"])
     return templates.TemplateResponse(request, "painel.html", {"pessoa": pessoa, "nav": nav, **ctx})
+
+
+@router.post("/web/p/{slug}/exportar")
+def exportar_projeto(slug: str, repositorio: str = Form(...), pessoa: sqlite3.Row = Depends(pessoa_web)):
+    with closing(conectar()) as conn:
+        conn.execute("BEGIN")
+        projeto = exigir_acesso(conn, slug, pessoa["id"])
+        return exportacao.baixar_projeto(conn, projeto, repositorio)
 
 
 @router.get("/web/p/{slug}/tasks")

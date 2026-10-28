@@ -88,7 +88,7 @@ def normalizar_agent(bruto: str | None) -> EAgent:
     texto = bruto.strip().casefold() if bruto else ""
     if texto in ("claude", "claude-code"):
         return EAgent.claude
-    if texto in ("codex", "codex cli"):
+    if texto in ("codex", "codex cli", "codex-mcp-client"):
         return EAgent.codex
     if not texto:
         raise MissingRequirement("X-Agent ausente; informe claude ou codex")

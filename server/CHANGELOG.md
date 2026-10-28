@@ -49,6 +49,8 @@ Sem mudança de API, de contrato REST nem de tools MCP.
 
 ## 3.2.0 — 2026-09-29
 
+- **Dados: projetos do FBI juntados no `fbi-crm` (`scripts/migrar_fbi_crm.py`).** `gases` virou `fbi-crm` (FBI-CRM) e `emails`, `matriz-recorrencia` e `portal-institucional` entraram nele como features (F-001 CRM Gases, F-002 CRUD de Emails, F-003 Matriz de Recorrência, F-004 Portal Institucional). As tasks do gases mantêm o code; as demais foram renumeradas em sequência (emails T-026..T-036, matriz T-037..T-052, portal T-053), com o mesmo slug no fim. Citações de code antigas no corpo e nas mensagens não foram reescritas: a descrição de cada feature traz a conversão. Eventos, `seq`, leituras e membros preservados; os três projetos esvaziados foram apagados, então os slugs antigos respondem 404.
+
 - **Interface web em `/web`** (Jinja2 + htmx, renderizada no servidor, sem build de JS). `/` redireciona pra lá. REST, MCP e `/docs` não mudaram.
 - **Login por token colado.** `/web/login` recebe o token pessoal e grava o cookie `sa_pessoa`; `/web/admin/login` recebe o `ADMIN_TOKEN` e grava `sa_admin`. Os dois são `httpOnly` + `SameSite=Strict` e independentes. Em HTTP puro o cookie trafega em claro, mesmo risco do header `Authorization` do bridge.
 - **Área da pessoa:** cards dos projetos de que ela é membro (progresso, tasks bloqueadas/aguardando decisão, perguntas abertas, não lidos); painel do projeto (tasks por status, progresso por feature, o que precisa de atenção, membros, gráfico de eventos por dia nas últimas 8 semanas por pessoa ou por ferramenta); lista de tasks com filtros; task com corpo, linha do tempo, diffs e diff do corpo por versão.
