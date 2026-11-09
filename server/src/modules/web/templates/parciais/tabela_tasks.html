@@ -15,9 +15,9 @@
         <th scope="col"><button type="button" class="data-table-sort" data-table-sort="title" aria-label="Ordenar por título">Título</button></th>
         <th scope="col"><button type="button" class="data-table-sort" data-table-sort="status" aria-label="Ordenar por status">Status</button></th>
         <th scope="col"><button type="button" class="data-table-sort" data-table-sort="owner" aria-label="Ordenar por responsável">Dono</button></th>
-        <th scope="col"><button type="button" class="data-table-sort" data-table-sort="tags" aria-label="Ordenar por tags">Tags</button></th>
-        <th scope="col"><button type="button" class="data-table-sort" data-table-sort="updated" aria-label="Ordenar por data de atualização">Atualizada</button></th>
-        <th scope="col"><button type="button" class="data-table-sort" data-table-sort="progress" aria-label="Ordenar por progresso">Progresso</button></th>
+        <th scope="col" class="col-tags"><button type="button" class="data-table-sort" data-table-sort="tags" aria-label="Ordenar por tags">Tags</button></th>
+        <th scope="col" class="col-data"><button type="button" class="data-table-sort" data-table-sort="updated" aria-label="Ordenar por data de atualização">Atualizada</button></th>
+        <th scope="col" class="col-progresso"><button type="button" class="data-table-sort" data-table-sort="progress" aria-label="Ordenar por progresso">Progresso</button></th>
       </tr></thead>
       <tbody>
         {% for t in tasks %}
@@ -32,8 +32,8 @@
             <td data-sort-key="status" data-sort-value="{{ t.status }}">{{ status_pill(t.status) }}{{ selo_fazendo(t) }}</td>
             <td data-sort-key="owner" data-sort-value="{{ (t.owner or '')|lower }}">{% if t.owner %}<span class="dono">{{ avatar(t.owner, t.owner, 'pequeno') }}<span class="dono-nome">{{ t.owner }}</span></span>{% else %}<span class="mudo">—</span>{% endif %}</td>
             <td class="col-tags" data-sort-key="tags" data-sort-value="{{ t.tags|join(' ')|lower }}" title="{{ t.tags|join(', ') }}"><span class="tags-list">{% for tag in t.tags[:3] %}<span class="etiqueta">{{ tag }}</span>{% endfor %}{% if t.tags|length > 3 %}<span class="mudo">+{{ t.tags|length - 3 }}</span>{% endif %}</span></td>
-            <td class="mudo sem-quebra" data-sort-key="updated" data-sort-value="{{ t.updated_at }}">{{ t.updated_at|relativo }}</td>
-            <td data-sort-key="progress" data-sort-value="{{ progresso }}">
+            <td class="mudo sem-quebra col-data" data-sort-key="updated" data-sort-value="{{ t.updated_at }}">{{ t.updated_at|relativo }}</td>
+            <td class="col-progresso" data-sort-key="progress" data-sort-value="{{ progresso }}">
               <span class="progresso-status" title="Estimativa do fluxo pelo status: {{ ROTULO_STATUS[t.status] }}">
                 <span class="progresso-trilho" role="progressbar" aria-label="Progresso estimado pelo status {{ ROTULO_STATUS[t.status] }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ progresso }}"><span class="progresso-fill st-{{ t.status }}" style="width: {{ progresso }}%"></span></span>
                 <span class="progresso-valor">{{ progresso }}%</span>

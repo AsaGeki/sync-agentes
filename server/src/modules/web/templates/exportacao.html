@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block titulo %}Exportar {{ projeto['name'] }} · sync-agents{% endblock %}
+{% block conteudo %}
+<nav class="trilha exportacao-trilha" aria-label="Você está em"><a href="{{ base }}/p/{{ projeto['slug'] }}">{{ projeto['name'] }}</a><span>/</span><span class="atual">Exportar projeto</span></nav>
+<div class="exportacao">
+  <header class="exportacao-cabeca">
+    <h1>Preparar exportação</h1>
+    <p>Escolha o repositório de cada task de <strong>{{ projeto['name'] }}</strong>. Depois, baixe o arquivo para importar no Project Tasks MCP.</p>
+    {% if projeto['visibility'] == 'public' %}<p class="exportacao-aviso">A visibilidade será pública no destino. Revise os acessos após importar.</p>{% endif %}
+  </header>
+  {% if not repos %}
+  <p>Vincule um repositório ao projeto para exportar.</p>
+  {% else %}
+  <form method="post" action="{{ base }}/p/{{ projeto['slug'] }}/exportar" hx-boost="false" id="exportacao-form">
+    <input type="hidden" name="snapshot" value="{{ snapshot }}">
+    <section class="exportacao-progresso" aria-labelledby="progresso-titulo">
+      <div class="exportacao-progresso-cabeca"><div><h2 id="progresso-titulo">Progresso da revisão</h2><p id="exportacao-progresso-texto" aria-live="polite">{{ tasks|length }} tasks precisam de repositório.</p></div><button type="submit" class="primario">Baixar JSON</button></div>
+      <div class="exportacao-barra" role="progressbar" aria-label="Tasks com repositório" aria-valuemin="0" aria-valuemax="{{ tasks|length }}" aria-valuenow="0"><span></span></div>
+      <p id="exportacao-contagens" class="exportacao-distribuicao"></p>
+      <p id="exportacao-download-ajuda" class="mudo">O download estará disponível quando todas as tasks tiverem um repositório.</p>
+    </section>
+
+    <section class="exportacao-controles" data-exportacao-controles hidden aria-label="Filtros e atribuição em lote">
+      <div class="exportacao-filtros">
+        <div class="exportacao-secao-titulo"><h2>Encontrar tasks</h2><button type="button" class="link" id="limpar-filtros">Limpar filtros</button></div>
+        <p>Filtre a lista para revisar um grupo de cada vez.</p>
+        <div class="exportacao-campos">
+          <div><label for="filtro-situacao">Situação</label><select id="filtro-situacao"><option value="pendentes">Sem repositório</option><option value="todas">Todas as tasks</option><option value="atribuidas">Com repositório</option><option value="sugestoes">Com sugestão pendente</option></select></div>
+          <div><label for="filtro-tag">Tag</label><select id="filtro-tag"><option value="">Todas as tags</option>{% for tag in tags %}<option value="{{ tag }}">{{ tag }}</option>{% endfor %}</select></div>
+          <div><label for="filtro-feature">Feature</label><select id="filtro-feature"><option value="">Todas as features</option><option value="avulsa">Sem feature</option>{% for f in features %}<option value="{{ f.id }}">{{ f.title }}</option>{% endfor %}</select></div>
+        </div>
+      </div>
+      <div class="exportacao-lote">
+        <h2>Atribuir em lote</h2>
+        <p>As ações abaixo afetam somente as tasks mostradas na lista.</p>
+        <div class="exportacao-lote-linha"><div><label for="repo-lote">Repositório</label><select id="repo-lote"><option value="">Escolha um repositório</option>{% for r in repos %}<option value="{{ r.root_sha }}">{{ r.name }}</option>{% endfor %}</select></div><button type="button" id="aplicar-lote">Atribuir repositório</button></div>
+        <label class="exportacao-checkbox"><input type="checkbox" id="sobrescrever"> Incluir tasks que já têm repositório</label>
+        <div class="exportacao-sugestoes-lote"><button type="button" id="aplicar-sugestoes">Aceitar sugestões</button><span>Preenche apenas tasks sem repositório.</span></div>
+        <p id="exportacao-acao" class="exportacao-acao" role="status"></p>
+      </div>
+    </section>
+
+    <div class="exportacao-lista-cabeca"><div><h2>Tasks do projeto</h2><p id="exportacao-visiveis">{{ tasks|length }} tasks na lista</p></div><span class="mudo">As sugestões precisam da sua confirmação.</span></div>
+    <div class="exportacao-lista">
+    {% for t in tasks %}
+      <article class="exportacao-task" data-task data-tags="{{ t.tags|tojson|forceescape }}" data-feature="{{ t.feature_id if t.feature_id else 'avulsa' }}" data-sugestao="{{ t.sugestao }}">
+        <div class="exportacao-task-info">
+          <div class="exportacao-task-meta"><code>{{ t.code }}</code><span class="exportacao-status" data-status>Sem repositório</span></div>
+          <h3>{{ t.title }}</h3>
+          <p class="exportacao-task-feature">{{ t.feature or 'Sem feature' }}</p>
+          {% if t.tags %}<div class="exportacao-tags" aria-label="Tags">{% for tag in t.tags %}<span>{{ tag }}</span>{% endfor %}</div>{% endif %}
+          {% if t.motivo %}<p class="exportacao-sugestao">Sugestão: {{ t.motivo }}.</p>{% endif %}
+        </div>
+        <div class="exportacao-task-escolha"><label for="repo-task-{{ t.id }}">Repositório desta task</label><select id="repo-task-{{ t.id }}" name="task_{{ t.id }}" required><option value="">Selecione um repositório</option>{% for r in repos %}<option value="{{ r.root_sha }}">{{ r.name }}</option>{% endfor %}</select></div>
+      </article>
+    {% endfor %}
+    </div>
+    <div id="exportacao-vazio" class="exportacao-vazio" hidden><strong>Nenhuma task nesta lista.</strong><p>Altere ou limpe os filtros para ver outras tasks.</p></div>
+  </form>
+  <script src="/web/static/exportacao.js" defer></script>
+  {% endif %}
+</div>
+{% endblock %}

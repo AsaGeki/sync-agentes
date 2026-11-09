@@ -87,6 +87,55 @@ h3 { font-size: 0.9rem; margin: 14px 0 6px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .espaco { flex: 1; }
 .sem-quebra { white-space: nowrap; }
+.exportacao { max-width: 1160px; padding-bottom: 48px; }
+.exportacao-trilha a { display: inline-flex; align-items: center; min-height: 44px; }
+.exportacao-cabeca { max-width: 75ch; margin: 8px 0 28px; }
+.exportacao-cabeca h1 { font-size: 1.65rem; }
+.exportacao-cabeca p { margin: 10px 0 0; color: var(--tinta-2); }
+.exportacao-cabeca .exportacao-aviso { color: var(--tinta); padding: 10px 14px; background: var(--lavado); border-radius: var(--raio); }
+.exportacao-progresso { padding: 22px 24px; border: 1px solid var(--borda); border-radius: var(--raio); background: var(--superficie); }
+.exportacao-progresso-cabeca, .exportacao-secao-titulo, .exportacao-lista-cabeca { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
+.exportacao-progresso h2, .exportacao-controles h2, .exportacao-lista-cabeca h2 { font-size: 1rem; margin: 0 0 4px; }
+.exportacao-progresso p, .exportacao-controles p, .exportacao-lista-cabeca p { margin: 0; }
+.exportacao-barra { height: 7px; margin: 18px 0 12px; overflow: hidden; background: var(--grade); border-radius: 8px; }
+.exportacao-barra span { display: block; width: 0; height: 100%; background: var(--acento); }
+.exportacao-distribuicao { color: var(--tinta-2); overflow-wrap: anywhere; }
+.exportacao-progresso #exportacao-download-ajuda { margin-top: 8px; }
+.exportacao-controles { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 28px; padding: 24px; border: 1px solid var(--borda); border-radius: var(--raio); background: var(--superficie); }
+.exportacao-controles[hidden], .exportacao-task[hidden] { display: none; }
+.exportacao-controles p { color: var(--tinta-2); }
+.exportacao-controles label, .exportacao-task label { display: block; margin-bottom: 6px; font-weight: 600; }
+.exportacao button, .exportacao select { min-height: 44px; }
+.exportacao button.primario { background: #205fae; border-color: #205fae; }
+.exportacao #limpar-filtros { padding: 0 8px; color: var(--tinta-2); }
+.exportacao-campos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+.exportacao-campos > div:first-child { grid-column: 1 / -1; }
+.exportacao-controles select, .exportacao-task select { width: 100%; min-width: 0; }
+.exportacao-lote { border-left: 1px solid var(--borda); padding-left: 28px; }
+.exportacao-lote-linha { display: flex; align-items: end; gap: 10px; margin-top: 18px; }
+.exportacao-lote-linha > div { flex: 1; min-width: 0; }
+.exportacao-lote .exportacao-checkbox { display: flex; gap: 8px; align-items: center; min-height: 44px; margin: 8px 0 12px; font-weight: normal; cursor: pointer; }
+.exportacao-checkbox input { width: 20px; height: 20px; margin: 0; }
+.exportacao-sugestoes-lote { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; color: var(--tinta-2); }
+.exportacao-lote .exportacao-acao { min-height: 1.5em; margin-top: 12px; color: var(--tinta); }
+.exportacao-lista-cabeca { align-items: end; margin: 34px 0 14px; }
+.exportacao-lista-cabeca p { color: var(--tinta-2); }
+.exportacao-lista { display: grid; gap: 10px; max-height: 68dvh; overflow-y: auto; padding-right: 6px; overscroll-behavior: contain; }
+.exportacao-task { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 280px); gap: 20px; padding: 12px 16px; border: 1px solid var(--borda); border-radius: var(--raio); background: var(--superficie); }
+.exportacao-task-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.exportacao-task-meta code { font-weight: 700; color: var(--tinta-2); }
+.exportacao-status { padding: 2px 9px; border-radius: 100px; background: var(--lavado); color: var(--tinta); font-size: 12px; font-weight: 600; }
+.exportacao-task.atribuida .exportacao-status { background: var(--acento-claro); }
+.exportacao-task h3 { font-size: 1rem; line-height: 1.4; margin: 10px 0 4px; overflow-wrap: anywhere; }
+.exportacao-task-feature { margin: 0; color: var(--tinta-2); }
+.exportacao-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.exportacao-tags span { padding: 2px 8px; border: 1px solid var(--borda); border-radius: 4px; color: var(--tinta-2); font-size: 12px; }
+.exportacao-sugestao { margin: 12px 0 0; color: var(--tinta-2); }
+.exportacao-vazio { padding: 26px; border: 1px dashed var(--borda); border-radius: var(--raio); color: var(--tinta-2); }
+.exportacao-vazio p { margin: 4px 0 0; }
+.exportacao button:disabled { cursor: not-allowed; }
+@media (max-width: 850px) { .exportacao-controles { grid-template-columns: 1fr; } .exportacao-lote { border-left: 0; border-top: 1px solid var(--borda); padding: 24px 0 0; } }
+@media (max-width: 640px) { .exportacao-task { grid-template-columns: minmax(0, 1fr); gap: 18px; } .exportacao-progresso-cabeca, .exportacao-lista-cabeca { flex-direction: column; align-items: start; } .exportacao-lote-linha { align-items: stretch; flex-direction: column; } .exportacao-campos { grid-template-columns: 1fr; } }
 .icone { flex: none; vertical-align: -3px; }
 
 /* ---------- estrutura ---------- */
@@ -251,7 +300,7 @@ button[disabled] { opacity: 0.6; cursor: progress; }
 
 /* ---------- painel ---------- */
 
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 22px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(176px, 1fr)); gap: 14px; margin-bottom: 22px; }
 .tile {
   display: flex; flex-direction: column; gap: 7px; color: var(--tinta); text-decoration: none;
   background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); padding: 17px 18px;
@@ -290,7 +339,7 @@ a.tile:hover { border-color: var(--acento); text-decoration: none; }
 }
 
 .painel-grade { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 350px); gap: 20px; align-items: start; }
-.painel-principal, .painel-lateral { display: grid; gap: 16px; min-width: 0; }
+.painel-principal, .painel-lateral { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
 .painel-cartao { min-width: 0; margin: 0; padding: 20px; }
 .painel-card-cabeca { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
 .painel-card-cabeca h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: .95rem; }
@@ -316,10 +365,24 @@ a.tile:hover { border-color: var(--acento); text-decoration: none; }
 .lista-status li:last-child { border-bottom: 0; }
 .lista-status a { text-decoration: none; }
 .numero { font-variant-numeric: tabular-nums; text-align: right; }
-.lista-features li { padding: 11px 0; border-bottom: 1px solid var(--grade); }
+/* Lista de features do painel: linha compacta (título em 1 linha, barra e contagem) e, passando de ~8, rola por dentro. */
+.painel-lista-features { max-height: 25rem; overflow-y: auto; scrollbar-gutter: stable; }
+.lista-features li { padding: 8px 0; border-bottom: 1px solid var(--grade); }
+.painel-lista-features .linha a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.painel-lista-features .linha .mudo { flex: none; }
+
 .lista-features li:last-child { border-bottom: 0; }
 .lista-features .linha { display: flex; justify-content: space-between; gap: 12px; }
 .lista-lateral li { display: flex; align-items: center; gap: 8px; padding: 7px 0; flex-wrap: wrap; }
+/* Lista de membros: nome e etiquetas numa linha, controles na de baixo, sempre alinhados; passa de 6 pessoas, rola por dentro em vez de alongar a página. */
+.lista-membros { max-height: 21rem; overflow-y: auto; scrollbar-gutter: stable; }
+.lista-membros li { display: block; padding: 8px 0; border-bottom: 1px solid var(--grade); }
+.lista-membros li:last-child { border-bottom: 0; }
+.lista-membros .membro-nome { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; min-width: 0; }
+.lista-membros .membro-texto { overflow-wrap: anywhere; }
+.lista-membros .membro-controles { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.lista-membros .membro-papel { height: 30px; font-size: 12px; padding: 0 6px; }
+.lista-membros .membro-acao { height: 30px; font-size: 12px; margin-left: auto; }
 .lista-atencao li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--grade); }
 .lista-atencao li:last-child { border-bottom: 0; }
 .lista-atencao .status, .lista-atencao .tipo { flex: none; min-width: 124px; }
@@ -483,6 +546,7 @@ a.tile:hover { border-color: var(--acento); text-decoration: none; }
 .grupo-titulo { display: inline; margin: 0; font-size: 1rem; }
 .grupo-feature .tabela, .grupo-status .tabela { margin: 0; }
 .data-table-shell { margin-bottom: 12px; padding: 0 18px; overflow: hidden; background: transparent; border: 0; border-radius: 0; }
+.data-table-shell { container-type: inline-size; }
 .tabela-rolagem { overflow-x: auto; border-radius: 6px; }
 .data-table-shell .tabela-tasks { table-layout: fixed; width: 100%; min-width: 1120px; border: 0; border-radius: 6px; }
 .data-table-shell .tabela-tasks th { position: relative; height: 40px; padding: 6px 12px; background: var(--lavado); }
@@ -558,9 +622,10 @@ a.tile:hover { border-color: var(--acento); text-decoration: none; }
 #lista { overflow-x: auto; }
 .acoes { white-space: nowrap; }
 
-.quadro { display: grid; grid-template-columns: repeat(7, minmax(170px, 1fr)); gap: 12px; align-items: start; overflow-x: auto; padding-bottom: 8px; }
-.coluna-quadro { background: var(--lavado); border-radius: var(--raio); padding: 8px; display: flex; flex-direction: column; gap: 8px; min-height: 120px; }
-.coluna-quadro > header { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 2px 4px; font-weight: 600; }
+.quadro { display: grid; grid-template-columns: repeat(7, minmax(236px, 1fr)); gap: 12px; align-items: start; overflow-x: auto; padding-bottom: 8px; }
+/* Cada coluna rola por dentro (cabeçalho fixo): com centenas de tasks o quadro não alonga a página. */
+.coluna-quadro { background: var(--lavado); border-radius: var(--raio); padding: 8px; display: flex; flex-direction: column; gap: 8px; min-height: 120px; max-height: max(20rem, calc(100dvh - 15rem)); overflow-y: auto; overscroll-behavior: contain; }
+.coluna-quadro > header { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 4px; font-weight: 600; position: sticky; top: -8px; margin: -8px -8px 0; padding: 10px 12px 6px; background: var(--lavado); z-index: 1; }
 .cartao-task {
   display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; color: var(--tinta); text-decoration: none;
   background: var(--superficie); border: 1px solid var(--borda); border-radius: 6px;
@@ -761,7 +826,7 @@ details summary { cursor: pointer; }
 }
 .sidebar-brand-copy, .sidebar-user-copy { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
 .sidebar-brand-copy strong { overflow: hidden; font-size: 13px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.sidebar-brand-copy small, .sidebar-user-copy small { margin-top: 3px; color: var(--mudo); font-size: 11px; }
+.sidebar-user-copy small { margin-top: 3px; color: var(--mudo); font-size: 11px; }
 .sidebar-header-toggle, .sidebar-trigger {
   display: inline-flex;
   align-items: center;
@@ -792,11 +857,6 @@ details summary { cursor: pointer; }
   font-weight: 600;
   line-height: 1.2;
 }
-.sidebar-section-summary { list-style: none; cursor: pointer; border-radius: 6px; }
-.sidebar-section-summary::-webkit-details-marker { display: none; }
-.sidebar-section-summary:hover { color: var(--tinta-2); background: var(--hover); }
-.sidebar-section-summary svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; transition: transform 160ms ease; }
-.sidebar-project-section:not([open]) .sidebar-section-summary svg { transform: rotate(-90deg); }
 .sidebar-menu { display: flex; flex-direction: column; gap: 1px; margin-top: 3px; }
 .sidebar-link {
   display: flex;
@@ -814,7 +874,7 @@ details summary { cursor: pointer; }
 }
 .sidebar-link:hover { color: var(--tinta); text-decoration: none; background: var(--hover); }
 .sidebar-link[aria-current="page"] { color: var(--tinta); font-weight: 600; background: var(--hover); }
-.sidebar-link:focus-visible, .sidebar-brand:focus-visible, .sidebar-section-summary:focus-visible,
+.sidebar-link:focus-visible, .sidebar-brand:focus-visible,
 .sidebar-user-trigger:focus-visible, .sidebar-user-popover a:focus-visible, .sidebar-user-popover button:focus-visible {
   outline: 2px solid var(--acento);
   outline-offset: 2px;
@@ -894,9 +954,6 @@ details summary { cursor: pointer; }
   border-radius: 10px;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
 }
-.sidebar-user-heading { display: flex; flex-direction: column; gap: 2px; padding: 8px 9px 9px; }
-.sidebar-user-heading strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.sidebar-user-heading span { overflow: hidden; color: var(--mudo); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-user-divider { height: 1px; margin: 4px 3px; background: var(--grade); }
 .sidebar-user-popover a, .sidebar-user-popover form button {
   display: flex;
@@ -1096,6 +1153,39 @@ body.sidebar-drawer-aberto { overflow: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app.com-lateral, .sidebar, .sidebar-link, .sidebar-section-summary svg { transition-duration: 0.01ms !important; }
+  .app.com-lateral, .sidebar, .sidebar-link { transition-duration: 0.01ms !important; }
   .sidebar-topbar-notifications.tem-notificacoes .icone { animation: none; }
+}
+/* Tabela dentro de card: rola na horizontal em vez de ser cortada em tela estreita. */
+.tabela-rolavel { overflow: auto; max-width: 100%; max-height: 18rem; }
+/* Contêiner estreito (notebook, card de feature): Tags e Progresso saem da tabela em vez de forçar rolagem horizontal. */
+@container (max-width: 1120px) {
+  .data-table-shell .tabela-tasks { min-width: 780px; }
+  .tabela-tasks .col-tags, .tabela-tasks .col-progresso, .tabela-tasks .c-tags, .tabela-tasks .c-progresso { display: none; }
+}
+/* Toque: botões de ordenar e de paginação com área de pelo menos 40px em tela estreita. */
+@media (max-width: 700px) {
+  .data-table-sort { min-height: 40px; }
+  .data-table-footer select, .data-table-pagination button { min-height: 40px; }
+}
+/* Atividade: o feed rola dentro do próprio card (o "carregar mais" fica no fim dele), então a página não cresce a cada 50 eventos. */
+.atividade-feed .feed { max-height: max(22rem, calc(100dvh - 17rem)); overflow-y: auto; overscroll-behavior: contain; }
+@media (max-width: 700px) {
+  .grade-cards { gap: 10px; }
+  .card-projeto { padding: 12px 14px; }
+  .card-projeto .descricao-card { display: none; }
+  .atividade-feed .feed { padding: 2px 12px 6px; max-height: max(20rem, calc(100dvh - 12rem)); }
+  .atividade-feed .feed-item { padding: 10px 2px; }
+}
+/* Texto longo recolhido com degradê; o botão "Ver tudo" vem do tela.js. */
+.colapsada { max-height: 7.6em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 65%, transparent); mask-image: linear-gradient(#000 65%, transparent); }
+.colapsavel-botao { margin-top: 4px; padding: 0; position: relative; z-index: 1; }
+/* A trilha já diz em que projeto você está: o nome na barra de cima só repete. */
+@media (min-width: 701px) { .repete-trilha { display: none; } }
+/* Card estreito (tabela dentro da página da feature): também sai a data, e a tabela cabe sem rolar. */
+@container (max-width: 700px) {
+  .data-table-shell .tabela-tasks { min-width: 0; }
+  .tabela-tasks .col-data, .tabela-tasks .c-data { display: none; }
+  .tabela-tasks .c-status { width: 150px; }
+  .tabela-tasks .c-dono { width: 120px; }
 }

@@ -7,9 +7,10 @@ import sqlite3
 from contextlib import closing
 
 from fastapi import APIRouter, Depends, Form, Query, Request
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi.responses import RedirectResponse, Response, StreamingResponse
 
 from src.modules.events.bus import INSCRITOS
+from src.modules.projects import service as projects_service
 from src.modules.projects.service import exigir_acesso
 from src.modules.tasks import service as tasks_service
 from src.modules.tasks.models import MensagemIn, TaskPatch
@@ -20,7 +21,7 @@ from src.modules.web.paginas import FEATURE_STATUSES
 from src.modules.web.templating import templates
 from src.shared.auth import ContextoGit, resolve_person
 from src.shared.db import conectar
-from src.shared.enums import EAgent, EStatusTask, ETypeMessage
+from src.shared.enums import EAgent, ERole, EStatusTask, ETypeMessage
 from src.shared.erros import Unauthorized
 
 router = APIRouter(include_in_schema=False)
@@ -88,12 +89,25 @@ def painel(
     return templates.TemplateResponse(request, "painel.html", {"pessoa": pessoa, "nav": nav, **ctx})
 
 
+@router.get("/web/p/{slug}/exportar")
+def pagina_exportacao(request: Request, slug: str, pessoa: sqlite3.Row = Depends(pessoa_web)):
+    with closing(conectar()) as conn:
+        projeto = exigir_acesso(conn, slug, pessoa["id"])
+        ctx = exportacao.preparar(conn, projeto)
+        nav = paginas.ctx_nav(conn, pessoa["id"])
+    return templates.TemplateResponse(
+        request, "exportacao.html",
+        {**ctx, "projeto": projeto, "nav": nav, "pessoa": pessoa, "base": "/web", "admin": False},
+    )
+
+
 @router.post("/web/p/{slug}/exportar")
-def exportar_projeto(slug: str, repositorio: str = Form(...), pessoa: sqlite3.Row = Depends(pessoa_web)):
+async def exportar_projeto(request: Request, slug: str, pessoa: sqlite3.Row = Depends(pessoa_web)):
+    dados = await request.form(max_fields=10000)
     with closing(conectar()) as conn:
         conn.execute("BEGIN")
         projeto = exigir_acesso(conn, slug, pessoa["id"])
-        return exportacao.baixar_projeto(conn, projeto, repositorio)
+        return exportacao.baixar_projeto(conn, projeto, dados)
 
 
 @router.get("/web/p/{slug}/tasks")
@@ -192,7 +206,7 @@ def corpo_diff(
 
 
 @router.post("/web/p/{slug}/t/{code}/campos")
-async def editar_campos(
+def editar_campos(
     request: Request,
     slug: str,
     code: str,
@@ -214,12 +228,12 @@ async def editar_campos(
         campos["owner_id"] = int(owner_id)
     dados = TaskPatch(**campos)
     with closing(conectar()) as conn:
-        await tasks_service.update_task(conn, slug, code, pessoa["id"], CTX_WEB, dados)
+        tasks_service.update_task(conn, slug, code, pessoa["id"], CTX_WEB, dados)
     return _pagina_task(request, slug, code, pessoa)
 
 
 @router.post("/web/p/{slug}/t/{code}/mensagens")
-async def enviar_mensagem(
+def enviar_mensagem(
     request: Request,
     slug: str,
     code: str,
@@ -228,10 +242,35 @@ async def enviar_mensagem(
     pessoa: sqlite3.Row = Depends(pessoa_web),
 ):
     with closing(conectar()) as conn:
-        await tasks_service.create_message(
+        tasks_service.create_message(
             conn, slug, code, pessoa["id"], CTX_WEB, MensagemIn(type=tipo, texto=texto)
         )
     return _pagina_task(request, slug, code, pessoa)
+
+
+@router.post("/web/p/{slug}/membros/{person_id}/remover")
+def remover_membro(
+    request: Request, slug: str, person_id: int, pessoa: sqlite3.Row = Depends(pessoa_web)
+):
+    """Owner tira um membro; quem tira a si mesmo sai do projeto e volta ao início."""
+    with closing(conectar()) as conn:
+        projects_service.remove_member(conn, slug, pessoa["id"], person_id, CTX_WEB)
+    if person_id == pessoa["id"]:
+        return Response(headers={"HX-Redirect": "/web"})
+    return painel(request, slug, "pessoa", pessoa)
+
+
+@router.post("/web/p/{slug}/membros/{person_id}/papel")
+def trocar_papel(
+    request: Request,
+    slug: str,
+    person_id: int,
+    role: ERole = Form(...),
+    pessoa: sqlite3.Row = Depends(pessoa_web),
+):
+    with closing(conectar()) as conn:
+        projects_service.set_member_role(conn, slug, pessoa["id"], person_id, role)
+    return painel(request, slug, "pessoa", pessoa)
 
 
 # ---------- tempo real ---------- #
@@ -263,5 +302,7 @@ async def stream(pessoa: sqlite3.Row = Depends(pessoa_web)) -> StreamingResponse
         finally:
             for slug in slugs:
                 INSCRITOS[slug].discard(fila)
+                if not INSCRITOS[slug]:
+                    del INSCRITOS[slug]
 
     return StreamingResponse(gerar(), media_type="text/event-stream")

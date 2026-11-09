@@ -37,15 +37,17 @@
 
   <details>
     <summary>Ver tabela</summary>
-    <table class="tabela numerica">
-      <thead><tr><th>Dia</th>{% for s in grafico.series %}<th>{{ s.rotulo }}</th>{% endfor %}<th>Total</th></tr></thead>
-      <tbody>
-        {% for c in grafico.colunas if c.total %}
-          <tr><td>{{ c.dia }}</td>{% for v in c.valores %}<td>{{ v }}</td>{% endfor %}<td>{{ c.total }}</td></tr>
-        {% else %}
-          <tr><td colspan="{{ grafico.series|length + 2 }}" class="mudo">Nenhum evento no período.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="tabela-rolavel">
+      <table class="tabela numerica">
+        <thead><tr><th>Dia</th>{% for s in grafico.series %}<th>{{ s.rotulo }}</th>{% endfor %}<th>Total</th></tr></thead>
+        <tbody>
+          {% for c in grafico.colunas if c.total %}
+            <tr><td>{{ c.dia }}</td>{% for v in c.valores %}<td>{{ v }}</td>{% endfor %}<td>{{ c.total }}</td></tr>
+          {% else %}
+            <tr><td colspan="{{ grafico.series|length + 2 }}" class="mudo">Nenhum evento no período.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </details>
 </figure>

@@ -12,6 +12,7 @@ from src.modules.events.relatorio import perguntas_abertas
 from src.modules.features import repositorio as features_repositorio
 from src.modules.features import service as features_service
 from src.modules.projects import repositorio as projects_repositorio
+from src.shared.enums import EAgent, EKindEvent, EStatusTask
 from src.modules.tasks import repositorio as tasks_repositorio
 from src.modules.tasks import service as tasks_service
 from src.modules.web.templating import ROTULO_AGENT
@@ -123,11 +124,11 @@ def ciclo_medio(conn: sqlite3.Connection, projeto_id: int) -> dict[str, Any]:
     """Tempo médio da criação até a primeira vez em 'feito', nas tasks que hoje
     estão feitas e têm essa mudança registrada."""
     linhas = conn.execute(
-        """SELECT t.created_at AS criada, MIN(e.created_at) AS feita
+        f"""SELECT t.created_at AS criada, MIN(e.created_at) AS feita
              FROM tasks t
-             JOIN events e ON e.task_id = t.id AND e.kind = 'task.field_changed'
-                          AND e.campo = 'status' AND e.valor_para = 'feito'
-            WHERE t.project_id = ? AND t.status = 'feito'
+             JOIN events e ON e.task_id = t.id AND e.kind = '{EKindEvent.task_field_changed}'
+                          AND e.campo = 'status' AND e.valor_para = '{EStatusTask.feito}'
+            WHERE t.project_id = ? AND t.status = '{EStatusTask.feito}'
             GROUP BY t.id""",
         (projeto_id,),
     ).fetchall()
@@ -188,9 +189,9 @@ def cards(
 DIAS_ATIVIDADE = 56
 # Uma cor por pessoa até esgotar a paleta categórica (8); daí pra frente, "outros".
 MAX_PESSOAS = 8
-ORDEM_AGENT = ["human", "claude", "codex", "outro"]
+ORDEM_AGENT = [EAgent.human, EAgent.claude, EAgent.codex, EAgent.outro]
 # Cor segue a entidade: cada agent tem a sua fixa, `outro` é o cinza de "resto".
-CLASSE_AGENT = {"human": "s1", "claude": "s2", "codex": "s3", "outro": "s-resto"}
+CLASSE_AGENT = {EAgent.human: "s1", EAgent.claude: "s2", EAgent.codex: "s3", EAgent.outro: "s-resto"}
 
 LARGURA = 720
 ALTURA = 180

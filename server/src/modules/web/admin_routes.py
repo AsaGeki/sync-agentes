@@ -16,9 +16,12 @@ from src.modules.web.auth import COOKIE_ADMIN, admin_web, apagar_cookie, gravar_
 from src.modules.web.filtros import filtros_atividade, filtros_tasks
 from src.modules.web.paginas import FEATURE_STATUSES
 from src.modules.web.templating import templates
-from src.shared.auth import validate_admin
+from src.shared.auth import ContextoGit, validate_admin
 from src.shared.db import conectar
+from src.shared.enums import EAgent, ERole
 from src.shared.erros import Invalid, Unauthorized
+
+CTX_WEB = ContextoGit(agent=EAgent.human)
 
 router = APIRouter(include_in_schema=False)
 protegido = APIRouter(include_in_schema=False, dependencies=[Depends(admin_web)])
@@ -145,18 +148,44 @@ def painel(request: Request, slug: str, por: str = Query("pessoa", pattern="^(pe
     return templates.TemplateResponse(request, "painel.html", {**ctx, "pedidos": pedidos, "nav": nav})
 
 
+@protegido.get("/web/admin/p/{slug}/exportar")
+def pagina_exportacao(request: Request, slug: str):
+    with closing(conectar()) as conn:
+        projeto = projects_repositorio.find_by_slug(conn, slug)
+        ctx = exportacao.preparar(conn, projeto)
+        nav = paginas.ctx_nav(conn, None)
+    return templates.TemplateResponse(
+        request, "exportacao.html", {**ctx, "projeto": projeto, "nav": nav, "base": "/web/admin", "admin": True}
+    )
+
+
 @protegido.post("/web/admin/p/{slug}/exportar")
-def exportar_projeto(slug: str, repositorio: str = Form(...)):
+async def exportar_projeto(request: Request, slug: str):
+    dados = await request.form(max_fields=10000)
     with closing(conectar()) as conn:
         conn.execute("BEGIN")
         projeto = projects_repositorio.find_by_slug(conn, slug)
-        return exportacao.baixar_projeto(conn, projeto, repositorio)
+        return exportacao.baixar_projeto(conn, projeto, dados)
 
 
 @protegido.post("/web/admin/p/{slug}/membros")
 def adicionar_membro(request: Request, slug: str, email: str = Form(...)):
     with closing(conectar()) as conn:
         projects_service.admin_add_member(conn, slug, email.strip())
+    return painel(request, slug, por="pessoa")
+
+
+@protegido.post("/web/admin/p/{slug}/membros/{person_id}/remover")
+def remover_membro(request: Request, slug: str, person_id: int):
+    with closing(conectar()) as conn:
+        projects_service.admin_remove_member(conn, slug, person_id, CTX_WEB)
+    return painel(request, slug, por="pessoa")
+
+
+@protegido.post("/web/admin/p/{slug}/membros/{person_id}/papel")
+def trocar_papel(request: Request, slug: str, person_id: int, role: ERole = Form(...)):
+    with closing(conectar()) as conn:
+        projects_service.admin_set_member_role(conn, slug, person_id, role)
     return painel(request, slug, por="pessoa")
 
 

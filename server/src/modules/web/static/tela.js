@@ -390,7 +390,33 @@
     });
   }
 
+  // Texto longo (descrição do projeto) começa recolhido; o botão só existe se ele de fato passa do limite.
+  function iniciarColapsaveis() {
+    document.querySelectorAll("[data-colapsavel]").forEach((el) => {
+      if (el.dataset.colapsavelPronto) return;
+      el.dataset.colapsavelPronto = "true";
+      el.classList.add("colapsada");
+      if (el.scrollHeight <= el.clientHeight + 4) {
+        el.classList.remove("colapsada");
+        return;
+      }
+      const botao = document.createElement("button");
+      botao.type = "button";
+      botao.className = "link colapsavel-botao";
+      botao.textContent = "Ver tudo";
+      botao.setAttribute("aria-expanded", "false");
+      botao.addEventListener("click", () => {
+        const aberto = el.classList.toggle("colapsada") === false;
+        botao.textContent = aberto ? "Ver menos" : "Ver tudo";
+        botao.setAttribute("aria-expanded", String(aberto));
+      });
+      el.after(botao);
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", restaurar);
+  document.addEventListener("DOMContentLoaded", iniciarColapsaveis);
+  document.addEventListener("htmx:afterSettle", iniciarColapsaveis);
   document.addEventListener("DOMContentLoaded", () => document.querySelectorAll("form.filtros").forEach(atualizarContagemFiltros));
   document.addEventListener("DOMContentLoaded", iniciarTabelas);
   document.addEventListener("DOMContentLoaded", iniciarSidebar);

@@ -42,9 +42,21 @@ ROTULO_TIPO = {
 }
 TAMANHO_FEED = 50
 # Ordem das tasks abertas numa feature: o que está sendo feito ou travado primeiro.
-ORDEM_ABERTAS = ["em_andamento", "bloqueado", "aguardando_decisao", "parcial", "ideia"]
+ORDEM_ABERTAS = [
+    EStatusTask.em_andamento,
+    EStatusTask.bloqueado,
+    EStatusTask.aguardando_decisao,
+    EStatusTask.parcial,
+    EStatusTask.ideia,
+]
 # Status que uma feature pode ter: 'aguardando_decisao' só existe em task.
-FEATURE_STATUSES = ["ideia", "em_andamento", "parcial", "feito", "bloqueado"]
+FEATURE_STATUSES = [
+    EStatusTask.ideia,
+    EStatusTask.em_andamento,
+    EStatusTask.parcial,
+    EStatusTask.feito,
+    EStatusTask.bloqueado,
+]
 # Mensagens (ou eventos de sistema) seguidos do mesmo autor dentro desta janela
 # viram um bloco só na conversa.
 JANELA_GRUPO = timedelta(minutes=10)

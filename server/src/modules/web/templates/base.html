@@ -8,10 +8,10 @@
   <title>{% block titulo %}sync-agents{% endblock %}</title>
   <link rel="icon" href="/web/assets/favicon.ico?v=brand-2" type="image/x-icon">
   <link rel="icon" href="/web/assets/favicon-dark.ico?v=brand-2" type="image/x-icon" media="(prefers-color-scheme: dark)">
-  <link rel="stylesheet" href="/web/static/app.css?v=contador-vivo-1">
+  <link rel="stylesheet" href="/web/static/app.css?v=navbar-1">
   <script src="/web/static/htmx.min.js" defer></script>
   <script src="/web/static/tempo-real.js" defer></script>
-  <script src="/web/static/tela.js" defer></script>
+  <script src="/web/static/tela.js?v=colapsavel-1" defer></script>
 </head>
 <body hx-boost="true">
 <div class="app {{ 'com-lateral' if nav is defined else '' }}" data-sidebar-app>
@@ -29,7 +29,7 @@
           <source srcset="/web/assets/sidebar-logo-escuro.png?v=brand-2" media="(prefers-color-scheme: dark)">
           <img src="/web/assets/sidebar-logo-claro.png?v=brand-2" alt="" width="22" height="22">
         </picture>
-        <span class="sidebar-brand-copy"><strong>sync-agents</strong><small>workspace</small></span>
+        <span class="sidebar-brand-copy"><strong>sync-agents</strong></span>
       </a>
     </header>
 
@@ -48,17 +48,16 @@
       </section>
       {% endif %}
 
-      <details class="sidebar-section sidebar-project-section" data-estado="sidebar-projetos" open>
-        <summary class="sidebar-section-title sidebar-section-summary">
-          <span>{{ 'Projetos' if admin else 'Meus projetos' }}</span>
-          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
-        </summary>
+      <section class="sidebar-section sidebar-project-section">
+        <h2 class="sidebar-section-title">{{ 'Projetos' if admin else 'Meus projetos' }}</h2>
+        {% if nav|length > 6 %}
         <div class="sidebar-search">
           <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
           <label class="sr" for="sidebar-project-search">Buscar projeto</label>
           <input id="sidebar-project-search" type="search" placeholder="Buscar projeto…" autocomplete="off" data-sidebar-search>
           <kbd aria-hidden="true">/</kbd>
         </div>
+        {% endif %}
         <nav class="sidebar-menu" aria-label="Projetos">
           {% if not admin %}
             <a class="sidebar-link" href="/web" {% if request.url.path == '/web' %}aria-current="page"{% endif %} title="Visão geral">
@@ -68,7 +67,7 @@
           {% for item in nav %}
             {% set atual = projeto is defined and projeto['slug'] == item.slug %}
             <div class="sidebar-project" data-sidebar-project-item data-project-name="{{ item.name }}">
-              <a href="{{ base }}/p/{{ item.slug }}{% if not admin %}/tasks?nao_lidas=true{% endif %}" class="sidebar-link projeto-nav {{ 'aberto' if atual else '' }}" {% if (admin and request.url.path == base ~ '/p/' ~ item.slug) or (not admin and atual and aba == 'tasks' and filtros is defined and filtros.nao_lidas) %}aria-current="page"{% endif %} title="{{ item.name }}">
+              <a href="{{ base }}/p/{{ item.slug }}" class="sidebar-link projeto-nav {{ 'aberto' if atual else '' }}" {% if not atual and request.url.path == base ~ '/p/' ~ item.slug %}aria-current="page"{% endif %} title="{{ item.name }}">
                 {{ icone('pasta') }}<span class="sidebar-link-label">{{ item.name }}</span>
                 {% if not admin %}<span class="contador" id="contador-{{ item.slug }}" {% if not item.nao_lidos %}hidden{% endif %} title="{{ item.nao_lidos }} evento(s) que sua IA ainda não leu">{{ item.nao_lidos or '' }}</span>{% endif %}
               </a>
@@ -76,8 +75,7 @@
                 <div class="sidebar-submenu">
                   <a class="sidebar-link" href="{{ base }}/p/{{ item.slug }}" {% if aba == 'painel' %}aria-current="page"{% endif %} title="Painel"><span class="sidebar-link-label">Painel</span></a>
                   <a class="sidebar-link" href="{{ base }}/p/{{ item.slug }}/features" {% if aba in ('features', 'feature') %}aria-current="page"{% endif %} title="Features"><span class="sidebar-link-label">Features</span>{% if not admin %}<span class="contador" id="contador-features" {% if not item.nao_lidos_features %}hidden{% endif %} title="{{ item.nao_lidos_features }} mudança(s) de feature que sua IA ainda não leu">{{ item.nao_lidos_features or '' }}</span>{% endif %}</a>
-                  <a class="sidebar-link" href="{{ base }}/p/{{ item.slug }}/tasks" {% if aba == 'tasks' and filtros is defined and filtros.visao == 'lista' or aba == 'task' %}aria-current="page"{% endif %} title="Tasks"><span class="sidebar-link-label">Tasks</span></a>
-                  <a class="sidebar-link" href="{{ base }}/p/{{ item.slug }}/tasks?visao=quadro" {% if aba == 'tasks' and filtros is defined and filtros.visao == 'quadro' %}aria-current="page"{% endif %} title="Quadro"><span class="sidebar-link-label">Quadro</span></a>
+                  <a class="sidebar-link" href="{{ base }}/p/{{ item.slug }}/tasks" {% if aba in ('tasks', 'task') %}aria-current="page"{% endif %} title="Tasks"><span class="sidebar-link-label">Tasks</span></a>
                   <a class="sidebar-link" href="{{ base }}/p/{{ item.slug }}/atividade" {% if aba == 'atividade' %}aria-current="page"{% endif %} title="Atividade"><span class="sidebar-link-label">Atividade</span></a>
                 </div>
               {% endif %}
@@ -85,7 +83,7 @@
           {% endfor %}
           <p class="sidebar-empty" data-sidebar-empty hidden>Nenhum projeto encontrado.</p>
         </nav>
-      </details>
+      </section>
     </div>
 
     <footer class="sidebar-footer">
@@ -96,7 +94,6 @@
           <svg class="sidebar-user-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4M4 10l4-4 4 4"/></svg>
         </button>
         <div class="sidebar-user-popover" id="sidebar-user-menu" role="menu" aria-label="Conta" hidden>
-          <div class="sidebar-user-heading"><strong>{{ pessoa['name'] if pessoa else 'Administrador' }}</strong><span>{{ pessoa['alias'] if pessoa else 'Sessão administrativa' }}</span></div>
           {% if request.cookies.get('sa_pessoa') %}
             {% if admin %}<a role="menuitem" href="/web">{{ icone('painel') }}<span>Área pessoal</span></a>{% endif %}
             <form method="post" action="/web/logout" hx-boost="false"><button type="submit" role="menuitem">{{ icone('pessoas') }}<span>Sair da conta</span></button></form>
@@ -134,8 +131,8 @@
         {% if notificacoes.total %}<span class="sidebar-topbar-notification-count" aria-hidden="true">{{ notificacoes.total if notificacoes.total < 100 else '99+' }}</span>{% endif %}
       </a>
       {% endif %}
-      <span class="sidebar-topbar-divider" aria-hidden="true"></span>
-      <span class="sidebar-topbar-context">{{ projeto['name'] if projeto is defined else ('Administração' if admin else 'Área pessoal') }}</span>
+      <span class="sidebar-topbar-divider repete-trilha" aria-hidden="true"></span>
+      <span class="sidebar-topbar-context repete-trilha">{{ projeto['name'] if projeto is defined else ('Administração' if admin else 'Área pessoal') }}</span>
     </header>
     {% endif %}
     <div id="erro" role="alert"></div>

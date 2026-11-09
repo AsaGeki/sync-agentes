@@ -19,7 +19,7 @@
         <span class="etiqueta">{{ projeto['visibility'] }}</span>
       </div>
       {% if projeto['description'] %}
-        <div class="painel-hero-descricao md">{{ projeto['description']|markdown }}</div>
+        <div class="painel-hero-descricao md" data-colapsavel>{{ projeto['description']|markdown }}</div>
       {% else %}
         <p class="painel-hero-descricao">Acompanhe o andamento das tasks, a atividade e os pontos que precisam de atenção.</p>
       {% endif %}
@@ -131,6 +131,27 @@
         </section>
       </div>
 
+      <section class="cartao painel-cartao">
+        <header class="painel-card-cabeca painel-card-cabeca-simples">
+          <div><h2>Features <span class="painel-contagem">{{ p.features|length }}</span></h2><p class="painel-card-desc">Progresso por frente de trabalho.</p></div>
+        </header>
+        {% if not p.features %}<p class="mudo">Nenhuma feature. Tasks avulsas são o caso normal.</p>{% endif %}
+        <ul class="lista-features painel-lista-features">
+          {% for f in p.features %}
+            <li>
+              <div class="linha">
+                <a href="{{ url_p }}/f/{{ f.code }}"><code>{{ f.code|code_curto }}</code> {{ f.title }}</a>
+                <span class="mudo">{{ f.progresso.feito }}/{{ f.progresso.total }}</span>
+              </div>
+              <div class="medidor" role="img" aria-label="{{ f.progresso.feito }} de {{ f.progresso.total }} feitas">
+                <div class="medidor-fill" style="width: {{ (100 * f.progresso.feito / f.progresso.total) if f.progresso.total else 0 }}%"></div>
+              </div>
+              {{ avatares_participantes(f.participantes) }}
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+
       <section class="cartao painel-cartao painel-atividade">
         {% include "parciais/grafico.html" %}
       </section>
@@ -142,16 +163,7 @@
           <div><h2>Exportar projeto</h2><p class="painel-card-desc">Baixe os dados para importar no Project Tasks MCP.</p></div>
         </header>
         {% if p.repos %}
-        <form action="{{ url_p }}/exportar" method="post" hx-boost="false">
-          <label for="exportar-repositorio">Repositório padrão das tasks</label>
-          <select id="exportar-repositorio" name="repositorio" required>
-            <option value="" selected disabled>Escolha um repositório</option>
-            {% for r in p.repos %}<option value="{{ r.root_sha }}">{{ r.name }}</option>{% endfor %}
-          </select>
-          <p class="mudo">Todas as tasks serão vinculadas ao repositório escolhido no destino.</p>
-          {% if projeto['visibility'] == 'team' %}<p class="mudo">No destino, a visibilidade será pública. Revise os acessos após importar.</p>{% endif %}
-          <button type="submit">Baixar JSON</button>
-        </form>
+        <a class="painel-card-link" href="{{ url_p }}/exportar" hx-boost="false">Revisar e exportar</a>
         {% else %}
         <p class="mudo">Vincule um repositório ao projeto para exportar.</p>
         {% endif %}
@@ -170,27 +182,6 @@
         <ul class="lista-status">
           {% for status, n in p.contagem_status %}
             <li><a href="{{ url_p }}/tasks?status={{ status }}">{{ status_pill(status) }}</a><span class="numero">{{ n }}</span></li>
-          {% endfor %}
-        </ul>
-      </section>
-
-      <section class="cartao painel-cartao">
-        <header class="painel-card-cabeca painel-card-cabeca-simples">
-          <div><h2>Features <span class="painel-contagem">{{ p.features|length }}</span></h2><p class="painel-card-desc">Progresso por frente de trabalho.</p></div>
-        </header>
-        {% if not p.features %}<p class="mudo">Nenhuma feature. Tasks avulsas são o caso normal.</p>{% endif %}
-        <ul class="lista-features">
-          {% for f in p.features %}
-            <li>
-              <div class="linha">
-                <a href="{{ url_p }}/f/{{ f.code }}"><code>{{ f.code|code_curto }}</code> {{ f.title }}</a>
-                <span class="mudo">{{ f.progresso.feito }}/{{ f.progresso.total }}</span>
-              </div>
-              <div class="medidor" role="img" aria-label="{{ f.progresso.feito }} de {{ f.progresso.total }} feitas">
-                <div class="medidor-fill" style="width: {{ (100 * f.progresso.feito / f.progresso.total) if f.progresso.total else 0 }}%"></div>
-              </div>
-              {{ avatares_participantes(f.participantes) }}
-            </li>
           {% endfor %}
         </ul>
       </section>
@@ -224,11 +215,42 @@
           <div><h2>Membros <span class="painel-contagem">{{ p.membros|length }}</span></h2></div>
         </header>
         <p class="mudo">Quem tem acesso ao projeto, tenha feito algo ou não.</p>
-        <ul class="lista-lateral">
+        {% set meu = namespace(papel=none) %}
+        {% if not admin and pessoa is defined %}{% for m in p.membros %}{% if m.id == pessoa['id'] %}{% set meu.papel = m.role %}{% endif %}{% endfor %}{% endif %}
+        {% set gerencia = admin or meu.papel == 'owner' %}
+        <ul class="lista-lateral lista-membros">
           {% for m in p.membros %}
-            <li title="{{ m.email }}">{{ avatar(m.email.split('@')[0], m.name, 'pequeno') }} {{ m.name }} {% if m.role == 'owner' %}<span class="etiqueta">owner</span>{% endif %}{% if m.sem_atividade %} <span class="etiqueta">sem atividade</span>{% endif %}</li>
+            {% set eu = (not admin) and pessoa is defined and m.id == pessoa['id'] %}
+            <li title="{{ m.email }}">
+              <span class="membro-nome">
+                {{ avatar(m.email.split('@')[0], m.name, 'pequeno') }} <span class="membro-texto">{{ m.name }}</span>
+                {% if eu %}<span class="etiqueta">você</span>{% endif %}
+                {% if m.role == 'owner' and not gerencia %}<span class="etiqueta">owner</span>{% endif %}
+                {% if m.sem_atividade %}<span class="etiqueta">sem atividade</span>{% endif %}
+              </span>
+              {% if gerencia or eu %}
+                <span class="membro-controles">
+                  {% if gerencia %}
+                    <select name="role" class="membro-papel" aria-label="Papel de {{ m.name }}"
+                            hx-post="{{ url_p }}/membros/{{ m.id }}/papel" hx-trigger="change"
+                            hx-confirm="Mudar o papel de {{ m.name }}?"
+                            hx-select="#painel-corpo" hx-target="#painel-corpo" hx-swap="outerHTML">
+                      <option value="member" {% if m.role == 'member' %}selected{% endif %}>member</option>
+                      <option value="owner" {% if m.role == 'owner' %}selected{% endif %}>owner</option>
+                    </select>
+                  {% endif %}
+                  <button class="perigo membro-acao"
+                          hx-post="{{ url_p }}/membros/{{ m.id }}/remover"
+                          hx-confirm="{{ 'Sair do projeto? As tasks que são suas ficam sem dono.' if eu else 'Tirar ' ~ m.name ~ ' do projeto? As tasks dele(a) ficam sem dono.' }}"
+                          hx-select="#painel-corpo" hx-target="#painel-corpo" hx-swap="outerHTML">{{ 'Sair' if eu else 'Remover' }}</button>
+                </span>
+              {% endif %}
+            </li>
           {% endfor %}
         </ul>
+        {% if gerencia and projeto['visibility'] == 'public' %}
+          <p class="mudo">Projeto public: quem sair ou for removido pode entrar de novo sozinho. Para manter alguém fora, deixe o projeto private.</p>
+        {% endif %}
         {% if admin %}
           <form class="em-linha" hx-post="/web/admin/p/{{ projeto['slug'] }}/membros" hx-select="#painel-corpo" hx-target="#painel-corpo" hx-swap="outerHTML">
             <input type="email" name="email" required placeholder="email de quem entra">

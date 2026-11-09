@@ -9,6 +9,7 @@ from markupsafe import Markup
 
 from src.modules.events.relatorio import ROTULO_STATUS
 from src.shared import codes
+from src.shared.enums import EAgent, ETypeMessage
 
 PASTA_WEB = Path(__file__).parent
 
@@ -17,14 +18,19 @@ templates = Jinja2Templates(directory=PASTA_WEB / "templates")
 # `html: False` escapa HTML cru do texto: corpo e mensagem vêm de qualquer membro.
 _MD = MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"])
 
-ROTULO_AGENT = {"human": "humano", "claude": "claude", "codex": "codex", "outro": "outro"}
+ROTULO_AGENT = {
+    EAgent.human: "humano",
+    EAgent.claude: "claude",
+    EAgent.codex: "codex",
+    EAgent.outro: "outro",
+}
 
 ROTULO_MENSAGEM = {
-    "mudanca": "mudança",
-    "pergunta": "pergunta",
-    "resposta": "resposta",
-    "decisao": "decisão",
-    "bloqueio": "bloqueio",
+    ETypeMessage.mudanca: "mudança",
+    ETypeMessage.pergunta: "pergunta",
+    ETypeMessage.resposta: "resposta",
+    ETypeMessage.decisao: "decisão",
+    ETypeMessage.bloqueio: "bloqueio",
 }
 
 
