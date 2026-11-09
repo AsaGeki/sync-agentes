@@ -6,8 +6,8 @@ usa `list_tasks` pra saber o que andou não enxerga aquela movimentação. O
 script corrige essas linhas.
 
 Uso:
-    python scripts/backfill_updated_at.py           # lista o que mudaria
-    python scripts/backfill_updated_at.py --apply   # grava (faz backup antes)
+    python scripts/legado/backfill_updated_at.py           # lista o que mudaria
+    python scripts/legado/backfill_updated_at.py --apply   # grava (faz backup antes)
 
 O banco é o mesmo da aplicação: `SYNC_AGENTS_DB` se definida, senão `sync.db`
 na raiz do projeto.
@@ -22,7 +22,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parents[2]
 DB_PATH = Path(os.environ.get("SYNC_AGENTS_DB") or BASE_DIR / "sync.db")
 
 DESALINHADAS = """

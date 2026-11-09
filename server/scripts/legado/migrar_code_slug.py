@@ -5,8 +5,8 @@ tool); o slug atrás dele existe pra quem lê reconhecer a task sem abrir. Task
 que já está no formato novo fica como está.
 
 Uso:
-    python scripts/migrar_code_slug.py           # lista o que mudaria
-    python scripts/migrar_code_slug.py --apply   # grava (faz backup antes)
+    python scripts/legado/migrar_code_slug.py           # lista o que mudaria
+    python scripts/legado/migrar_code_slug.py --apply   # grava (faz backup antes)
 
 O banco é o mesmo da aplicação: `SYNC_AGENTS_DB` se definida, senão `sync.db`
 na raiz do projeto.

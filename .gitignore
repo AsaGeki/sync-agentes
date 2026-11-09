@@ -21,3 +21,6 @@ sync.db.bak-*
 Thumbs.db
 
 dist/
+
+# Saida da exportacao de projetos
+projeto-*.json

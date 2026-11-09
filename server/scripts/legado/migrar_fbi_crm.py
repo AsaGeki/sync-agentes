@@ -9,8 +9,8 @@ conversão. Membros são somados (owner continua owner) e os projetos
 esvaziados são apagados.
 
 Uso:
-    python scripts/migrar_fbi_crm.py           # lista o que mudaria
-    python scripts/migrar_fbi_crm.py --apply   # grava (faz backup antes)
+    python scripts/legado/migrar_fbi_crm.py           # lista o que mudaria
+    python scripts/legado/migrar_fbi_crm.py --apply   # grava (faz backup antes)
 
 O banco é o mesmo da aplicação: `SYNC_AGENTS_DB` se definida, senão `sync.db`
 na raiz do projeto. Rodar com o servidor parado e religar depois.
