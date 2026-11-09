@@ -1,0 +1,19 @@
+meta {
+  name: Leave
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/projetos/{{slug}}/sair
+  body: none
+  auth: inherit
+}
+
+docs {
+  Endpoint: POST /projetos/{slug}/sair
+  Autenticacao: token pessoal (membro).
+
+  Voce sai do projeto. As tasks que eram suas ficam sem dono. O unico owner
+  nao pode sair (409): promova outro antes.
+}

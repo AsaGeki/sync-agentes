@@ -18,7 +18,7 @@ body:json {
   {
     "name": "Meu Projeto",
     "description": null,
-    "visibility": "team",
+    "visibility": "public",
     "repo": {
       "root_sha": "{{rootSha}}",
       "name": "meu-projeto",
@@ -32,6 +32,7 @@ docs {
   Autenticacao: token pessoal.
 
   Cria o projeto e ja afilia o repositorio informado a ele - quem chama vira
-  owner. visibility e obrigatorio (team|private). Repositorio ja afiliado a
+  owner. visibility e obrigatorio (public|private): public = qualquer um
+  vê e entra sozinho; private = entra quem um owner aceitar. Repositorio ja afiliado a
   outro projeto e recusado (AlreadyExists).
 }

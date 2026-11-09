@@ -33,7 +33,8 @@ docs {
 
   Repo desconhecido NAO cria mais projeto sozinho - responde 404 (crie com
   POST /projetos, ou peca pra um membro linkar com POST /projetos/{slug}/repos).
-  Repo conhecido devolve o projeto; se voce ainda nao e membro, entra sozinho
-  quando ele e `team`, e volta com `role: null` quando e `private` - peca
-  acesso com POST /projetos/{slug}/pedidos.
+  Repo conhecido devolve o projeto com o seu `role`, ou `role: null` se voce
+  ainda nao e membro - ter o repositorio nao adiciona ninguem. Em `public`
+  entre com POST /projetos/{slug}/entrar; em `private`, peca acesso com
+  POST /projetos/{slug}/pedidos.
 }

@@ -1,0 +1,19 @@
+meta {
+  name: Join
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/projetos/{{slug}}/entrar
+  body: none
+  auth: inherit
+}
+
+docs {
+  Endpoint: POST /projetos/{slug}/entrar
+  Autenticacao: token pessoal.
+
+  Entra num projeto `public` sem aprovacao. Em `private` responde 403: use
+  POST /projetos/{slug}/pedidos. Ja ser membro responde 409.
+}

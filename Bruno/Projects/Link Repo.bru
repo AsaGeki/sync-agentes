@@ -27,8 +27,9 @@ docs {
   Autenticacao: token pessoal.
 
   Aponta mais um repositorio pro projeto - frontend e backend em repos
-  separados falando no mesmo canal. team: qualquer pessoa cadastrada linka e
-  ja vira membro no mesmo ato. private: so quem ja e membro consegue linkar.
+  separados falando no mesmo canal. So quem ja e membro consegue linkar: em
+  projeto public entre antes com POST /projetos/{slug}/entrar; em private, com
+  pedido de acesso (403 em public, 404 em private para quem nao e membro).
   O mesmo repositorio pode estar em outro(s) projeto(s) tambem - isso nao
   bloqueia.
 }

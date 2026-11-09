@@ -1,0 +1,20 @@
+meta {
+  name: Remove Member
+  type: http
+  seq: 14
+}
+
+delete {
+  url: {{baseUrl}}/projetos/{{slug}}/membros/{{personId}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Endpoint: DELETE /projetos/{slug}/membros/{person_id}
+  Autenticacao: token pessoal (owner, ou o proprio membro).
+
+  Tira o membro. As tasks dele ficam sem dono, com um evento em cada. O
+  projeto nunca fica sem owner (409). Em projeto `public` a pessoa pode
+  entrar de novo sozinha; so `private` segura de fato.
+}

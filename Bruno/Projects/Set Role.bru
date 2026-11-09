@@ -1,0 +1,28 @@
+meta {
+  name: Set Role
+  type: http
+  seq: 15
+}
+
+patch {
+  url: {{baseUrl}}/projetos/{{slug}}/membros/{{personId}}
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "role": "owner"
+  }
+}
+
+docs {
+  Endpoint: PATCH /projetos/{slug}/membros/{person_id}
+  Autenticacao: token pessoal (owner).
+
+  Promove a owner ou rebaixa a member. Rebaixar o unico owner responde 409.
+}

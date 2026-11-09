@@ -100,7 +100,7 @@ Se o repositório já tem projeto (alguém já criou ou linkou), deve voltar alg
 repo:         loja-api
 branch:       feat/T-003-login
 assino_como:  arthur.macedo
-projetos:     [{ slug: loja-api, papel: owner, visibility: team }]
+projetos:     [{ slug: loja-api, papel: owner, visibility: public }]
 ```
 
 Se voltou isso, acabou — está conectado. `projetos` normalmente tem 1 item; se tiver mais de 1, as outras tools vão pedir `project=<slug>` pra saber qual usar.
@@ -109,14 +109,18 @@ Se voltou isso, acabou — está conectado. `projetos` normalmente tem 1 item; s
 
 > Cria um projeto pra este repositório.
 
-Ela vai perguntar se é `team` (qualquer um com o repositório entra sozinho) ou `private` (só entra quem um owner aceitar) antes de criar.
+Ela vai perguntar se é `public` (qualquer pessoa vê o projeto e entra sozinha, com `join_project`) ou `private` (só entra quem um owner aceitar) antes de criar. Ser `public` não coloca ninguém no projeto: quem tem o repositório vê o projeto com papel nulo e ainda precisa entrar.
 
-**O projeto já existe, mas este repositório ainda não está linkado a ele?** Se for `team`, peça pra IA linkar direto - ela já vira membro no mesmo ato, sem precisar de aprovação:
+**O projeto já existe, mas você ainda não é membro?** Se for `public`, peça pra IA entrar - não precisa de aprovação:
 
-> Linka este repositório ao projeto X.
+> Entra no projeto X.
 
-Se for `private`, primeiro peça acesso:
+Se for `private`, peça acesso:
 
 > Pede acesso ao projeto X.
 
-Fica pendente até um owner aceitar - só depois dá pra linkar.
+Fica pendente até um owner aceitar. Depois de membro, se este repositório ainda não está no projeto, peça pra linkar:
+
+> Linka este repositório ao projeto X.
+
+**Sair ou tirar alguém:** `leave_project` (você sai), `remove_member` e `set_member_role` (só owner). O projeto nunca fica sem owner, e quem foi removido de um projeto `public` pode entrar de novo sozinho: pra manter alguém fora, o projeto precisa ser `private`.
