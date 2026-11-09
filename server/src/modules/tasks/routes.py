@@ -16,7 +16,7 @@ router = APIRouter()
 
 
 @router.post("/projetos/{slug}/tasks", status_code=201)
-async def create_task(
+def create_task(
     slug: str,
     dados: TaskIn,
     pessoa: sqlite3.Row = Depends(pessoa_atual),
@@ -24,7 +24,7 @@ async def create_task(
 ) -> dict[str, Any]:
     conn = conectar()
     try:
-        return await service.create_task(conn, slug, pessoa["id"], ctx, dados)
+        return service.create_task(conn, slug, pessoa["id"], ctx, dados)
     finally:
         conn.close()
 
@@ -38,12 +38,19 @@ def list_tasks(
     nao_lidas: bool = False,
     feature: str | None = None,
     sem_feature: bool = False,
+    resumo: bool = False,
+    limite: int | None = Query(None, ge=1, le=500),
+    deslocamento: int = Query(0, ge=0),
     pessoa: sqlite3.Row = Depends(pessoa_atual),
-) -> list[dict[str, Any]]:
+) -> list[dict[str, Any]] | dict[str, Any]:
+    """Sem `limite` devolve a lista inteira; com `limite`, uma página
+    `{total, limite, deslocamento, proximo, tasks}`. `resumo=true` devolve só a
+    linha de triagem de cada task."""
     conn = conectar()
     try:
         return service.list_tasks(
-            conn, slug, pessoa["id"], status, tag, q, nao_lidas, feature, sem_feature
+            conn, slug, pessoa["id"], status, tag, q, nao_lidas, feature, sem_feature,
+            resumo, limite, deslocamento,
         )
     finally:
         conn.close()
@@ -75,7 +82,7 @@ def read_task(
 
 
 @router.patch("/projetos/{slug}/tasks/{code}")
-async def update_task(
+def update_task(
     slug: str,
     code: str,
     dados: TaskPatch,
@@ -84,7 +91,7 @@ async def update_task(
 ) -> dict[str, Any]:
     conn = conectar()
     try:
-        return await service.update_task(conn, slug, code, pessoa["id"], ctx, dados)
+        return service.update_task(conn, slug, code, pessoa["id"], ctx, dados)
     finally:
         conn.close()
 
@@ -93,7 +100,7 @@ async def update_task(
 
 
 @router.post("/projetos/{slug}/tasks/{code}/mensagens", status_code=201)
-async def create_message(
+def create_message(
     slug: str,
     code: str,
     dados: MensagemIn,
@@ -102,13 +109,13 @@ async def create_message(
 ) -> dict[str, Any]:
     conn = conectar()
     try:
-        return await service.create_message(conn, slug, code, pessoa["id"], ctx, dados)
+        return service.create_message(conn, slug, code, pessoa["id"], ctx, dados)
     finally:
         conn.close()
 
 
 @router.put("/projetos/{slug}/tasks/{code}/corpo")
-async def update_corpo(
+def update_corpo(
     slug: str,
     code: str,
     dados: CorpoIn,
@@ -117,13 +124,13 @@ async def update_corpo(
 ) -> dict[str, Any]:
     conn = conectar()
     try:
-        return await service.update_corpo(conn, slug, code, pessoa["id"], ctx, dados)
+        return service.update_corpo(conn, slug, code, pessoa["id"], ctx, dados)
     finally:
         conn.close()
 
 
 @router.post("/projetos/{slug}/tasks/{code}/diffs", status_code=201)
-async def publish_diff(
+def publish_diff(
     slug: str,
     code: str,
     dados: DiffIn,
@@ -132,7 +139,7 @@ async def publish_diff(
 ) -> dict[str, Any]:
     conn = conectar()
     try:
-        return await service.publish_diff(conn, slug, code, pessoa["id"], ctx, dados)
+        return service.publish_diff(conn, slug, code, pessoa["id"], ctx, dados)
     finally:
         conn.close()
 

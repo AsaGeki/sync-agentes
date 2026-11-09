@@ -11,7 +11,7 @@ from typing import Any
 from src.modules.events import repositorio
 from src.shared.auth import ContextoGit
 from src.shared.db import now
-from src.shared.enums import EKindEvent
+from src.shared.enums import EAgent, EKindEvent
 
 
 def registrar(conn: sqlite3.Connection, ctx: ContextoGit, **campos: Any) -> int:
@@ -149,7 +149,7 @@ def feed_do_projeto(
 def assinatura(evento: dict[str, Any]) -> str:
     """Quem escreveu e por qual ferramenta."""
     agent = evento.get("agent", "outro")
-    if agent == "human":
+    if agent == EAgent.human:
         return evento["author_alias"]
     return f"{evento['author_alias']} · {agent}"
 

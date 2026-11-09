@@ -12,7 +12,7 @@ router = APIRouter()
 
 
 @router.post("/projetos/{slug}/features", status_code=201)
-async def create_feature(
+def create_feature(
     slug: str,
     dados: FeatureIn,
     pessoa: sqlite3.Row = Depends(pessoa_atual),
@@ -20,7 +20,7 @@ async def create_feature(
 ) -> dict[str, Any]:
     conn = conectar()
     try:
-        return await service.create_feature(conn, slug, pessoa["id"], ctx, dados)
+        return service.create_feature(conn, slug, pessoa["id"], ctx, dados)
     finally:
         conn.close()
 
@@ -48,7 +48,7 @@ def read_feature(
 
 
 @router.patch("/projetos/{slug}/features/{code}")
-async def update_feature(
+def update_feature(
     slug: str,
     code: str,
     dados: FeaturePatch,
@@ -57,13 +57,13 @@ async def update_feature(
 ) -> dict[str, Any]:
     conn = conectar()
     try:
-        return await service.update_feature(conn, slug, code, pessoa["id"], ctx, dados)
+        return service.update_feature(conn, slug, code, pessoa["id"], ctx, dados)
     finally:
         conn.close()
 
 
 @router.delete("/projetos/{slug}/features/{code}")
-async def delete_feature(
+def delete_feature(
     slug: str,
     code: str,
     pessoa: sqlite3.Row = Depends(pessoa_atual),
@@ -71,6 +71,6 @@ async def delete_feature(
 ) -> dict[str, Any]:
     conn = conectar()
     try:
-        return await service.delete_feature(conn, slug, code, pessoa["id"], ctx)
+        return service.delete_feature(conn, slug, code, pessoa["id"], ctx)
     finally:
         conn.close()

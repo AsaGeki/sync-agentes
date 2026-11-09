@@ -4,6 +4,7 @@ import sqlite3
 from typing import Any
 
 from src.shared.db import now
+from src.shared.enums import ERequestStatus, ERole, EStatusProject, EVisibility
 from src.shared.erros import NotFound
 
 
@@ -47,19 +48,19 @@ def insert(
     name: str,
     created_by: int,
     description: str | None = None,
-    visibility: str = "team",
+    visibility: str = EVisibility.public.value,
 ) -> int:
     cursor = conn.execute(
-        """INSERT INTO projects
+        f"""INSERT INTO projects
            (slug, name, description, status, visibility, created_by, created_at, updated_at)
-           VALUES (?,?,?,'ativo',?,?,?,?)""",
+           VALUES (?,?,?,'{EStatusProject.ativo}',?,?,?,?)""",
         (slug, name, description, visibility, created_by, now(), now()),
     )
     return int(cursor.lastrowid)
 
 
 def find_all(conn: sqlite3.Connection, person_id: int) -> list[sqlite3.Row]:
-    """Todo projeto, `team` e `private` - existência é pública. `role` vem nulo
+    """Todo projeto, `public` e `private` - existência é pública. `role` vem nulo
     pra quem não é membro; conteúdo (tasks, eventos) continua gated à parte."""
     return conn.execute(
         """SELECT p.*, m.role,
@@ -140,8 +141,8 @@ def find_pending_request(
     conn: sqlite3.Connection, projeto_id: int, person_id: int
 ) -> sqlite3.Row | None:
     return conn.execute(
-        """SELECT * FROM membership_requests
-            WHERE project_id = ? AND person_id = ? AND status = 'pending'""",
+        f"""SELECT * FROM membership_requests
+            WHERE project_id = ? AND person_id = ? AND status = '{ERequestStatus.pending}'""",
         (projeto_id, person_id),
     ).fetchone()
 
@@ -156,7 +157,7 @@ def find_request(conn: sqlite3.Connection, projeto_id: int, request_id: int) -> 
 def insert_request(conn: sqlite3.Connection, projeto_id: int, person_id: int) -> int:
     cursor = conn.execute(
         "INSERT INTO membership_requests (project_id, person_id, status, created_at)"
-        " VALUES (?,?,'pending',?)",
+        f" VALUES (?,?,'{ERequestStatus.pending}',?)",
         (projeto_id, person_id, now()),
     )
     return int(cursor.lastrowid)
@@ -164,9 +165,9 @@ def insert_request(conn: sqlite3.Connection, projeto_id: int, person_id: int) ->
 
 def pending_requests_do_projeto(conn: sqlite3.Connection, projeto_id: int) -> list[sqlite3.Row]:
     return conn.execute(
-        """SELECT r.id, r.person_id, pe.email, pe.name, r.created_at
+        f"""SELECT r.id, r.person_id, pe.email, pe.name, r.created_at
              FROM membership_requests r JOIN people pe ON pe.id = r.person_id
-            WHERE r.project_id = ? AND r.status = 'pending'
+            WHERE r.project_id = ? AND r.status = '{ERequestStatus.pending}'
             ORDER BY r.created_at""",
         (projeto_id,),
     ).fetchall()
@@ -176,4 +177,33 @@ def resolve_request(conn: sqlite3.Connection, request_id: int, status: str) -> N
     conn.execute(
         "UPDATE membership_requests SET status = ?, resolved_at = ? WHERE id = ?",
         (status, now(), request_id),
+    )
+
+
+def contar_owners(conn: sqlite3.Connection, projeto_id: int) -> int:
+    return conn.execute(
+        f"SELECT COUNT(*) AS n FROM memberships WHERE project_id = ? AND role = '{ERole.owner}'",
+        (projeto_id,),
+    ).fetchone()["n"]
+
+
+def update_role(conn: sqlite3.Connection, projeto_id: int, person_id: int, role: str) -> None:
+    conn.execute(
+        "UPDATE memberships SET role = ? WHERE project_id = ? AND person_id = ?",
+        (role, projeto_id, person_id),
+    )
+
+
+def delete_membership(conn: sqlite3.Connection, projeto_id: int, person_id: int) -> None:
+    """Tira a pessoa do projeto e leva junto as marcas de leitura dela nele."""
+    conn.execute(
+        "DELETE FROM task_reads WHERE person_id = ?"
+        " AND task_id IN (SELECT id FROM tasks WHERE project_id = ?)",
+        (person_id, projeto_id),
+    )
+    conn.execute(
+        "DELETE FROM feature_reads WHERE project_id = ? AND person_id = ?", (projeto_id, person_id)
+    )
+    conn.execute(
+        "DELETE FROM memberships WHERE project_id = ? AND person_id = ?", (projeto_id, person_id)
     )

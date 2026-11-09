@@ -63,5 +63,7 @@ async def sse_eventos(
                 yield f"data: {json.dumps(envelope(evento), ensure_ascii=False)}\n\n"
         finally:
             INSCRITOS[projeto].discard(fila)
+            if not INSCRITOS[projeto]:
+                del INSCRITOS[projeto]
 
     return StreamingResponse(gerar(), media_type="text/event-stream")

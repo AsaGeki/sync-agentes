@@ -4,8 +4,8 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from src.modules.projects import service
-from src.modules.projects.models import ConviteIn, ProjetoIn, ProjetoPatch, RepoIn
-from src.shared.auth import exigir_admin, pessoa_atual
+from src.modules.projects.models import ConviteIn, PapelIn, ProjetoIn, ProjetoPatch, RepoIn
+from src.shared.auth import ContextoGit, contexto_git, exigir_admin, pessoa_atual
 from src.shared.db import conectar
 
 router = APIRouter()
@@ -14,8 +14,9 @@ router = APIRouter()
 @router.post("/repos/resolve")
 def resolve_repo(repo: RepoIn, pessoa: sqlite3.Row = Depends(pessoa_atual)) -> list[dict[str, Any]]:
     """Troca um repositório git pelos projetos afiliados a ele - pode ser mais
-    de 1. Repo desconhecido é 404 - use `POST /projetos` pra criar. Repo
-    conhecido entra como membro sozinho em cada projeto `team`."""
+    de 1. Repo desconhecido é 404 - use `POST /projetos` pra criar. Não adiciona
+    ninguém: cada projeto vem com o `role` da pessoa, ou `null` se ela ainda não
+    é membro (`POST /projetos/{slug}/entrar` em `public`, pedido em `private`)."""
     conn = conectar()
     try:
         return service.resolve_repo(conn, pessoa["id"], repo)
@@ -30,6 +31,16 @@ def create_project(dados: ProjetoIn, pessoa: sqlite3.Row = Depends(pessoa_atual)
     conn = conectar()
     try:
         return service.create_project(conn, pessoa["id"], dados)
+    finally:
+        conn.close()
+
+
+@router.post("/projetos/{slug}/entrar", status_code=201)
+def join_project(slug: str, pessoa: sqlite3.Row = Depends(pessoa_atual)) -> dict[str, Any]:
+    """Entra num projeto `public` sem aprovação. Em `private` é 403: use o pedido."""
+    conn = conectar()
+    try:
+        return service.join_project(conn, slug, pessoa["id"])
     finally:
         conn.close()
 
@@ -92,6 +103,47 @@ def add_member(
     conn = conectar()
     try:
         return service.add_member(conn, slug, pessoa["id"], dados.email)
+    finally:
+        conn.close()
+
+
+@router.patch("/projetos/{slug}/membros/{person_id}")
+def set_member_role(
+    slug: str, person_id: int, dados: PapelIn, pessoa: sqlite3.Row = Depends(pessoa_atual)
+) -> dict[str, Any]:
+    """Owner troca o papel de um membro. O projeto nunca fica sem owner."""
+    conn = conectar()
+    try:
+        return service.set_member_role(conn, slug, pessoa["id"], person_id, dados.role)
+    finally:
+        conn.close()
+
+
+@router.delete("/projetos/{slug}/membros/{person_id}")
+def remove_member(
+    slug: str,
+    person_id: int,
+    pessoa: sqlite3.Row = Depends(pessoa_atual),
+    ctx: ContextoGit = Depends(contexto_git),
+) -> dict[str, Any]:
+    """Owner tira um membro (ou qualquer um tira a si mesmo). As tasks dele ficam
+    sem dono."""
+    conn = conectar()
+    try:
+        return service.remove_member(conn, slug, pessoa["id"], person_id, ctx)
+    finally:
+        conn.close()
+
+
+@router.post("/projetos/{slug}/sair")
+def leave_project(
+    slug: str,
+    pessoa: sqlite3.Row = Depends(pessoa_atual),
+    ctx: ContextoGit = Depends(contexto_git),
+) -> dict[str, Any]:
+    conn = conectar()
+    try:
+        return service.leave_project(conn, slug, pessoa["id"], ctx)
     finally:
         conn.close()
 

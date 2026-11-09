@@ -123,7 +123,7 @@ def test_apagar_pessoa_sem_historico_e_pessoa_inexistente(mundo):
 
 def test_criar_projeto_vira_owner_e_slug_nao_colide(mundo):
     ana = mundo.pessoa("Ana")
-    corpo = {"name": "Meu App", "visibility": "team", "repo": {"root_sha": "a" * 40, "name": "r"}}
+    corpo = {"name": "Meu App", "visibility": "public", "repo": {"root_sha": "a" * 40, "name": "r"}}
     p1 = ana.post("/projetos", corpo).json()
     p2 = ana.post("/projetos", {**corpo, "repo": {"root_sha": "b" * 40, "name": "r"}}).json()
     assert p1["role"] == "owner" and p1["slug"] == "meu-app"
@@ -132,7 +132,7 @@ def test_criar_projeto_vira_owner_e_slug_nao_colide(mundo):
 
 def test_slug_de_nome_so_simbolos_e_nome_acentuado(mundo):
     ana = mundo.pessoa("Ana")
-    base = {"visibility": "team"}
+    base = {"visibility": "public"}
     a = ana.post("/projetos", {**base, "name": "!!!", "repo": {"root_sha": "a" * 7, "name": "r"}}).json()
     assert a["slug"] == "projeto"
     b = ana.post("/projetos", {**base, "name": "Gestão de Pátio", "repo": {"root_sha": "b" * 7, "name": "r"}})
@@ -142,11 +142,11 @@ def test_slug_de_nome_so_simbolos_e_nome_acentuado(mundo):
 def test_criar_projeto_valida_entrada(mundo):
     ana = mundo.pessoa("Ana")
     ok_repo = {"root_sha": "a" * 40, "name": "r"}
-    assert ana.post("/projetos", {"name": "", "visibility": "team", "repo": ok_repo}).status_code == 422
+    assert ana.post("/projetos", {"name": "", "visibility": "public", "repo": ok_repo}).status_code == 422
     assert ana.post("/projetos", {"name": "x", "visibility": "publico", "repo": ok_repo}).status_code == 422
-    assert ana.post("/projetos", {"name": "x", "visibility": "team"}).status_code == 422
+    assert ana.post("/projetos", {"name": "x", "visibility": "public"}).status_code == 422
     for sha in ("xyz", "abc", "A" * 40, "a" * 41):
-        resp = ana.post("/projetos", {"name": "x", "visibility": "team", "repo": {"root_sha": sha, "name": "r"}})
+        resp = ana.post("/projetos", {"name": "x", "visibility": "public", "repo": {"root_sha": sha, "name": "r"}})
         assert resp.status_code == 422, sha
 
 
@@ -154,11 +154,11 @@ def test_mesmo_repo_em_dois_projetos_e_resolve_devolve_os_dois(mundo):
     ana, bia = mundo.pessoa("Ana"), mundo.pessoa("Bia")
     sha = "c" * 40
     for nome in ("Um", "Dois"):
-        ana.post("/projetos", {"name": nome, "visibility": "team", "repo": {"root_sha": sha, "name": "r"}})
+        ana.post("/projetos", {"name": nome, "visibility": "public", "repo": {"root_sha": sha, "name": "r"}})
     resp = bia.post("/repos/resolve", {"root_sha": sha, "name": "r"})
     assert resp.status_code == 200
     assert sorted(p["slug"] for p in resp.json()) == ["dois", "um"]
-    assert {p["role"] for p in resp.json()} == {"member"}
+    assert {p["role"] for p in resp.json()} == {None}  # ter o repositório não adiciona ninguém
 
 
 def test_resolve_repo_desconhecido_404_e_privado_vem_sem_role(mundo):
@@ -170,13 +170,13 @@ def test_resolve_repo_desconhecido_404_e_privado_vem_sem_role(mundo):
     assert bia.get(f"/projetos/{slug}/tasks").status_code == 404
 
 
-def test_resolve_repo_repetido_e_idempotente(mundo):
+def test_resolve_repo_repetido_nao_adiciona_ninguem(mundo):
     ana, bia = mundo.pessoa("Ana"), mundo.pessoa("Bia")
     slug = mundo.projeto(ana)
     for _ in range(3):
         assert bia.post("/repos/resolve", {"root_sha": mundo.shas[slug], "name": "r"}).status_code == 200
     membros = ana.get(f"/projetos/{slug}/membros").json()
-    assert len(membros) == 2
+    assert len(membros) == 1
 
 
 def test_listar_projetos_mostra_existencia_mas_nao_vaza_privado(mundo):
@@ -186,7 +186,7 @@ def test_listar_projetos_mostra_existencia_mas_nao_vaza_privado(mundo):
     lista = {p["slug"]: p for p in bia.get("/projetos").json()}
     assert set(lista) == {publico, privado}
     assert lista[privado]["role"] is None and "repos" not in lista[privado]
-    assert lista[publico]["role"] is None  # team: existe, mas entrar é via repo
+    assert lista[publico]["role"] is None  # public: existe, mas entrar é com /entrar
     mundo.entrar(bia, publico)
     assert {p["slug"]: p["role"] for p in bia.get("/projetos").json()}[publico] == "member"
 
@@ -240,10 +240,12 @@ def test_apagar_projeto_so_admin_e_cascata(mundo):
 # ---------- vincular repo ---------- #
 
 
-def test_vincular_repo_team_entra_como_membro_e_e_idempotente(mundo):
+def test_vincular_repo_exige_ser_membro_e_e_idempotente(mundo):
     ana, bia = mundo.pessoa("Ana"), mundo.pessoa("Bia")
     slug = mundo.projeto(ana)
     novo = {"root_sha": "e" * 40, "name": "segundo"}
+    assert bia.post(f"/projetos/{slug}/repos", novo).status_code == 403  # public, mas ainda não entrou
+    assert bia.post(f"/projetos/{slug}/entrar").status_code == 201
     for _ in range(2):
         assert bia.post(f"/projetos/{slug}/repos", novo).status_code == 201
     repos = ana.get("/projetos").json()[0]["repos"]

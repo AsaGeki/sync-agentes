@@ -3,11 +3,15 @@ import sqlite3
 import unicodedata
 from typing import Any
 
+from src.modules.events import service as eventos_service
+from src.modules.events.bus import publish
 from src.modules.people import repositorio as people_repositorio
 from src.modules.projects import repositorio
 from src.modules.projects.models import ProjetoIn, ProjetoPatch, RepoIn
-from src.shared.enums import ERequestStatus, ERole, EVisibility
-from src.shared.erros import AlreadyExists, Forbidden, Invalid, NotFound
+from src.modules.tasks import repositorio as tasks_repositorio
+from src.shared.auth import ContextoGit
+from src.shared.enums import EKindEvent, ERequestStatus, ERole, EStatusProject, EVisibility
+from src.shared.erros import AlreadyExists, Conflict, Forbidden, Invalid, NotFound
 
 
 def _slug_de(nome: str) -> str:
@@ -45,6 +49,17 @@ def exigir_acesso(conn: sqlite3.Connection, slug: str, person_id: int) -> sqlite
     return projeto
 
 
+def exigir_escrita(conn: sqlite3.Connection, slug: str, person_id: int) -> sqlite3.Row:
+    """`exigir_acesso` para quem vai escrever: projeto arquivado só se lê."""
+    projeto = exigir_acesso(conn, slug, person_id)
+    if projeto["status"] == EStatusProject.arquivado:
+        raise Conflict(
+            f"Projeto '{slug}' está arquivado e só aceita leitura - "
+            "reative com update_project(status='ativo') antes de escrever."
+        )
+    return projeto
+
+
 def resolve_repo(
     conn: sqlite3.Connection, person_id: int, repo: RepoIn
 ) -> list[dict[str, Any]]:
@@ -53,9 +68,9 @@ def resolve_repo(
     repo desconhecido é 404 (`create_project` cria explícito, ou um membro de
     projeto existente linka com `POST /projetos/{slug}/repos`).
 
-    Cada projeto devolvido: `team` e quem ainda não é membro entra sozinho;
-    `private` devolve com `role: null` - acesso de escrita é por
-    `request_access`, não por só ter o repositório.
+    Cada projeto devolvido leva o `role` da pessoa, ou `null` se ela ainda não é
+    membro: ter o repositório não adiciona ninguém. Em projeto `public` entra-se
+    com `join_project`; em `private`, com `request_access` e aceite de um owner.
     """
     projetos = repositorio.find_all_by_root_sha(conn, repo.root_sha)
     if not projetos:
@@ -67,18 +82,26 @@ def resolve_repo(
         )
 
     resultado = []
-    with conn:
-        for projeto in projetos:
-            membership = repositorio.find_membership(conn, projeto["id"], person_id)
-            if membership is not None:
-                role = membership["role"]
-            elif projeto["visibility"] == EVisibility.team.value:
-                repositorio.insert_membership(conn, projeto["id"], person_id, ERole.member.value)
-                role = ERole.member.value
-            else:
-                role = None
-            resultado.append(_serializar_com_role(conn, projeto, role))
+    for projeto in projetos:
+        membership = repositorio.find_membership(conn, projeto["id"], person_id)
+        role = membership["role"] if membership is not None else None
+        resultado.append(_serializar_com_role(conn, projeto, role))
     return resultado
+
+
+def join_project(conn: sqlite3.Connection, slug: str, person_id: int) -> dict[str, Any]:
+    """Entra num projeto `public` sem aprovação. Ser público é poder ver e entrar,
+    não participar automaticamente. Em `private` a entrada é por `request_access`."""
+    projeto = repositorio.find_by_slug(conn, slug)
+    if repositorio.find_membership(conn, projeto["id"], person_id) is not None:
+        raise AlreadyExists("Você já é membro deste projeto")
+    if projeto["visibility"] == EVisibility.private:
+        raise Forbidden(
+            f"O projeto '{slug}' é private: peça acesso com request_access e espere um owner aceitar."
+        )
+    with conn:
+        repositorio.insert_membership(conn, projeto["id"], person_id, ERole.member.value)
+    return {**_serializar(conn, projeto), "role": ERole.member.value}
 
 
 def create_project(conn: sqlite3.Connection, person_id: int, dados: ProjetoIn) -> dict[str, Any]:
@@ -99,26 +122,23 @@ def create_project(conn: sqlite3.Connection, person_id: int, dados: ProjetoIn) -
 def vincular_repo(
     conn: sqlite3.Connection, slug: str, person_id: int, repo: RepoIn
 ) -> dict[str, Any]:
-    """Aponta mais um repositório pro projeto. `team` deixa qualquer pessoa
-    cadastrada linkar - mesmo espírito de "quem tem o repositório entra
-    sozinho" - e quem linka já vira membro nesse ato, senão ficaria com o
-    repo linkado e nenhum acesso. `private` exige já ser membro. O mesmo
-    repositório pode estar em outro(s) projeto(s) também - isso não bloqueia.
-    Vincular um repo que já está neste projeto é idempotente."""
+    """Aponta mais um repositório pro projeto. Exige já ser membro: entrar é
+    `join_project` (public) ou `request_access` (private), e vincular não
+    adiciona ninguém. O mesmo repositório pode estar em outro(s) projeto(s) -
+    isso não bloqueia. Vincular um repo que já está neste projeto é idempotente."""
     projeto = repositorio.find_by_slug(conn, slug)
-    if projeto["visibility"] == EVisibility.private.value:
-        if repositorio.find_membership(conn, projeto["id"], person_id) is None:
+    if repositorio.find_membership(conn, projeto["id"], person_id) is None:
+        if projeto["visibility"] == EVisibility.private:
             raise NotFound(f"Projeto '{slug}' não existe")
+        raise Forbidden(f"Entre no projeto '{slug}' com join_project antes de vincular um repositório.")
     with conn:
         if repositorio.find_repo_link(conn, repo.root_sha, projeto["id"]) is None:
             repositorio.insert_repo(conn, projeto["id"], repo.root_sha, repo.name, repo.remote)
-        if repositorio.find_membership(conn, projeto["id"], person_id) is None:
-            repositorio.insert_membership(conn, projeto["id"], person_id, ERole.member.value)
     return _serializar(conn, projeto)
 
 
 def list_projects(conn: sqlite3.Connection, person_id: int) -> list[dict[str, Any]]:
-    """Todo projeto, `team` e `private` - existência é pública. Repositórios
+    """Todo projeto, `public` e `private` - existência é pública. Repositórios
     vinculados e quem criou só aparecem pra quem é membro; ler/escrever o
     conteúdo (tasks, eventos) continua exigindo membership (`exigir_acesso`)."""
     return [
@@ -186,12 +206,137 @@ def _inserir_membro(conn: sqlite3.Connection, projeto: sqlite3.Row, email: str) 
     return {"projeto": projeto["slug"], "email": convidado["email"], "role": ERole.member.value}
 
 
+def _exigir_outro_owner(conn: sqlite3.Connection, projeto_id: int, alvo: sqlite3.Row) -> None:
+    """O projeto não fica sem owner: quem só tem esse owner perde o controle de
+    membros e de visibilidade."""
+    if alvo["role"] == ERole.owner and repositorio.contar_owners(conn, projeto_id) <= 1:
+        raise Conflict(
+            "Esta pessoa é a única owner do projeto - promova outro membro a owner antes."
+        )
+
+
+def remove_member(
+    conn: sqlite3.Connection,
+    slug: str,
+    person_id: int,
+    alvo_id: int,
+    ctx: ContextoGit,
+) -> dict[str, Any]:
+    """Owner tira um membro; qualquer membro tira a si mesmo (sair do projeto).
+    As tasks que eram dele ficam sem dono, com um evento em cada, porque dono
+    precisa ser membro."""
+    projeto = exigir_acesso(conn, slug, person_id)
+    return _remover_membro(conn, projeto, alvo_id, ctx, ator_id=person_id)
+
+
+def admin_remove_member(
+    conn: sqlite3.Connection, slug: str, alvo_id: int, ctx: ContextoGit
+) -> dict[str, Any]:
+    """Mesmo que `remove_member`, sem exigir owner - acesso só pelo admin. Os
+    eventos das tasks soltas saem assinados pela própria pessoa removida."""
+    return _remover_membro(conn, repositorio.find_by_slug(conn, slug), alvo_id, ctx, ator_id=None)
+
+
+def _remover_membro(
+    conn: sqlite3.Connection,
+    projeto: sqlite3.Row,
+    alvo_id: int,
+    ctx: ContextoGit,
+    ator_id: int | None,
+) -> dict[str, Any]:
+    slug = projeto["slug"]
+    autor_id = ator_id if ator_id is not None else alvo_id
+    sequencias: list[int] = []
+    soltas: list[str] = []
+    with conn:
+        # Lock de escrita antes de contar owners: duas saídas ao mesmo tempo não
+        # podem deixar o projeto sem nenhum.
+        conn.execute("BEGIN IMMEDIATE")
+        if ator_id is not None and alvo_id != ator_id:
+            _exigir_owner(conn, projeto["id"], ator_id)
+        alvo = repositorio.find_membership(conn, projeto["id"], alvo_id)
+        if alvo is None:
+            raise NotFound(f"Pessoa {alvo_id} não é membro deste projeto")
+        _exigir_outro_owner(conn, projeto["id"], alvo)
+        for task in tasks_repositorio.tasks_do_dono(conn, projeto["id"], alvo_id):
+            tasks_repositorio.update_campo(conn, task["id"], "owner_id", None)
+            soltas.append(task["code"])
+            sequencias.append(
+                eventos_service.registrar(
+                    conn,
+                    ctx,
+                    project_id=projeto["id"],
+                    task_id=task["id"],
+                    author_id=autor_id,
+                    kind=EKindEvent.task_field_changed.value,
+                    campo="owner_id",
+                    valor_de=str(alvo_id),
+                    valor_para=None,
+                )
+            )
+        repositorio.delete_membership(conn, projeto["id"], alvo_id)
+    for seq in sequencias:
+        publish(slug, eventos_service.hidratar(conn, seq))
+    removido = people_repositorio.find_by_id(conn, alvo_id)
+    return {
+        "projeto": slug,
+        "removido": {"id": alvo_id, "email": removido["email"]},
+        "tasks_sem_dono": soltas,
+    }
+
+
+def leave_project(
+    conn: sqlite3.Connection, slug: str, person_id: int, ctx: ContextoGit
+) -> dict[str, Any]:
+    return remove_member(conn, slug, person_id, person_id, ctx)
+
+
+def set_member_role(
+    conn: sqlite3.Connection, slug: str, person_id: int, alvo_id: int, role: ERole
+) -> dict[str, Any]:
+    """Owner promove ou rebaixa um membro. Rebaixar o único owner é recusado."""
+    projeto = exigir_acesso(conn, slug, person_id)
+    return _trocar_papel(conn, projeto, alvo_id, role, ator_id=person_id)
+
+
+def admin_set_member_role(
+    conn: sqlite3.Connection, slug: str, alvo_id: int, role: ERole
+) -> dict[str, Any]:
+    """Mesmo que `set_member_role`, sem exigir owner - acesso só pelo admin."""
+    return _trocar_papel(conn, repositorio.find_by_slug(conn, slug), alvo_id, role, ator_id=None)
+
+
+def _trocar_papel(
+    conn: sqlite3.Connection,
+    projeto: sqlite3.Row,
+    alvo_id: int,
+    role: ERole,
+    ator_id: int | None,
+) -> dict[str, Any]:
+    slug = projeto["slug"]
+    with conn:
+        conn.execute("BEGIN IMMEDIATE")
+        if ator_id is not None:
+            _exigir_owner(conn, projeto["id"], ator_id)
+        alvo = repositorio.find_membership(conn, projeto["id"], alvo_id)
+        if alvo is None:
+            raise NotFound(f"Pessoa {alvo_id} não é membro deste projeto")
+        if alvo["role"] != role:
+            if role != ERole.owner:
+                _exigir_outro_owner(conn, projeto["id"], alvo)
+            repositorio.update_role(conn, projeto["id"], alvo_id, role.value)
+    pessoa = people_repositorio.find_by_id(conn, alvo_id)
+    return {"projeto": slug, "id": alvo_id, "email": pessoa["email"], "role": role.value}
+
+
 def request_access(conn: sqlite3.Connection, slug: str, person_id: int) -> dict[str, Any]:
     """Pede acesso de escrita a um projeto `private`. Fica pendente até um
     owner aceitar ou recusar (`list_requests`/aceitar/recusar)."""
     projeto = repositorio.find_by_slug(conn, slug)
     if repositorio.find_membership(conn, projeto["id"], person_id) is not None:
         raise AlreadyExists("Você já é membro deste projeto")
+    if projeto["visibility"] == EVisibility.public:
+        raise Invalid(f"O projeto '{slug}' é public: não precisa de pedido, entre com join_project.")
     if repositorio.find_pending_request(conn, projeto["id"], person_id) is not None:
         raise AlreadyExists("Já existe um pedido seu pendente pra este projeto")
     with conn:

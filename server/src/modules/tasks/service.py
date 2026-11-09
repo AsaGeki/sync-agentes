@@ -7,13 +7,13 @@ from src.modules.events import service as eventos_service
 from src.modules.events.bus import publish
 from src.modules.features import repositorio as features_repositorio
 from src.modules.projects import repositorio as projetos_repositorio
-from src.modules.projects.service import exigir_acesso
+from src.modules.projects.service import exigir_acesso, exigir_escrita
 from src.modules.tasks import repositorio
 from src.modules.tasks.models import CorpoIn, DiffIn, MensagemIn, TaskIn, TaskPatch
 from src.shared import codes
 from src.shared.auth import ContextoGit
 from src.shared.enums import EKindEvent, EStatusTask, ETypeMessage
-from src.shared.erros import AlreadyExists, Conflict, Invalid, MissingRequirement
+from src.shared.erros import AlreadyExists, Conflict, Invalid, MissingRequirement, NotFound
 
 TENTATIVAS_DE_CODIGO = 5
 
@@ -48,7 +48,6 @@ def serializar(
 ) -> dict[str, Any]:
     """`leitura` vem de `repositorio.leitura_do_projeto` e acrescenta quantos
     eventos de outra pessoa estão por ler nesta task."""
-    corpo = repositorio.ultimo_corpo(conn, task["id"])
     deps = repositorio.dependencies(conn, task["id"])
     dados = {
         "code": task["code"],
@@ -58,7 +57,7 @@ def serializar(
         "owner": repositorio.owner_name(conn, task["owner_id"]),
         "owner_id": task["owner_id"],
         "feature": _feature_resumida(conn, task["feature_id"]),
-        "versao_corpo": corpo["version"] if corpo else 0,
+        "versao_corpo": repositorio.versao_do_corpo(conn, task["id"]),
         "dependencies": [d["code"] for d in deps],
         "dependencias_pendentes": [d["code"] for d in deps if d["status"] not in RESOLVIDAS],
         "created_at": task["created_at"],
@@ -85,7 +84,7 @@ def _checar_dependencias_prontas(conn: sqlite3.Connection, task: sqlite3.Row, no
     if pendentes:
         raise Conflict(
             f"Task depende de {', '.join(pendentes)}, que ainda não está 'feito' nem 'cancelada' - "
-            "não dá pra marcar esta como 'feito' antes."
+            "esta task não pode ficar 'feito' enquanto isso."
         )
 
 
@@ -178,8 +177,7 @@ def _gravar_corpo_evento(
     ctx: ContextoGit,
 ) -> tuple[int, int, str]:
     """Grava o corpo como evento `body.updated` e devolve (seq, versao, diff
-    contra a anterior). Publicar no tempo real é com o chamador: `create_task`
-    só publica o `task.created`, `update_corpo` publica após commitar."""
+    contra a anterior). Publicar no tempo real é com o chamador, após commitar."""
     anterior = repositorio.ultimo_corpo(conn, task["id"])
     versao = (anterior["version"] if anterior else 0) + 1
     diff = _make_diff(
@@ -208,6 +206,8 @@ def task_diff(
     versoes = repositorio.todos_corpos(conn, task_id)
     if not versoes:
         return {"code": code, "versao_de": 0, "versao_para": 0, "diff": ""}
+    if desde != 0 and all(v["version"] != desde for v in versoes):
+        raise NotFound(f"A task {code} não tem a versão {desde} do corpo")
     antes = next((v["texto"] for v in versoes if v["version"] == desde), "")
     ultima = next((v for v in versoes if v["version"] == ate), versoes[-1])
     return {
@@ -220,10 +220,10 @@ def task_diff(
     }
 
 
-async def create_task(
+def create_task(
     conn: sqlite3.Connection, slug: str, author_id: int, ctx: ContextoGit, dados: TaskIn
 ) -> dict[str, Any]:
-    projeto = exigir_acesso(conn, slug, author_id)
+    projeto = exigir_escrita(conn, slug, author_id)
     # Dois lados criando ao mesmo tempo chegam no mesmo número. Se ele foi gerado
     # aqui, tenta o seguinte; se veio de quem chamou, o conflito é resposta.
     depends_on_ids = _resolver_dependencias(conn, projeto["id"], None, dados.dependencies)
@@ -268,14 +268,79 @@ async def create_task(
                     texto=dados.title,
                 )
                 task = repositorio.find_by_id(conn, task_id)
+                seq_corpo = None
                 if dados.corpo is not None:
-                    _gravar_corpo_evento(conn, task, dados.corpo, author_id, projeto["id"], ctx)
+                    seq_corpo, _, _ = _gravar_corpo_evento(
+                        conn, task, dados.corpo, author_id, projeto["id"], ctx
+                    )
             break
         except sqlite3.IntegrityError:
             if dados.code or tentativa == TENTATIVAS_DE_CODIGO - 1:
                 raise AlreadyExists(f"Task '{code}' já existe neste projeto") from None
-    await publish(slug, eventos_service.hidratar(conn, seq))
-    return {"cursor": seq, **serializar(conn, task)}
+    for publicado in (seq, seq_corpo):
+        if publicado is not None:
+            publish(slug, eventos_service.hidratar(conn, publicado))
+    return {"cursor": seq_corpo or seq, **serializar(conn, task)}
+
+
+def _selecionar(
+    conn: sqlite3.Connection,
+    projeto: sqlite3.Row,
+    person_id: int | None,
+    status: EStatusTask | None,
+    tag: str | None,
+    q: str | None,
+    nao_lidas: bool,
+    feature: str | None,
+    sem_feature: bool,
+) -> tuple[list[sqlite3.Row], dict[int, dict[str, int]]]:
+    """Tasks que passam nos filtros, em ordem de code, e as marcas de leitura de
+    `person_id` (vazio na leitura de admin)."""
+    if feature and sem_feature:
+        raise Invalid("Use feature ou sem_feature, não os dois")
+    feature_id = (
+        features_repositorio.find_by_code(conn, projeto["id"], feature)["id"] if feature else None
+    )
+    leitura = (
+        repositorio.leitura_do_projeto(conn, projeto["id"], person_id) if person_id is not None else {}
+    )
+    linhas = repositorio.find_all(conn, projeto["id"], status, feature_id, sem_feature)
+    if q:
+        casam = repositorio.ids_que_casam(conn, projeto["id"], q)
+        linhas = [linha for linha in linhas if linha["id"] in casam]
+    if nao_lidas:
+        linhas = [linha for linha in linhas if leitura.get(linha["id"], {}).get("nao_lidos")]
+    if tag is not None:
+        linhas = [linha for linha in linhas if tag in json.loads(linha["tags"])]
+    return linhas, leitura
+
+
+def resumir_task(
+    conn: sqlite3.Connection, task: sqlite3.Row, leitura: dict[str, int] | None = None
+) -> dict[str, Any]:
+    """Linha de triagem: o bastante pra decidir qual task abrir. Sem ids, datas
+    de criação nem o último evento não lido (isso é do `serializar`)."""
+    feature = _feature_resumida(conn, task["feature_id"])
+    dados: dict[str, Any] = {
+        "code": task["code"],
+        "title": task["title"],
+        "status": task["status"],
+        "owner": repositorio.owner_name(conn, task["owner_id"]),
+        "feature": feature["code"] if feature else None,
+        "tags": json.loads(task["tags"]),
+        "updated_at": task["updated_at"],
+    }
+    pendentes = [
+        d["code"] for d in repositorio.dependencies(conn, task["id"]) if d["status"] not in RESOLVIDAS
+    ]
+    if pendentes:
+        dados["dependencias_pendentes"] = pendentes
+    fazendo = _fazendo_agora(conn, task)
+    if fazendo:
+        dados["fazendo_agora"] = fazendo["person"]
+    if leitura and leitura["nao_lidos"]:
+        dados["nao_lidos"] = leitura["nao_lidos"]
+    return dados
 
 
 def list_tasks(
@@ -288,9 +353,31 @@ def list_tasks(
     nao_lidas: bool = False,
     feature: str | None = None,
     sem_feature: bool = False,
-) -> list[dict[str, Any]]:
+    resumo: bool = False,
+    limite: int | None = None,
+    deslocamento: int = 0,
+) -> list[dict[str, Any]] | dict[str, Any]:
+    """Sem `limite` devolve a lista inteira. Com `limite` devolve uma página:
+    `{total, limite, deslocamento, proximo, tasks}`, onde `proximo` é o
+    `deslocamento` da página seguinte (None na última). `resumo` troca cada task
+    pela linha de triagem."""
     projeto = exigir_acesso(conn, slug, person_id)
-    return filtrar_tasks(conn, projeto, person_id, status, tag, q, nao_lidas, feature, sem_feature)
+    linhas, leitura = _selecionar(
+        conn, projeto, person_id, status, tag, q, nao_lidas, feature, sem_feature
+    )
+    pagina = linhas if limite is None else linhas[deslocamento : deslocamento + limite]
+    montar = resumir_task if resumo else serializar
+    tasks = [montar(conn, linha, leitura.get(linha["id"])) for linha in pagina]
+    if limite is None:
+        return tasks
+    proximo = deslocamento + limite
+    return {
+        "total": len(linhas),
+        "limite": limite,
+        "deslocamento": deslocamento,
+        "proximo": proximo if proximo < len(linhas) else None,
+        "tasks": tasks,
+    }
 
 
 def filtrar_tasks(
@@ -306,24 +393,10 @@ def filtrar_tasks(
 ) -> list[dict[str, Any]]:
     """Núcleo de `list_tasks` sem checagem de acesso. `person_id=None` é leitura
     de admin: sem contagem de não lidos."""
-    if feature and sem_feature:
-        raise Invalid("Use feature ou sem_feature, não os dois")
-    feature_id = (
-        features_repositorio.find_by_code(conn, projeto["id"], feature)["id"] if feature else None
+    linhas, leitura = _selecionar(
+        conn, projeto, person_id, status, tag, q, nao_lidas, feature, sem_feature
     )
-    leitura = (
-        repositorio.leitura_do_projeto(conn, projeto["id"], person_id) if person_id is not None else {}
-    )
-    linhas = repositorio.find_all(conn, projeto["id"], status, feature_id, sem_feature)
-    if q:
-        casam = repositorio.ids_que_casam(conn, projeto["id"], q)
-        linhas = [linha for linha in linhas if linha["id"] in casam]
-    if nao_lidas:
-        linhas = [linha for linha in linhas if leitura.get(linha["id"], {}).get("nao_lidos")]
-    tasks = [serializar(conn, linha, leitura.get(linha["id"])) for linha in linhas]
-    if tag is not None:
-        tasks = [t for t in tasks if tag in t["tags"]]
-    return tasks
+    return [serializar(conn, linha, leitura.get(linha["id"])) for linha in linhas]
 
 
 LIMITE_NAO_LIDOS = 20
@@ -347,27 +420,26 @@ def nao_lidos(
     pendentes = []
     for task in repositorio.find_all(conn, projeto["id"], None):
         marca = leitura.get(task["id"])
-        if not marca or not marca["nao_lidos"]:
-            continue
-        evento = eventos_service.hidratar(conn, marca["ultimo_nao_lido"])
+        if marca and marca["nao_lidos"]:
+            pendentes.append(((bool(marca["ultima_pergunta"]), marca["ultimo_nao_lido"]), task, marca))
+    pendentes.sort(key=lambda item: item[0], reverse=True)
+    avisos = []
+    # Só as que vão na resposta são hidratadas: o resto entra apenas no `total`.
+    for _, task, marca in pendentes[:limite]:
         aviso = {
             "code": task["code"],
             "title": task["title"],
             "status": task["status"],
             "nao_lidos": marca["nao_lidos"],
-            "ultimo": eventos_service.resumir(evento),
+            "ultimo": eventos_service.resumir(eventos_service.hidratar(conn, marca["ultimo_nao_lido"])),
         }
         seq_pergunta = marca["ultima_pergunta"]
         if seq_pergunta and seq_pergunta != marca["ultimo_nao_lido"]:
             aviso["pergunta"] = eventos_service.resumir(
                 eventos_service.hidratar(conn, seq_pergunta)
             )
-        pendentes.append(((bool(seq_pergunta), marca["ultimo_nao_lido"]), aviso))
-    pendentes.sort(key=lambda par: par[0], reverse=True)
-    resposta: dict[str, Any] = {
-        "total": len(pendentes),
-        "tasks": [aviso for _, aviso in pendentes[:limite]],
-    }
+        avisos.append(aviso)
+    resposta: dict[str, Any] = {"total": len(pendentes), "tasks": avisos}
     das_features = features_repositorio.eventos_nao_lidos(conn, projeto["id"], person_id)
     if das_features["nao_lidos"]:
         ultimo = eventos_service.hidratar(conn, das_features["ultimo_nao_lido"])
@@ -417,7 +489,7 @@ def montar_task(
     return dados
 
 
-async def update_task(
+def update_task(
     conn: sqlite3.Connection,
     slug: str,
     code: str,
@@ -425,8 +497,8 @@ async def update_task(
     ctx: ContextoGit,
     dados: TaskPatch,
 ) -> dict[str, Any]:
-    projeto = exigir_acesso(conn, slug, author_id)
-    task = repositorio.find_by_code(conn, projeto["id"], code)
+    projeto = exigir_escrita(conn, slug, author_id)
+    repositorio.find_by_code(conn, projeto["id"], code)
     mudancas = dados.model_dump(mode="json", exclude_none=True)
     # `owner_id: null` explícito tira o dono; campo omitido não mexe nele.
     if "owner_id" in dados.model_fields_set and dados.owner_id is None:
@@ -437,24 +509,28 @@ async def update_task(
     # `dependencies` não é coluna de `tasks` - sai daqui antes do laço de campos
     # e vira linha em `task_dependencies`.
     novas_dependencias = mudancas.pop("dependencies", None)
-    if mudancas.get("owner_id") is not None:
-        _exigir_dono(conn, projeto["id"], mudancas["owner_id"])
-    depends_on_ids: list[int] = []
-    if novas_dependencias is not None:
-        depends_on_ids = _resolver_dependencias(
-            conn, projeto["id"], task["id"], novas_dependencias
-        )
-
     # `feature` também não é coluna: vira `feature_id`, e o evento leva o code.
     nova_feature = mudancas.pop("feature", None)
-    feature_nova_id = None
-    if nova_feature:
-        feature_nova_id = features_repositorio.find_by_code(
-            conn, projeto["id"], nova_feature
-        )["id"]
 
     sequencias: list[int] = []
     with conn:
+        # Lock de escrita na abertura e task relida depois dele: o estado em que
+        # as regras abaixo são checadas é o mesmo em que a escrita acontece.
+        conn.execute("BEGIN IMMEDIATE")
+        task = repositorio.find_by_code(conn, projeto["id"], code)
+        if mudancas.get("owner_id") is not None:
+            _exigir_dono(conn, projeto["id"], mudancas["owner_id"])
+        depends_on_ids: list[int] = []
+        if novas_dependencias is not None:
+            depends_on_ids = _resolver_dependencias(
+                conn, projeto["id"], task["id"], novas_dependencias
+            )
+        feature_nova_id = None
+        if nova_feature:
+            feature_nova_id = features_repositorio.find_by_code(
+                conn, projeto["id"], nova_feature
+            )["id"]
+
         if novas_dependencias is not None:
             antes_deps = [d["code"] for d in repositorio.dependencies(conn, task["id"])]
             repositorio.delete_dependencies(conn, task["id"])
@@ -495,8 +571,11 @@ async def update_task(
 
         # Depois de gravar as dependências novas: fechar a task no mesmo patch
         # que as trocou tem que valer contra as novas, não contra as antigas.
-        if "status" in mudancas:
-            _checar_dependencias_prontas(conn, task, mudancas["status"])
+        # Trocar as dependências de task já 'feito' também passa por aqui.
+        if "status" in mudancas or novas_dependencias is not None:
+            _checar_dependencias_prontas(
+                conn, task, mudancas.get("status", task["status"])
+            )
 
         for campo, valor in mudancas.items():
             antes = task[campo]
@@ -527,12 +606,12 @@ async def update_task(
             )
 
     for seq in sequencias:
-        await publish(slug, eventos_service.hidratar(conn, seq))
+        publish(slug, eventos_service.hidratar(conn, seq))
     atual = repositorio.find_by_code(conn, projeto["id"], code)
     return {"cursor": sequencias[-1] if sequencias else None, **serializar(conn, atual)}
 
 
-async def create_message(
+def create_message(
     conn: sqlite3.Connection,
     slug: str,
     code: str,
@@ -540,7 +619,7 @@ async def create_message(
     ctx: ContextoGit,
     dados: MensagemIn,
 ) -> dict[str, Any]:
-    projeto = exigir_acesso(conn, slug, author_id)
+    projeto = exigir_escrita(conn, slug, author_id)
     task = repositorio.find_by_code(conn, projeto["id"], code)
     with conn:
         seq = eventos_service.registrar(
@@ -554,11 +633,11 @@ async def create_message(
             texto=dados.texto,
         )
     evento = eventos_service.hidratar(conn, seq)
-    await publish(slug, evento)
+    publish(slug, evento)
     return {"cursor": seq, **eventos_service.envelope(evento, com_texto=True)}
 
 
-async def update_corpo(
+def update_corpo(
     conn: sqlite3.Connection,
     slug: str,
     code: str,
@@ -566,7 +645,7 @@ async def update_corpo(
     ctx: ContextoGit,
     dados: CorpoIn,
 ) -> dict[str, Any]:
-    projeto = exigir_acesso(conn, slug, author_id)
+    projeto = exigir_escrita(conn, slug, author_id)
     task = repositorio.find_by_code(conn, projeto["id"], code)
     with conn:
         # Lock de escrita já na abertura: sem ele, os dois lados leem a mesma
@@ -583,7 +662,7 @@ async def update_corpo(
         seq, versao, diff = _gravar_corpo_evento(
             conn, task, dados.texto, author_id, projeto["id"], ctx
         )
-    await publish(slug, eventos_service.hidratar(conn, seq))
+    publish(slug, eventos_service.hidratar(conn, seq))
     return {"cursor": seq, "code": code, "versao": versao, "diff": diff}
 
 
@@ -592,7 +671,7 @@ async def update_corpo(
 LIMITE_PATCH = 100_000
 
 
-async def publish_diff(
+def publish_diff(
     conn: sqlite3.Connection,
     slug: str,
     code: str,
@@ -606,7 +685,7 @@ async def publish_diff(
     `pedir_revisao` registra também uma pergunta na task, colocando o diff na
     lista de perguntas em aberto do relatório.
     """
-    projeto = exigir_acesso(conn, slug, author_id)
+    projeto = exigir_escrita(conn, slug, author_id)
     task = repositorio.find_by_code(conn, projeto["id"], code)
     if not ctx.commit_sha:
         raise MissingRequirement(
@@ -648,7 +727,7 @@ async def publish_diff(
 
     for publicado in (seq, seq_pergunta):
         if publicado is not None:
-            await publish(slug, eventos_service.hidratar(conn, publicado))
+            publish(slug, eventos_service.hidratar(conn, publicado))
     evento = eventos_service.envelope(eventos_service.hidratar(conn, seq))
     return {"cursor": seq_pergunta or seq, "truncado": truncado, **evento}
 

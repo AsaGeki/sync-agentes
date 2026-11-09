@@ -4,6 +4,8 @@ from typing import Any
 from src.modules.features.models import FeatureIn
 from src.shared import codes
 from src.shared.db import now
+from src.shared.enums import EKindEvent
+from src.shared.enums import EKindEvent
 from src.shared.erros import NotFound
 
 
@@ -32,7 +34,7 @@ def proximo_numero(conn: sqlite3.Connection, projeto_id: int) -> str:
     vivo = codes.proximo_numero(conn, "features", projeto_id, "F")
     apagado = conn.execute(
         "SELECT MAX(CAST(SUBSTR(valor_de, 3) AS INTEGER)) AS maior FROM events"
-        " WHERE project_id = ? AND kind = 'feature.deleted'",
+        f" WHERE project_id = ? AND kind = '{EKindEvent.feature_deleted}'",
         (projeto_id,),
     ).fetchone()["maior"]
     if apagado is None or int(vivo[2:]) > apagado:

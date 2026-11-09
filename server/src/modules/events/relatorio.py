@@ -10,16 +10,16 @@ from src.modules.projects.service import exigir_acesso
 from src.modules.tasks import repositorio as tasks_repositorio
 from src.modules.tasks import service as tasks_service
 from src.shared.db import now
-from src.shared.enums import EKindEvent
+from src.shared.enums import EKindEvent, EStatusTask, ETypeMessage
 
 ROTULO_STATUS = {
-    "feito": "feito",
-    "em_andamento": "em andamento",
-    "parcial": "parcial",
-    "ideia": "ideia",
-    "bloqueado": "bloqueado",
-    "aguardando_decisao": "aguardando decisão",
-    "cancelada": "cancelada",
+    EStatusTask.feito: "feito",
+    EStatusTask.em_andamento: "em andamento",
+    EStatusTask.parcial: "parcial",
+    EStatusTask.ideia: "ideia",
+    EStatusTask.bloqueado: "bloqueado",
+    EStatusTask.aguardando_decisao: "aguardando decisão",
+    EStatusTask.cancelada: "cancelada",
 }
 
 
@@ -33,9 +33,9 @@ def perguntas_abertas(
         linhas = eventos_repositorio.mensagens_da_task(conn, projeto_id, task["code"])
         abertas: list[dict[str, Any]] = []
         for linha in linhas:
-            if linha["type"] == "pergunta":
+            if linha["type"] == ETypeMessage.pergunta:
                 abertas.append(dict(linha))
-            elif linha["type"] == "resposta" and abertas:
+            elif linha["type"] == ETypeMessage.resposta and abertas:
                 abertas.pop(0)
         pendentes += [{"code": task["code"], **pendente} for pendente in abertas]
     return pendentes
@@ -193,12 +193,12 @@ def relatorio_markdown(conn: sqlite3.Connection, rel: dict[str, Any], com_diff: 
         )
         linhas.append(f"- **Em andamento:** {alvos}")
 
-    bloqueadas = [t for t in rel["tasks"] if t["status"] == "bloqueado"]
+    bloqueadas = [t for t in rel["tasks"] if t["status"] == EStatusTask.bloqueado]
     if bloqueadas:
         alvos = ", ".join(f"{t['code']} (dono: {t['owner'] or 'sem dono'})" for t in bloqueadas)
         linhas.append(f"- **Bloqueadas:** {alvos}")
 
-    aguardando = [t for t in rel["tasks"] if t["status"] == "aguardando_decisao"]
+    aguardando = [t for t in rel["tasks"] if t["status"] == EStatusTask.aguardando_decisao]
     if aguardando:
         alvos = ", ".join(f"{t['code']} (dono: {t['owner'] or 'sem dono'})" for t in aguardando)
         linhas.append(f"- **Aguardando decisão:** {alvos}")

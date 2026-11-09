@@ -80,7 +80,7 @@ class Mundo:
         assert emitido.status_code == 200, emitido.text
         return Pessoa(self, criada.json()["id"], email, emitido.json()["token"])
 
-    def projeto(self, dono: Pessoa, nome: str = "Projeto", visibility: str = "team") -> str:
+    def projeto(self, dono: Pessoa, nome: str = "Projeto", visibility: str = "public") -> str:
         sha = f"{next(_contador):040x}"
         resp = dono.post(
             "/projetos",
@@ -95,7 +95,7 @@ class Mundo:
         """Põe a pessoa no projeto e, por padrão, recua a entrada pro passado -
         os testes de entrada tardia passam `em` explícito."""
         if dono is None:
-            resp = pessoa.post(f"/projetos/{slug}/repos", {"root_sha": self.shas[slug], "name": "repo"})
+            resp = pessoa.post(f"/projetos/{slug}/entrar")
         else:
             resp = dono.post(f"/projetos/{slug}/membros", {"email": pessoa.email})
         assert resp.status_code == 201, resp.text

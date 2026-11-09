@@ -7,5 +7,5 @@ class FeatureIn(BaseModel):
 
 
 class FeaturePatch(BaseModel):
-    title: str | None = None
+    title: str | None = Field(default=None, min_length=1)
     description: str | None = None

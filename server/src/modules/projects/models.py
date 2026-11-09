@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from src.shared.enums import EStatusProject, EVisibility
+from src.shared.enums import ERole, EStatusProject, EVisibility
 
 
 class RepoIn(BaseModel):
@@ -28,3 +28,7 @@ class ProjetoPatch(BaseModel):
 
 class ConviteIn(BaseModel):
     email: str = Field(min_length=3)
+
+
+class PapelIn(BaseModel):
+    role: ERole

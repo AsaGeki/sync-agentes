@@ -8,7 +8,7 @@ from typing import Any
 from src.modules.tasks.models import TaskIn
 from src.shared import codes
 from src.shared.db import now
-from src.shared.enums import EStatusTask
+from src.shared.enums import EKindEvent, EStatusTask, ETypeMessage
 from src.shared.erros import NotFound
 
 
@@ -81,9 +81,9 @@ def ids_que_casam(conn: sqlite3.Connection, projeto_id: int, termo: str) -> set[
     trata `%` e `_` do termo como curinga."""
     alvo = termo.casefold()
     linhas = conn.execute(
-        """SELECT t.id, t.code, t.title,
+        f"""SELECT t.id, t.code, t.title,
                   (SELECT e.texto FROM events e
-                    WHERE e.task_id = t.id AND e.kind = 'body.updated'
+                    WHERE e.task_id = t.id AND e.kind = '{EKindEvent.body_updated}'
                     ORDER BY e.version DESC LIMIT 1) AS corpo
              FROM tasks t WHERE t.project_id = ?""",
         (projeto_id,),
@@ -108,22 +108,31 @@ def owner_name(conn: sqlite3.Connection, owner_id: int | None) -> str | None:
 
 def ultimo_corpo(conn: sqlite3.Connection, task_id: int) -> sqlite3.Row | None:
     return conn.execute(
-        """SELECT version, texto FROM events
-            WHERE task_id = ? AND kind = 'body.updated' ORDER BY version DESC LIMIT 1""",
+        f"""SELECT version, texto FROM events
+            WHERE task_id = ? AND kind = '{EKindEvent.body_updated}' ORDER BY version DESC LIMIT 1""",
         (task_id,),
     ).fetchone()
+
+
+def versao_do_corpo(conn: sqlite3.Connection, task_id: int) -> int:
+    """Só o número da versão atual: quem não precisa do texto não deve carregá-lo."""
+    linha = conn.execute(
+        f"SELECT MAX(version) AS versao FROM events WHERE task_id = ? AND kind = '{EKindEvent.body_updated}'",
+        (task_id,),
+    ).fetchone()
+    return linha["versao"] or 0
 
 
 def quem_esta_fazendo(conn: sqlite3.Connection, task_id: int) -> sqlite3.Row | None:
     """Último evento que pôs a task em 'em_andamento': a mudança de status ou,
     se ela já nasceu assim, o `task.created`."""
     return conn.execute(
-        """SELECT e.created_at, e.agent, pe.alias, pe.name
+        f"""SELECT e.created_at, e.agent, pe.alias, pe.name
              FROM events e JOIN people pe ON pe.id = e.author_id
             WHERE e.task_id = ?
-              AND ((e.kind = 'task.field_changed' AND e.campo = 'status'
-                    AND e.valor_para = 'em_andamento')
-                   OR e.kind = 'task.created')
+              AND ((e.kind = '{EKindEvent.task_field_changed}' AND e.campo = 'status'
+                    AND e.valor_para = '{EStatusTask.em_andamento}')
+                   OR e.kind = '{EKindEvent.task_created}')
             ORDER BY e.seq DESC LIMIT 1""",
         (task_id,),
     ).fetchone()
@@ -133,8 +142,8 @@ def seqs_de_diff(conn: sqlite3.Connection, task_id: int) -> list[int]:
     return [
         linha["seq"]
         for linha in conn.execute(
-            """SELECT seq FROM events
-                WHERE task_id = ? AND kind = 'diff.published' ORDER BY seq""",
+            f"""SELECT seq FROM events
+                WHERE task_id = ? AND kind = '{EKindEvent.diff_published}' ORDER BY seq""",
             (task_id,),
         )
     ]
@@ -142,8 +151,8 @@ def seqs_de_diff(conn: sqlite3.Connection, task_id: int) -> list[int]:
 
 def todos_corpos(conn: sqlite3.Connection, task_id: int) -> list[sqlite3.Row]:
     return conn.execute(
-        """SELECT version, texto FROM events
-            WHERE task_id = ? AND kind = 'body.updated' ORDER BY version""",
+        f"""SELECT version, texto FROM events
+            WHERE task_id = ? AND kind = '{EKindEvent.body_updated}' ORDER BY version""",
         (task_id,),
     ).fetchall()
 
@@ -229,10 +238,10 @@ def leitura_do_projeto(
     nada anterior à entrada da pessoa no projeto também não: quem acabou de
     entrar não tem o histórico inteiro como não lido."""
     linhas = conn.execute(
-        """SELECT t.id         AS task_id,
+        f"""SELECT t.id         AS task_id,
                   COUNT(e.seq) AS nao_lidos,
                   MAX(e.seq)   AS ultimo_nao_lido,
-                  MAX(CASE WHEN e.kind = 'message.created' AND e.type = 'pergunta'
+                  MAX(CASE WHEN e.kind = '{EKindEvent.message_created}' AND e.type = '{ETypeMessage.pergunta}'
                            THEN e.seq END) AS ultima_pergunta
              FROM tasks t
              LEFT JOIN events e
@@ -256,3 +265,10 @@ def leitura_do_projeto(
         }
         for linha in linhas
     }
+
+
+def tasks_do_dono(conn: sqlite3.Connection, projeto_id: int, owner_id: int) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT * FROM tasks WHERE project_id = ? AND owner_id = ? ORDER BY code",
+        (projeto_id, owner_id),
+    ).fetchall()

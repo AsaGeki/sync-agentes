@@ -6,7 +6,7 @@ from src.modules.events import service as eventos_service
 from src.modules.events.bus import publish
 from src.modules.features import repositorio
 from src.modules.features.models import FeatureIn, FeaturePatch
-from src.modules.projects.service import exigir_acesso
+from src.modules.projects.service import exigir_acesso, exigir_escrita
 from src.modules.tasks import repositorio as tasks_repositorio
 from src.shared import codes
 from src.shared.auth import ContextoGit
@@ -50,10 +50,10 @@ def serializar(conn: sqlite3.Connection, feature: sqlite3.Row) -> dict[str, Any]
     }
 
 
-async def create_feature(
+def create_feature(
     conn: sqlite3.Connection, slug: str, author_id: int, ctx: ContextoGit, dados: FeatureIn
 ) -> dict[str, Any]:
-    projeto = exigir_acesso(conn, slug, author_id)
+    projeto = exigir_escrita(conn, slug, author_id)
     # Dois lados criando ao mesmo tempo chegam no mesmo número: tenta o seguinte.
     for tentativa in range(TENTATIVAS_DE_CODIGO):
         code = codes.montar_code(repositorio.proximo_numero(conn, projeto["id"]), dados.title)
@@ -74,7 +74,7 @@ async def create_feature(
         except sqlite3.IntegrityError:
             if tentativa == TENTATIVAS_DE_CODIGO - 1:
                 raise AlreadyExists(f"Feature '{code}' já existe neste projeto") from None
-    await publish(slug, eventos_service.hidratar(conn, seq))
+    publish(slug, eventos_service.hidratar(conn, seq))
     return {"cursor": seq, **serializar(conn, repositorio.find_by_id(conn, feature_id))}
 
 
@@ -109,7 +109,7 @@ def read_feature(
     return dados
 
 
-async def update_feature(
+def update_feature(
     conn: sqlite3.Connection,
     slug: str,
     code: str,
@@ -117,7 +117,7 @@ async def update_feature(
     ctx: ContextoGit,
     dados: FeaturePatch,
 ) -> dict[str, Any]:
-    projeto = exigir_acesso(conn, slug, author_id)
+    projeto = exigir_escrita(conn, slug, author_id)
     feature = repositorio.find_by_code(conn, projeto["id"], code)
     mudancas = dados.model_dump(exclude_none=True)
     if not mudancas:
@@ -145,16 +145,16 @@ async def update_feature(
                 )
             )
     for seq in sequencias:
-        await publish(slug, eventos_service.hidratar(conn, seq))
+        publish(slug, eventos_service.hidratar(conn, seq))
     atual = repositorio.find_by_id(conn, feature["id"])
     return {"cursor": sequencias[-1] if sequencias else None, **serializar(conn, atual)}
 
 
-async def delete_feature(
+def delete_feature(
     conn: sqlite3.Connection, slug: str, code: str, author_id: int, ctx: ContextoGit
 ) -> dict[str, Any]:
     """Tasks da feature ficam avulsas (`ON DELETE SET NULL`)."""
-    projeto = exigir_acesso(conn, slug, author_id)
+    projeto = exigir_escrita(conn, slug, author_id)
     feature = repositorio.find_by_code(conn, projeto["id"], code)
     soltas = [t["code"] for t in repositorio.tasks_da_feature(conn, feature["id"])]
     with conn:
@@ -168,5 +168,5 @@ async def delete_feature(
             valor_de=feature["code"],
         )
         repositorio.delete(conn, feature["id"])
-    await publish(slug, eventos_service.hidratar(conn, seq))
+    publish(slug, eventos_service.hidratar(conn, seq))
     return {"cursor": seq, "code": feature["code"], "tasks_soltas": soltas}

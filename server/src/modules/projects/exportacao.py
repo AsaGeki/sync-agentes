@@ -9,6 +9,8 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+from src.shared.enums import EAgent, EKindEvent, EStatusProject, EStatusTask, EVisibility
+
 COLECOES = (
     "features",
     "tasks",
@@ -30,13 +32,13 @@ COLECOES = (
     "projectMemoryProposals",
 )
 STATUS = {
-    "ideia": "pendente",
-    "parcial": "pendente",
-    "em_andamento": "bloqueada",
-    "feito": "concluida",
-    "bloqueado": "bloqueada",
-    "aguardando_decisao": "bloqueada",
-    "cancelada": "cancelada",
+    EStatusTask.ideia: "pendente",
+    EStatusTask.parcial: "pendente",
+    EStatusTask.em_andamento: "bloqueada",
+    EStatusTask.feito: "concluida",
+    EStatusTask.bloqueado: "bloqueada",
+    EStatusTask.aguardando_decisao: "bloqueada",
+    EStatusTask.cancelada: "cancelada",
 }
 TIPOS = {"feature", "fix", "chore", "docs", "refactor", "test", "perf", "build", "ci", "revert"}
 
@@ -51,7 +53,7 @@ def escolher(rotulo, opcoes):
         print("Escolha um número da lista.")
 
 
-def exportar(conn, projeto, repo_padrao):
+def exportar(conn, projeto, repos_por_task):
     origem = f"sync-agents:{projeto['id']}:{projeto['created_at']}"
     namespace = uuid.uuid5(uuid.NAMESPACE_URL, origem)
 
@@ -82,6 +84,12 @@ def exportar(conn, projeto, repo_padrao):
         "WHERE t.project_id = ? ORDER BY t.id",
         (projeto["id"],),
     ).fetchall()
+    if set(repos_por_task) != {t["id"] for t in tasks}:
+        raise ValueError(
+            "A lista de tasks mudou ou há tasks sem repositório. Reabra a exportação e revise as escolhas."
+        )
+    if not set(repos_por_task.values()) <= {r["root_sha"] for r in repos}:
+        raise ValueError("Há um repositório inválido. Reabra a exportação e revise as escolhas.")
     eventos = conn.execute(
         "SELECT e.*, p.email AS author_email FROM events e JOIN people p ON p.id = e.author_id "
         "WHERE e.project_id = ? ORDER BY e.seq",
@@ -92,7 +100,7 @@ def exportar(conn, projeto, repo_padrao):
         "WHERE t.project_id = ? ORDER BY d.task_id, d.depends_on_id",
         (projeto["id"],),
     ).fetchall()
-    corpos = {e["task_id"]: e["texto"] for e in eventos if e["kind"] == "body.updated"}
+    corpos = {e["task_id"]: e["texto"] for e in eventos if e["kind"] == EKindEvent.body_updated}
     deps = {t["id"]: [] for t in tasks}
     for d in dependencias:
         if d["depends_on_id"] not in deps:
@@ -106,8 +114,8 @@ def exportar(conn, projeto, repo_padrao):
         "description": projeto["description"] or "",
         "instructions": f"Origem: sync-agents/{projeto['slug']}. Status original: {projeto['status']}. "
         f"Criado por: {criador}.",
-        "visibility": "private" if projeto["visibility"] == "private" else "public",
-        "archived": projeto["status"] == "arquivado",
+        "visibility": "private" if projeto["visibility"] == EVisibility.private else "public",
+        "archived": projeto["status"] == EStatusProject.arquivado,
         "version": 0,
         "eventSequence": 0,
         "repositories": repositorios,
@@ -151,7 +159,7 @@ def exportar(conn, projeto, repo_padrao):
             "priority": 0,
             "area": area,
             "type": tipo,
-            "repositoryId": id_de("repo", repo_padrao),
+            "repositoryId": id_de("repo", repos_por_task[t["id"]]),
             "dependencies": deps[t["id"]],
             "status": STATUS[t["status"]],
             "checked": False,
@@ -196,7 +204,7 @@ def exportar(conn, projeto, repo_padrao):
                 "data": detalhe,
             }
         )
-        if e["kind"] == "message.created" and e["task_id"] is not None:
+        if e["kind"] == EKindEvent.message_created and e["task_id"] is not None:
             mensagem = {
                 "_id": id_de("message", e["seq"]),
                 "projectId": project_id,
@@ -208,8 +216,8 @@ def exportar(conn, projeto, repo_padrao):
                 "references": [],
                 "createdAt": e["created_at"],
             }
-            if e["agent"] in ("human", "codex", "claude"):
-                mensagem["authorType"] = "human" if e["agent"] == "human" else "agent"
+            if e["agent"] in (EAgent.human, EAgent.codex, EAgent.claude):
+                mensagem["authorType"] = "human" if e["agent"] == EAgent.human else "agent"
             dados["taskMessages"].append(mensagem)
     contagens = {"project": 1, "repositories": len(repositorios)}
     contagens.update({nome: len(dados[nome]) for nome in COLECOES})
@@ -232,7 +240,7 @@ def main():
         "--banco", default=os.environ.get("SYNC_AGENTS_DB", str(Path(__file__).resolve().parents[3] / "sync.db"))
     )
     parser.add_argument("--projeto", help="Slug do projeto")
-    parser.add_argument("--repositorio", help="Commit raiz do repositório padrão")
+    parser.add_argument("--repositorio", help="Commit raiz para atribuir explicitamente a todas as tasks")
     parser.add_argument("--saida", help="Caminho do JSON gerado")
     args = parser.parse_args()
     caminho = Path(args.banco).resolve()
@@ -257,21 +265,26 @@ def main():
         ).fetchall()
         if not repos:
             raise ValueError("O projeto não possui repositórios; o destino exige um para cada tarefa.")
-        repo = (
-            next((r for r in repos if r["root_sha"] == args.repositorio), None)
-            if args.repositorio
-            else escolher("Escolha o repositório padrão das tarefas", repos)
-        )
-        if repo is None:
-            raise ValueError("Repositório não encontrado no projeto.")
-        pacote = exportar(conn, projeto, repo["root_sha"])
+        tasks = conn.execute(
+            "SELECT id, code, title FROM tasks WHERE project_id = ? ORDER BY code", (projeto["id"],)
+        ).fetchall()
+        if args.repositorio:
+            repo = next((r for r in repos if r["root_sha"] == args.repositorio), None)
+            if repo is None:
+                raise ValueError("Repositório não encontrado no projeto.")
+            repos_por_task = {t["id"]: repo["root_sha"] for t in tasks}
+        else:
+            repos_por_task = {}
+            for task in tasks:
+                print(f"\n{task['code']} — {task['title']}")
+                repos_por_task[task["id"]] = escolher("Escolha o repositório", repos)["root_sha"]
+        pacote = exportar(conn, projeto, repos_por_task)
         saida = Path(args.saida or f"project-tasks-{projeto['slug']}.json")
         with saida.open("x", encoding="utf-8") as arquivo:
             json.dump(pacote, arquivo, ensure_ascii=False, indent=2)
             arquivo.write("\n")
         print(f"Arquivo criado: {saida.resolve()}")
         print(f"Projeto separado: {pacote['source']['projectId']}")
-        print(f"Repositório padrão: {repo['name']}")
         print("Contagens: " + ", ".join(f"{k}={v}" for k, v in pacote["counts"].items() if v))
         print("Confira os textos livres antes de compartilhar. A reimportação não atualiza registros existentes.")
     finally:

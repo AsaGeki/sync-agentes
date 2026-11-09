@@ -246,14 +246,16 @@ def test_vincular_de_novo_nao_reseta_a_data_de_entrada(mundo):
     assert mundo.nao_lidos(bia, slug)["total"] == 1
 
 
-def test_resolve_repo_em_projeto_team_entra_como_membro_novo_sem_historico(mundo):
+def test_entrar_em_projeto_public_comeca_sem_historico(mundo):
     ana = mundo.pessoa("Ana")
     slug = mundo.projeto(ana)
     mundo.task(ana, slug)
     mundo.datar_eventos("2000-01-01T00:00:00+00:00")
     bia = mundo.pessoa("Bia")
     resp = bia.post("/repos/resolve", {"root_sha": mundo.shas[slug], "name": "repo"})
-    assert resp.status_code == 200 and resp.json()[0]["role"] == "member"
+    assert resp.status_code == 200 and resp.json()[0]["role"] is None
+    entrada = bia.post(f"/projetos/{slug}/entrar")
+    assert entrada.status_code == 201 and entrada.json()["role"] == "member"
     assert mundo.nao_lidos(bia, slug)["total"] == 0
 
 

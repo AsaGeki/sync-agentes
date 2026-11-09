@@ -18,7 +18,7 @@ class TaskIn(BaseModel):
 
 
 class TaskPatch(BaseModel):
-    title: str | None = None
+    title: str | None = Field(default=None, min_length=1)
     status: EStatusTask | None = None
     tags: list[str] | None = None
     owner_id: int | None = None

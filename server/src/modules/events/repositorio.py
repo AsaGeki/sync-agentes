@@ -3,6 +3,10 @@
 import sqlite3
 from typing import Any
 
+from src.shared.enums import EKindEvent
+
+from src.shared.enums import EKindEvent
+
 
 def insert(conn: sqlite3.Connection, **campos: Any) -> int:
     colunas = ", ".join(campos)
@@ -68,12 +72,12 @@ def seqs_do_projeto(
 
 # Condição SQL de cada tipo do feed de atividade. Só literais do código.
 CONDICAO_TIPO = {
-    "mensagem": "e.kind = 'message.created'",
-    "status": "e.kind = 'task.field_changed' AND e.campo = 'status'",
-    "campo": "e.kind = 'task.field_changed' AND e.campo != 'status'",
-    "corpo": "e.kind = 'body.updated'",
-    "diff": "e.kind = 'diff.published'",
-    "criacao": "e.kind = 'task.created'",
+    "mensagem": f"e.kind = '{EKindEvent.message_created}'",
+    "status": f"e.kind = '{EKindEvent.task_field_changed}' AND e.campo = 'status'",
+    "campo": f"e.kind = '{EKindEvent.task_field_changed}' AND e.campo != 'status'",
+    "corpo": f"e.kind = '{EKindEvent.body_updated}'",
+    "diff": f"e.kind = '{EKindEvent.diff_published}'",
+    "criacao": f"e.kind = '{EKindEvent.task_created}'",
     "feature": "e.kind LIKE 'feature.%'",
 }
 
@@ -158,11 +162,11 @@ def total_participantes(conn: sqlite3.Connection, projeto_id: int) -> int:
 
 def mensagens_da_task(conn: sqlite3.Connection, projeto_id: int, code: str) -> list[sqlite3.Row]:
     return conn.execute(
-        """SELECT e.seq, e.type, e.texto, e.agent, e.created_at, pe.alias AS author_alias
+        f"""SELECT e.seq, e.type, e.texto, e.agent, e.created_at, pe.alias AS author_alias
              FROM events e
              JOIN people pe ON pe.id = e.author_id
              JOIN tasks  t  ON t.id = e.task_id
-            WHERE t.code = ? AND t.project_id = ? AND e.kind = 'message.created'
+            WHERE t.code = ? AND t.project_id = ? AND e.kind = '{EKindEvent.message_created}'
             ORDER BY e.seq""",
         (code, projeto_id),
     ).fetchall()

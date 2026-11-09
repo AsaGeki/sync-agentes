@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS projects (
   name        TEXT NOT NULL,
   description TEXT,
   status      TEXT NOT NULL CHECK (status IN ('ativo','pausado','concluido','arquivado')),
-  visibility  TEXT NOT NULL DEFAULT 'team' CHECK (visibility IN ('team','private')),
+  visibility  TEXT NOT NULL DEFAULT 'public' CHECK (visibility IN ('public','private')),
   created_by  INTEGER NOT NULL REFERENCES people(id),
   created_at  TEXT NOT NULL,
   updated_at  TEXT NOT NULL
@@ -60,8 +60,8 @@ CREATE TABLE IF NOT EXISTS memberships (
   PRIMARY KEY (project_id, person_id)
 );
 
--- Pedido de acesso a projeto `private`. `team` não passa por aqui - entra
--- sozinho direto em `memberships`.
+-- Pedido de acesso a projeto `private`. `public` não passa por aqui - quem
+-- quer entrar usa `join_project` e vira linha em `memberships` direto.
 CREATE TABLE IF NOT EXISTS membership_requests (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -553,13 +553,63 @@ def _migrar_tasks_status(conn: sqlite3.Connection) -> None:
         )
 
 
+BACKUPS_MANTIDOS = 7
+
+
 def _backup_antes_de_migrar() -> None:
-    """Cópia do banco antes das migrações, que fazem DROP TABLE. Uma por dia."""
+    """Cópia do banco antes das migrações, que fazem DROP TABLE. Uma por dia, só as mais recentes ficam."""
     if not DB_PATH.exists():
         return
     destino = DB_PATH.with_name(f"{DB_PATH.name}.bak-{datetime.now():%Y%m%d}")
     if not destino.exists():
         shutil.copy2(DB_PATH, destino)
+    diarios = sorted(DB_PATH.parent.glob(f"{DB_PATH.name}.bak-????????"))
+    for antigo in diarios[:-BACKUPS_MANTIDOS]:
+        antigo.unlink()
+
+
+def _migrar_visibilidade_publica(conn: sqlite3.Connection) -> None:
+    """`visibility` passou de ('team','private') para ('public','private'): o
+    CHECK não se altera no SQLite, então a tabela `projects` é recriada. Só roda
+    em banco cujo CHECK ainda cita 'team'."""
+    linha = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'projects'"
+    ).fetchone()
+    if linha is None or "'team'" not in linha["sql"]:
+        return
+    contador = conn.execute("SELECT seq FROM sqlite_sequence WHERE name = 'projects'").fetchone()
+    conn.execute(
+        """CREATE TABLE projects_novo (
+             id          INTEGER PRIMARY KEY AUTOINCREMENT,
+             slug        TEXT NOT NULL UNIQUE,
+             name        TEXT NOT NULL,
+             description TEXT,
+             status      TEXT NOT NULL
+                         CHECK (status IN ('ativo','pausado','concluido','arquivado')),
+             visibility  TEXT NOT NULL DEFAULT 'public'
+                         CHECK (visibility IN ('public','private')),
+             created_by  INTEGER NOT NULL REFERENCES people(id),
+             created_at  TEXT NOT NULL,
+             updated_at  TEXT NOT NULL
+           )"""
+    )
+    conn.execute(
+        """INSERT INTO projects_novo
+               (id, slug, name, description, status, visibility, created_by, created_at, updated_at)
+           SELECT id, slug, name, description, status,
+                  CASE visibility WHEN 'team' THEN 'public' ELSE visibility END,
+                  created_by, created_at, updated_at
+             FROM projects"""
+    )
+    conn.execute("DROP TABLE projects")
+    conn.execute("ALTER TABLE projects_novo RENAME TO projects")
+    # O contador do AUTOINCREMENT não pode voltar atrás: id de projeto apagado
+    # não é reaproveitado.
+    if contador is not None:
+        conn.execute(
+            "UPDATE sqlite_sequence SET seq = ? WHERE name = 'projects' AND seq < ?",
+            (contador["seq"], contador["seq"]),
+        )
 
 
 def iniciar_banco() -> None:
@@ -579,6 +629,7 @@ def iniciar_banco() -> None:
         _migrar_repo_para_muitos_projetos(conn)
         _migrar_events_para_features(conn)
         _migrar_tasks_status(conn)
+        _migrar_visibilidade_publica(conn)
     conn.execute("PRAGMA foreign_keys = ON")
     problemas = conn.execute("PRAGMA foreign_key_check").fetchall()
     if problemas:

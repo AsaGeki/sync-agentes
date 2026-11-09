@@ -8,6 +8,7 @@ import psutil
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
 from src.modules.events.realtime import router as realtime_router
 from src.modules.events.routes import router as eventos_router
@@ -19,9 +20,9 @@ from src.modules.web.admin_routes import router as web_admin_router
 from src.modules.web.erros import resposta_erro_web
 from src.modules.web.routes import router as web_router
 from src.modules.web.templating import PASTA_WEB
-from src.shared.auth import normalizar_agent
+from src.shared.auth import normalizar_agent, resolve_person, validate_admin
 from src.shared.db import BASE_DIR, DB_PATH, conectar, iniciar_banco, now
-from src.shared.erros import DomainError
+from src.shared.erros import DomainError, Unauthorized
 
 iniciar_banco()
 
@@ -57,7 +58,7 @@ def banco_conectado() -> bool:
 app = FastAPI(
     title="Sync Agents",
     description="Canal de alinhamento entre agentes de IA e humanos, por projeto e task.",
-    version="3.6.0",
+    version="3.7.0",
 )
 
 
@@ -70,10 +71,40 @@ async def tratar_erro_dominio(request: Request, exc: DomainError) -> Response:
     return JSONResponse(status_code=exc.status, content={"detail": str(exc)})
 
 
+def _credencial_valida(authorization: str | None) -> None:
+    """Token de pessoa ou o de administração; senão levanta `Unauthorized`."""
+    try:
+        resolve_person(authorization)
+    except Unauthorized:
+        validate_admin(authorization)
+
+
+def _operacao_gravada(operation_id: str) -> dict[str, Any] | None:
+    conn = conectar()
+    try:
+        linha = conn.execute(
+            "SELECT status, result FROM operations WHERE id = ?", (operation_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return dict(linha) if linha is not None else None
+
+
+def _gravar_operacao(operation_id: str, status: int, resultado: str) -> None:
+    conn = conectar()
+    try:
+        with conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO operations (id, status, result, created_at) VALUES (?,?,?,?)",
+                (operation_id, status, resultado, now()),
+            )
+    finally:
+        conn.close()
+
+
 # Retry de rede do bridge reenvia o mesmo X-Operation-Id: a 2ª chamada devolve
 # a resposta já gravada em vez de repetir a escrita. GET nunca passa por aqui.
-# A chave mistura o token de quem chamou: o mesmo id vindo de outra pessoa é
-# outra operação, não um retry.
+# A chave mistura o token e o pedido (método, caminho, query e corpo).
 @app.middleware("http")
 async def idempotencia(request: Request, call_next):
     operation_id = request.headers.get("X-Operation-Id")
@@ -84,18 +115,30 @@ async def idempotencia(request: Request, call_next):
             normalizar_agent(request.headers.get("X-Agent"))
         except DomainError as erro:
             return JSONResponse(status_code=erro.status, content={"detail": str(erro)})
+    # O pedido inteiro entra na chave: o mesmo id com outro método, caminho ou
+    # corpo é outra operação, não um retry.
+    corpo_pedido = await request.body()
     operation_id = hashlib.sha256(
-        f"{request.headers.get('Authorization', '')}|{operation_id}".encode()
+        "|".join(
+            [
+                request.headers.get("Authorization", ""),
+                operation_id,
+                request.method,
+                request.url.path,
+                request.url.query,
+                hashlib.sha256(corpo_pedido).hexdigest(),
+            ]
+        ).encode()
     ).hexdigest()
 
-    conn = conectar()
-    try:
-        existente = conn.execute(
-            "SELECT status, result FROM operations WHERE id = ?", (operation_id,)
-        ).fetchone()
-    finally:
-        conn.close()
+    existente = await run_in_threadpool(_operacao_gravada, operation_id)
     if existente is not None:
+        # Token revogado não recebe a resposta guardada.
+        if not request.url.path.startswith("/web"):
+            try:
+                await run_in_threadpool(_credencial_valida, request.headers.get("Authorization"))
+            except DomainError as erro:
+                return JSONResponse(status_code=erro.status, content={"detail": str(erro)})
         return Response(
             content=existente["result"],
             status_code=existente["status"],
@@ -105,15 +148,9 @@ async def idempotencia(request: Request, call_next):
     resposta = await call_next(request)
     corpo = b"".join([chunk async for chunk in resposta.body_iterator])
     if 200 <= resposta.status_code < 300:
-        conn = conectar()
-        try:
-            with conn:
-                conn.execute(
-                    "INSERT OR IGNORE INTO operations (id, status, result, created_at) VALUES (?,?,?,?)",
-                    (operation_id, resposta.status_code, corpo.decode("utf-8"), now()),
-                )
-        finally:
-            conn.close()
+        await run_in_threadpool(
+            _gravar_operacao, operation_id, resposta.status_code, corpo.decode("utf-8")
+        )
     return Response(
         content=corpo,
         status_code=resposta.status_code,

@@ -38,7 +38,7 @@ def _bearer(authorization: str | None) -> str:
 
 
 def validate_admin(authorization: str | None) -> None:
-    if not secrets.compare_digest(_bearer(authorization), ADMIN_TOKEN):
+    if not secrets.compare_digest(_bearer(authorization).encode(), ADMIN_TOKEN.encode()):
         raise Unauthorized("Token de administração inválido")
 
 
