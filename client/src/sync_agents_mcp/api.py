@@ -6,6 +6,7 @@ não deve exigir instalação de nada além do próprio pacote.
 
 from __future__ import annotations
 
+import http.client
 import json
 import time
 import urllib.error
@@ -14,9 +15,9 @@ import urllib.request
 import uuid
 from typing import Any
 
-from sync_agents_mcp.git_context import ContextoRepo
+from sync_agents_mcp.git_context import ContextoRepo, ponto_atual
 
-METODOS_MUTADORES = {"POST", "PUT", "PATCH"}
+METODOS_MUTADORES = {"POST", "PUT", "PATCH", "DELETE"}
 TENTATIVAS_DE_REDE = 3
 
 
@@ -40,10 +41,16 @@ class Api:
             "Content-Type": "application/json",
             "X-Agent": self.agent,
         }
-        if self.repo.branch:
-            cabecalhos["X-Git-Branch"] = self.repo.branch
-        if self.repo.commit_sha:
-            cabecalhos["X-Git-Commit"] = self.repo.commit_sha
+        # Escrita carimba o ponto do git de agora, não o do início da sessão.
+        branch, commit = (
+            ponto_atual(self.repo.raiz)
+            if operation_id
+            else (self.repo.branch, self.repo.commit_sha)
+        )
+        if branch:
+            cabecalhos["X-Git-Branch"] = branch
+        if commit:
+            cabecalhos["X-Git-Commit"] = commit
         if operation_id:
             cabecalhos["X-Operation-Id"] = operation_id
         return cabecalhos
@@ -81,10 +88,14 @@ class Api:
                 except json.JSONDecodeError:
                     detalhe = bruto
                 raise ErroApi(erro.code, detalhe) from None
-            except urllib.error.URLError as erro:
-                if operation_id is None or tentativa == TENTATIVAS_DE_REDE:
+            except (OSError, http.client.HTTPException) as erro:
+                # Inclui conexão derrubada e timeout depois do envio: a resposta
+                # perdida é o caso que o `X-Operation-Id` existe pra cobrir.
+                repetivel = metodo == "GET" or operation_id is not None
+                if not repetivel or tentativa == TENTATIVAS_DE_REDE:
+                    motivo = erro.reason if isinstance(erro, urllib.error.URLError) else erro
                     raise ErroApi(
-                        0, f"Servidor inacessível em {self.base_url}: {erro.reason}"
+                        0, f"Servidor inacessível em {self.base_url}: {motivo}"
                     ) from None
                 time.sleep(0.5 * tentativa)
         if "application/json" not in tipo:

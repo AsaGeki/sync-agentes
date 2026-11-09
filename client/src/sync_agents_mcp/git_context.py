@@ -23,7 +23,7 @@ class ContextoRepo:
     user_name: str | None
 
 
-def _git(*args: str, cwd: Path | None = None) -> str | None:
+def _git(*args: str, cwd: Path | None = None, permitir_vazio: bool = False) -> str | None:
     try:
         saida = subprocess.run(
             ["git", *args],
@@ -38,6 +38,8 @@ def _git(*args: str, cwd: Path | None = None) -> str | None:
     if saida.returncode != 0:
         return None
     valor = saida.stdout.strip()
+    if permitir_vazio:
+        return valor
     return valor or None
 
 
@@ -54,13 +56,23 @@ def base_padrao(raiz: Path) -> str | None:
     return None
 
 
-def arquivos_alterados(raiz: Path, base: str) -> list[str]:
-    saida = _git("diff", "--name-only", f"{base}..HEAD", cwd=raiz)
-    return saida.splitlines() if saida else []
+def arquivos_alterados(raiz: Path, base: str) -> list[str] | None:
+    """None quando o git falha (base inexistente, timeout); lista vazia é "sem mudança"."""
+    saida = _git("diff", "--name-only", f"{base}..HEAD", cwd=raiz, permitir_vazio=True)
+    return None if saida is None else saida.splitlines()
 
 
 def patch(raiz: Path, base: str) -> str | None:
     return _git("diff", f"{base}..HEAD", cwd=raiz)
+
+
+def ponto_atual(raiz: Path) -> tuple[str | None, str | None]:
+    """Branch e commit de agora: o `ContextoRepo` é lido uma vez, e o repositório
+    anda durante a sessão."""
+    return (
+        _git("rev-parse", "--abbrev-ref", "HEAD", cwd=raiz),
+        _git("rev-parse", "HEAD", cwd=raiz),
+    )
 
 
 def descobrir(cwd: Path | None = None) -> ContextoRepo | None:

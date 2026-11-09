@@ -24,8 +24,12 @@ class ApiFalsa:
 class SessaoFalsa:
     def __init__(self, api):
         self.api = api
+        self.projetos = [{"slug": "proj", "role": "member", "visibility": "public"}]
 
     def erro_de_ambiente(self):
+        return None
+
+    def conectar(self, ctx):
         return None
 
     def api_avulsa(self, ctx):

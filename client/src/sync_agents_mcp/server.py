@@ -14,6 +14,7 @@ o chat dentro do repositório.
 from __future__ import annotations
 
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any, Literal
@@ -35,7 +36,8 @@ INSTRUCOES = (
     "quando o mesmo repositório serve assuntos diferentes). Toda tool de "
     "projeto/task aceita `project` (slug) opcional: com 1 projeto só, pode "
     "omitir. Com mais de 1, é obrigatório - chamar sem `project` devolve a "
-    "lista de candidatos em vez de adivinhar qual. Pergunte à pessoa qual "
+    "lista de candidatos em vez de adivinhar qual. `project` só vale pra "
+    "projeto afiliado a este repositório (`link_repo` afilia). Pergunte à pessoa qual "
     "projeto antes de escolher, nunca decida sozinho.\n\n"
     ""
     "PROJETO NOVO OU SEM ACESSO\n"
@@ -45,16 +47,23 @@ INSTRUCOES = (
     "certo antes de agir. Repositório sem NENHUM projeto ainda: `create_project` "
     "cria um e já afilia este repositório a ele (funciona mesmo se este "
     "repositório já tiver outro - soma mais um). SEMPRE pergunte à pessoa, "
-    "antes de chamar, se o projeto deve ser `team` (qualquer um com o "
-    "repositório entra sozinho) ou `private` (só entra quem um owner aceitar) - "
-    "nunca decida isso sozinho. Projeto já existe (achou o slug via "
-    "`list_projects`) mas o repositório desta sessão ainda não está linkado a "
-    "ele: se for `team`, `link_repo(project=<slug>)` direto - linka e já vira "
-    "membro no mesmo ato, sem precisar de aprovação de ninguém. Se for "
-    "`private`, `link_repo` só funciona se você já for membro - nesse caso use "
-    "antes `request_access(project=<slug>)` (funciona mesmo sem o repositório "
-    "desta sessão afiliado a nada) e espere um owner aceitar (`list_requests` / "
-    "aceitar / recusar, ferramentas do owner) antes de linkar.\n\n"
+    "antes de chamar, se o projeto deve ser `public` (qualquer pessoa vê e "
+    "entra sozinha, com `join_project`) ou `private` (só entra quem um owner "
+    "aceitar) - nunca decida isso sozinho. Ser `public` não coloca ninguém no "
+    "projeto: quem tem o repositório vê o projeto com papel nulo e ainda precisa "
+    "entrar. Projeto já existe (achou o slug via `list_projects`): se for "
+    "`public`, `join_project(project=<slug>)`; se for `private`, "
+    "`request_access(project=<slug>)` e espere um owner aceitar (`list_requests` "
+    "/ aceitar / recusar, ferramentas do owner). As duas funcionam sem o "
+    "repositório desta sessão afiliado a nada. Depois de membro, se este "
+    "repositório ainda não está no projeto, `link_repo(project=<slug>)`.\n\n"
+    ""
+    "MEMBROS\n"
+    "`list_members` mostra quem está no projeto. Owner tira alguém com "
+    "`remove_member` e troca papel com `set_member_role`; qualquer membro sai "
+    "com `leave_project`. As tasks de quem sai ficam sem dono, e o projeto nunca "
+    "fica sem owner. Quem foi removido de um projeto `public` pode entrar de "
+    "novo sozinho: pra manter alguém fora, o projeto precisa ser `private`.\n\n"
     ""
     "IDENTIDADE\n"
     "Quem assina é a pessoa dona do token desta máquina, e a ferramenta que "
@@ -99,7 +108,9 @@ INSTRUCOES = (
     "apagar feature vem em `nao_lidos_features`; quem marca lido é "
     "`list_features` (`read_feature` não marca).\n"
     "`list_tasks(nao_lidas=True)` lista só o que está pendente de leitura, sem "
-    "corte; `list_tasks(q='texto')` procura no code, no título e no corpo.\n\n"
+    "o corte de 20; `list_tasks(q='texto')` procura no code, no título e no "
+    "corpo. `list_tasks` devolve a linha de triagem de cada task, em páginas de "
+    "50 (`total` e `proximo` dizem se há mais): abra a task com `read_task`.\n\n"
     ""
     "TIPO DE MENSAGEM (`send_message`)\n"
     "- mudanca: 'fiz/mudei isso'.\n"
@@ -161,6 +172,14 @@ class Sessao:
         self.api: Api | None = None
         self.projetos: list[dict[str, Any]] | None = None
         self.cursores: dict[str, int] = {}
+        # Versão do corpo que esta sessão viu por task (`(slug, número)`), pra
+        # `update_body` mandar `versao_base` sem depender de a IA lembrar.
+        self.versoes_corpo: dict[tuple[str, int], int] = {}
+
+    def lembrar_versao(self, slug: str, code: str, versao: int | None) -> None:
+        chave = _chave_task(slug, code)
+        if chave is not None and versao is not None:
+            self.versoes_corpo[chave] = versao
 
     def erro_de_ambiente(self) -> str | None:
         if self.repo is None:
@@ -218,6 +237,18 @@ class Sessao:
 SESSAO = Sessao()
 
 
+def _chave_task(slug: str, code: str) -> tuple[str, int] | None:
+    """`T-7`, `T-007` e `T-007-slug` são a mesma task."""
+    achado = re.match(r"^\s*[Tt]-0*(\d+)", code)
+    return (slug, int(achado.group(1))) if achado else None
+
+
+def _como_entrar(projeto: dict[str, Any]) -> str:
+    if projeto["visibility"] == EVisibility.public:
+        return "ainda não é membro - entre com join_project"
+    return "ainda não é membro - peça com request_access"
+
+
 def _agent_do_cliente(ctx: Context) -> str:
     """Nome que o cliente MCP se dá no handshake ('claude-code', 'codex'...).
     O servidor normaliza; aqui só repassa o que veio."""
@@ -238,19 +269,18 @@ def _nao_lidos(api: Api, slug: str) -> dict[str, Any]:
     return api.request("GET", f"/projetos/{slug}/nao-lidos")
 
 
-def _chamar(ctx: Context, project: str | None, acao) -> Any:
+def _chamar(ctx: Context, project: str | None, acao, exige_afiliado: bool = True) -> Any:
     """Envelope comum de toda tool: valida ambiente, decide qual projeto usar,
     executa e anexa o que está por ler do outro lado.
 
-    `project` explícito não depende do repositório desta sessão já estar
-    afiliado a nada - só o servidor decide se você tem acesso (`exigir_acesso`).
-    Isso importa pro primeiro pedido de acesso a um projeto cujo repo ainda não
-    foi linkado. `project` omitido resolve pelos projetos afiliados ao
-    repositório (funciona sozinho com exatamente 1)."""
+    `project` explícito precisa ser um dos projetos afiliados ao repositório
+    desta sessão: o repositório é o escopo. A exceção é `exige_afiliado=False`
+    (`request_access`), que age num projeto cujo repo ainda não foi linkado.
+    `project` omitido resolve pelos projetos afiliados (sozinho com exatamente 1)."""
     problema = SESSAO.erro_de_ambiente()
     if problema:
         return {"erro": problema}
-    if project is not None:
+    if project is not None and not exige_afiliado:
         slug = project
         api = SESSAO.api_avulsa(ctx)
     else:
@@ -258,9 +288,22 @@ def _chamar(ctx: Context, project: str | None, acao) -> Any:
             SESSAO.conectar(ctx)
         except ErroApi as erro:
             return {"erro": erro.detalhe, "status": erro.status}
-        slug = SESSAO.resolver_slug()
-        if isinstance(slug, dict):
-            return slug
+        if project is not None:
+            if project not in [p["slug"] for p in SESSAO.projetos]:
+                return {
+                    "erro": f"O projeto '{project}' não está afiliado a este repositório. "
+                    f"Use link_repo(project='{project}') pra afiliar, ou abra o chat "
+                    "no repositório dele.",
+                    "projetos": [p["slug"] for p in SESSAO.projetos],
+                }
+            slug = project
+        else:
+            slug = SESSAO.resolver_slug()
+            if isinstance(slug, dict):
+                return slug
+        escolhido = next((p for p in SESSAO.projetos if p["slug"] == slug), None)
+        if escolhido is not None and escolhido["role"] is None:
+            return {"erro": f"Você ainda não é membro de '{slug}': {_como_entrar(escolhido)}."}
         api = SESSAO.api
     try:
         resultado = acao(api, slug)
@@ -304,10 +347,11 @@ def status(ctx: Context) -> dict[str, Any]:
         eu = SESSAO.api.request("GET", "/me")
     except ErroApi as erro:
         return {"erro": erro.detalhe, "status": erro.status}
+    branch, commit = git_context.ponto_atual(SESSAO.repo.raiz)
     return {
         "repo": SESSAO.repo.name,
-        "branch": SESSAO.repo.branch,
-        "commit": SESSAO.repo.commit_sha,
+        "branch": branch,
+        "commit": commit,
         "assino_como": eu["alias"],
         "agent": _agent_do_cliente(ctx),
         "projetos": [
@@ -315,7 +359,7 @@ def status(ctx: Context) -> dict[str, Any]:
                 "slug": p["slug"],
                 "name": p["name"],
                 "visibility": p["visibility"],
-                "papel": p["role"] or "sem acesso - peça com request_access",
+                "papel": p["role"] or _como_entrar(p),
             }
             for p in SESSAO.projetos
         ],
@@ -344,8 +388,9 @@ def create_project(
     mesmo se este repositório já tiver projeto(s) afiliado(s) - soma mais um,
     não substitui.
 
-    SEMPRE pergunte à pessoa se o projeto deve ser `team` ou `private` antes de
-    chamar - não decida sozinho."""
+    SEMPRE pergunte à pessoa se o projeto deve ser `public` (qualquer um vê e
+    entra sozinho com `join_project`) ou `private` (entra quem um owner aceitar)
+    antes de chamar - não decida sozinho."""
     problema = SESSAO.erro_de_ambiente()
     if problema:
         return {"erro": problema}
@@ -382,14 +427,24 @@ def list_tasks(
     nao_lidas: bool = False,
     feature: str | None = None,
     sem_feature: bool = False,
+    resumo: bool = True,
+    limite: int = 50,
+    deslocamento: int = 0,
     project: str | None = None,
 ) -> Any:
-    """Lista as tasks do projeto. `q` procura no code, no título e no corpo.
-    `nao_lidas=True` traz só as que têm evento que você ainda não leu.
-    `feature='F-3'` filtra por feature; `sem_feature=True` traz só as avulsas.
+    """Lista as tasks do projeto, em ordem de code. `q` procura no code, no
+    título e no corpo. `nao_lidas=True` traz só as que têm evento que você ainda
+    não leu. `feature='F-3'` filtra por feature; `sem_feature=True` traz só as
+    avulsas.
 
-    Cada task vem com `nao_lidos` (quantos eventos de outra pessoa estão por
-    ler) e `ultimo_nao_lido`."""
+    Por padrão vem a linha de triagem de cada task (code, título, status, dono,
+    feature, tags, `nao_lidos`, `dependencias_pendentes` e `fazendo_agora` quando
+    houver): pra ler uma task é `read_task`. `resumo=False` traz a task completa.
+
+    A resposta é uma página: `total` diz quantas tasks passam nos filtros e
+    `proximo` é o `deslocamento` pra pedir a seguinte (vazio na última). Se
+    `total` for maior que `limite`, há mais - não conclua que uma task não existe
+    sem conferir `proximo` ou filtrar com `q`."""
     return _chamar(
         ctx,
         project,
@@ -403,6 +458,9 @@ def list_tasks(
                 "nao_lidas": nao_lidas,
                 "feature": feature,
                 "sem_feature": sem_feature,
+                "resumo": resumo,
+                "limite": limite,
+                "deslocamento": deslocamento,
             },
         ),
     )
@@ -415,13 +473,13 @@ def read_task(ctx: Context, code: str, com_corpo: bool = True, project: str | No
 
     `code` aceita o code inteiro (`T-007-migrar-relatorio`) ou só o número
     (`T-007`, `T-7`)."""
-    return _chamar(
-        ctx,
-        project,
-        lambda api, slug: api.request(
-            "GET", f"/projetos/{slug}/tasks/{code}", query={"com_corpo": com_corpo}
-        ),
-    )
+
+    def acao(api: Api, slug: str) -> Any:
+        task = api.request("GET", f"/projetos/{slug}/tasks/{code}", query={"com_corpo": com_corpo})
+        SESSAO.lembrar_versao(slug, task["code"], task["versao_corpo"])
+        return task
+
+    return _chamar(ctx, project, acao)
 
 
 @mcp.tool()
@@ -446,10 +504,9 @@ def create_task(
 
     `feature` (code `F-3`) cria a task dentro da feature; omitido, a task fica
     avulsa."""
-    return _chamar(
-        ctx,
-        project,
-        lambda api, slug: api.request(
+
+    def acao(api: Api, slug: str) -> Any:
+        task = api.request(
             "POST",
             f"/projetos/{slug}/tasks",
             {
@@ -462,8 +519,11 @@ def create_task(
                 "dependencies": dependencies or [],
                 "feature": feature,
             },
-        ),
-    )
+        )
+        SESSAO.lembrar_versao(slug, task["code"], task["versao_corpo"])
+        return task
+
+    return _chamar(ctx, project, acao)
 
 
 @mcp.tool()
@@ -548,6 +608,15 @@ def list_features(ctx: Context, project: str | None = None) -> Any:
 
 
 @mcp.tool()
+def read_feature(ctx: Context, code: str, project: str | None = None) -> Any:
+    """Lê 1 feature: descrição, status derivado e progresso. Não marca como lido
+    o que mudou nas features (isso é do `list_features`)."""
+    return _chamar(
+        ctx, project, lambda api, slug: api.request("GET", f"/projetos/{slug}/features/{code}")
+    )
+
+
+@mcp.tool()
 def update_feature(
     ctx: Context,
     code: str,
@@ -600,18 +669,24 @@ def update_body(
     """Grava uma versão nova do corpo da task e devolve o diff contra a anterior.
     Mande sempre o texto completo, nunca um fragmento.
 
-    `versao_base` é o `versao_corpo` que veio do `read_task` que você usou pra
-    escrever este texto. Informando, o servidor recusa (409) se o outro lado
-    tiver gravado nesse meio tempo, em vez de apagar o que ele escreveu."""
-    return _chamar(
-        ctx,
-        project,
-        lambda api, slug: api.request(
+    O servidor recusa (409) se o outro lado tiver gravado depois da versão que
+    você leu, em vez de apagar o que ele escreveu: nesse caso releia a task com
+    `read_task`. A versão vem do último `read_task` (ou `update_body`) desta
+    sessão; `versao_base` só é preciso pra usar outra, e uma task que você nunca
+    abriu grava sem essa checagem."""
+
+    def acao(api: Api, slug: str) -> Any:
+        chave = _chave_task(slug, code)
+        base = versao_base if versao_base is not None else SESSAO.versoes_corpo.get(chave)
+        gravado = api.request(
             "PUT",
             f"/projetos/{slug}/tasks/{code}/corpo",
-            {"texto": texto, "versao_base": versao_base},
-        ),
-    )
+            {"texto": texto, "versao_base": base},
+        )
+        SESSAO.lembrar_versao(slug, code, gravado["versao"])
+        return gravado
+
+    return _chamar(ctx, project, acao)
 
 
 @mcp.tool()
@@ -643,12 +718,20 @@ def publish_diff(
                     "do commit a partir do qual você quer o diff."
                 )
             }
+        arquivos = git_context.arquivos_alterados(SESSAO.repo.raiz, partida)
+        if arquivos is None:
+            return {
+                "erro": (
+                    f"O git não conseguiu comparar {partida[:7]} com o commit atual "
+                    "(commit inexistente neste clone ou git demorou demais) - nada foi publicado."
+                )
+            }
         return api.request(
             "POST",
             f"/projetos/{slug}/tasks/{code}/diffs",
             {
                 "base_sha": partida,
-                "arquivos": git_context.arquivos_alterados(SESSAO.repo.raiz, partida),
+                "arquivos": arquivos,
                 "patch": git_context.patch(SESSAO.repo.raiz, partida),
                 "resumo": resumo,
                 "pedir_revisao": pedir_revisao,
@@ -781,11 +864,71 @@ def add_member(ctx: Context, email: str, project: str | None = None) -> Any:
 
 
 @mcp.tool()
+def remove_member(ctx: Context, person_id: int, project: str | None = None) -> Any:
+    """Tira alguém do projeto (`person_id` vem de `list_members`). Só owner. As
+    tasks que eram da pessoa ficam sem dono. O projeto nunca fica sem owner:
+    quem é o único owner precisa promover outro antes.
+
+    Num projeto `public` a pessoa removida pode entrar de novo sozinha
+    (`join_project`); pra manter alguém fora, o projeto precisa ser `private`."""
+    return _chamar(
+        ctx,
+        project,
+        lambda api, slug: api.request("DELETE", f"/projetos/{slug}/membros/{person_id}"),
+    )
+
+
+@mcp.tool()
+def set_member_role(
+    ctx: Context, person_id: int, role: Literal["owner", "member"], project: str | None = None
+) -> Any:
+    """Promove a owner ou rebaixa a member (`person_id` vem de `list_members`).
+    Só owner. Rebaixar o único owner é recusado."""
+    return _chamar(
+        ctx,
+        project,
+        lambda api, slug: api.request(
+            "PATCH", f"/projetos/{slug}/membros/{person_id}", {"role": role}
+        ),
+    )
+
+
+@mcp.tool()
+def leave_project(ctx: Context, project: str | None = None) -> Any:
+    """Você sai do projeto. As tasks que eram suas ficam sem dono. O único owner
+    não pode sair: promova outro membro antes (`set_member_role`). Num projeto
+    `public` você pode entrar de novo quando quiser (`join_project`)."""
+    return _chamar(
+        ctx, project, lambda api, slug: api.request("POST", f"/projetos/{slug}/sair")
+    )
+
+
+@mcp.tool()
+def join_project(ctx: Context, project: str) -> Any:
+    """Entra num projeto `public` sem precisar de aprovação (`project` é o slug,
+    de `list_projects`). Ser público é poder ver e entrar: ninguém vira membro
+    sozinho só por ter o repositório. Em projeto `private` use `request_access`."""
+    resultado = _chamar(
+        ctx,
+        project,
+        lambda api, slug: api.request("POST", f"/projetos/{slug}/entrar"),
+        exige_afiliado=False,
+    )
+    SESSAO.projetos = None  # o papel mudou: re-resolve no próximo conectar()
+    return resultado
+
+
+@mcp.tool()
 def request_access(ctx: Context, project: str | None = None) -> Any:
     """Pede acesso de escrita a um projeto `private` que você ainda não é
     membro. Fica pendente até um owner aceitar ou recusar (`list_requests` e
     as tools de aceitar/recusar, do owner)."""
-    return _chamar(ctx, project, lambda api, slug: api.request("POST", f"/projetos/{slug}/pedidos"))
+    return _chamar(
+        ctx,
+        project,
+        lambda api, slug: api.request("POST", f"/projetos/{slug}/pedidos"),
+        exige_afiliado=False,
+    )
 
 
 @mcp.tool()
@@ -822,9 +965,8 @@ def link_repo(ctx: Context, project: str) -> Any:
     `project` é obrigatório aqui - não há como inferir, é justamente o vínculo
     que ainda não existe.
 
-    Projeto `team`: qualquer pessoa cadastrada linka, e já vira membro nesse
-    ato - mesmo espírito de "quem tem o repositório entra sozinho". Projeto
-    `private`: só quem já é membro consegue linkar."""
+    Só quem já é membro consegue linkar: entre antes com `join_project`
+    (`public`) ou `request_access` (`private`)."""
     problema = SESSAO.erro_de_ambiente()
     if problema:
         return {"erro": problema}

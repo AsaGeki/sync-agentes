@@ -2,7 +2,10 @@ from enum import StrEnum
 
 
 class EVisibility(StrEnum):
-    team = "team"
+    """`public`: qualquer pessoa cadastrada vê o projeto e entra sozinha, com `join_project`.
+    `private`: entra só quem um owner aceitar."""
+
+    public = "public"
     private = "private"
 
 
