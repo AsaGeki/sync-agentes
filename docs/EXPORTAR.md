@@ -1,6 +1,6 @@
-# Exportar para Project Tasks MCP
+# Exportar para sistema de destino
 
-O arquivo é compatível com o importador nativo do Project Tasks MCP e cria um projeto separado no destino.
+O arquivo é compatível com o importador nativo do sistema de destino e cria um projeto separado no destino.
 
 Na interface web, abra o projeto desejado e selecione **Exportar projeto → Revisar e exportar**. Filtre por tag ou feature, atribua repositórios em lote ou individualmente e, se desejar, aceite as sugestões exibidas. Cada sugestão mostra a tag e o repositório que a motivaram; ela só é aplicada por sua ação. Depois de atribuir todas as tasks, clique em **Baixar JSON**. O navegador fará o download conforme suas configurações.
 
@@ -9,20 +9,20 @@ Também é possível gerar o arquivo pela linha de comando. O comando lê o banc
 Na raiz do sync-agents, execute:
 
 ```powershell
-python server/scripts/exportar_project_tasks.py
+python server/scripts/exportar_projeto.py
 ```
 
 Escolha o projeto e um repositório para cada task. O arquivo será criado no diretório atual; um arquivo existente não é sobrescrito. Para atribuir explicitamente o mesmo repositório a todas as tasks pela linha de comando:
 
 ```powershell
-python server/scripts/exportar_project_tasks.py --projeto avb-one --repositorio <commit-raiz> --saida avb-one-export.json
+python server/scripts/exportar_projeto.py --projeto avb-one --repositorio <commit-raiz> --saida avb-one-export.json
 ```
 
 O banco padrão é `server/sync.db`. Use `SYNC_AGENTS_DB` ou `--banco` para selecionar outro arquivo. O projeto de origem não associa tarefas a repositórios: revise as escolhas antes de importar.
 
 ## Importação
 
-No Project Tasks MCP com a rota `POST /admin/projects/import`, envie o arquivo como corpo JSON usando uma credencial humana de administrador do sistema. Por exemplo, no PowerShell:
+No sistema de destino com a rota `POST /admin/projects/import`, envie o arquivo como corpo JSON usando uma credencial humana de administrador do sistema. Por exemplo, no PowerShell:
 
 ```powershell
 $credencial = Get-Credential -UserName admin -Message 'Informe o token humano de administrador no campo de senha'

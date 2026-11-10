@@ -59,5 +59,5 @@ Mapa de melhorias e features, agrupado por tema. Cada item diz o problema que re
 
 ## Decisões abertas
 
-1. A exportação para o Project Tasks MCP continua no código (decidido manter por ora). Rever depois da etapa 1.
+1. A exportação para o sistema de destino continua no código (decidido manter por ora). Rever depois da etapa 1.
 2. ~~`root_sha` como prova de entrada (M7)~~: resolvida em 3.7.0, o repositório não adiciona mais ninguém; entrar é `join_project` ou `request_access`.

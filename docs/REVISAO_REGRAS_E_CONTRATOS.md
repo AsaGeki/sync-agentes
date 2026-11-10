@@ -75,7 +75,7 @@ O texto manda usar `read_feature` (`server.py:100`), mas o bridge só expõe `cr
 - SSE sem `id:`/replay: `QueueFull` descarta sem avisar, `INSCRITOS` acumula chave por slug e só funciona com 1 processo. A recuperação é `/mudancas`; vale dizer isso no contrato.
 - Bridge: `_git` devolve `None` em timeout ou erro, e `publish_diff` publica então "0 arquivo(s)" sem avisar; o patch inteiro sobe e só o servidor trunca em 100 mil caracteres.
 - `CHECK` de `status` e `kind` obriga recriar a tabela (com `DROP TABLE`) a cada valor novo; já aconteceu duas vezes.
-- A exportação para o Project Tasks MCP existe no código e no working tree, mas não consta no `CHANGELOG` nem na versão (continua 3.6.0).
+- A exportação para o sistema de destino existe no código e no working tree, mas não consta no `CHANGELOG` nem na versão (continua 3.6.0).
 
 ## O que está bem
 

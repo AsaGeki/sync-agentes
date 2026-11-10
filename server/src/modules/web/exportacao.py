@@ -88,7 +88,7 @@ def baixar_projeto(conn: sqlite3.Connection, projeto: sqlite3.Row, dados) -> Res
         content=json.dumps(pacote, ensure_ascii=False, indent=2).encode("utf-8"),
         media_type="application/json",
         headers={
-            "Content-Disposition": f'attachment; filename="project-tasks-{projeto["slug"]}.json"',
+            "Content-Disposition": f'attachment; filename="exportacao-{projeto["slug"]}.json"',
             "Cache-Control": "no-store",
         },
     )

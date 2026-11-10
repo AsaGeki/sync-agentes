@@ -4,7 +4,7 @@
 
 Organizar as tasks de um projeto em features, sem perder o ponto central do sync-agents: canal de alinhamento leve entre pessoas e IAs, escopo pelo repositório git, pouca cerimônia. Feature organiza, nunca trava — nenhuma regra impede criar task sem feature, mover task entre features ou fechar task por causa da feature.
 
-Inspiração: a hierarquia `project → feature → task` do `project-tasks-mcp`. Só a organização vem de lá; claim/lease/revisão humana obrigatória/runner ficam de fora.
+Inspiração: a hierarquia `project → feature → task` do sistema de destino. Só a organização vem de lá; claim/lease/revisão humana obrigatória/runner ficam de fora.
 
 ## Decisões
 

@@ -23,7 +23,7 @@ Revisão de regras e contratos (`docs/REVISAO_REGRAS_E_CONTRATOS.md`).
 - **Leitura mais barata:** `versao_corpo` lê só o `MAX(version)` e `nao_lidos` monta a linha só das tasks que devolve.
 - **Interno:** valores de enum no SQL e nos mapas vêm dos `StrEnum` em vez de literais; chaves vazias do barramento SSE são removidas.
 - **Cliente MCP (pendente de release, ainda 0.3.0):** branch e commit relidos a cada escrita; retry cobre conexão derrubada e timeout; `update_body` manda `versao_base` sozinho a partir do último `read_task`; `project=` só vale para projeto afiliado ao repositório (`request_access` é a exceção); tool nova `read_feature`; `publish_diff` avisa quando o git falha.
-- **Exportação de projeto** para o formato do Project Tasks MCP (`/web/p/{slug}/exportar`, `scripts/exportar_project_tasks.py`) passa a constar aqui; não tinha entrada.
+- **Exportação de projeto** para o formato do sistema de destino (`/web/p/{slug}/exportar`, `scripts/exportar_projeto.py`) passa a constar aqui; não tinha entrada.
 - **Backup:** `_backup_antes_de_migrar` mantém só os 7 diários mais recentes. Scripts pontuais foram para `scripts/legado/`.
 
 ## 3.6.0 — 2026-10-19

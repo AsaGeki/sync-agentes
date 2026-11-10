@@ -5,7 +5,7 @@
 <div class="exportacao">
   <header class="exportacao-cabeca">
     <h1>Preparar exportação</h1>
-    <p>Escolha o repositório de cada task de <strong>{{ projeto['name'] }}</strong>. Depois, baixe o arquivo para importar no Project Tasks MCP.</p>
+    <p>Escolha o repositório de cada task de <strong>{{ projeto['name'] }}</strong>. Depois, baixe o arquivo para importar no sistema de destino.</p>
     {% if projeto['visibility'] == 'public' %}<p class="exportacao-aviso">A visibilidade será pública no destino. Revise os acessos após importar.</p>{% endif %}
   </header>
   {% if not repos %}

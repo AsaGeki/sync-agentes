@@ -39,7 +39,7 @@ O banco (`sync.db`) fica em `server/`. Variável obrigatória em `.env`: `ADMIN_
 
 Quer ligar sua IA no canal? Veja [`CONECTAR_MCP.md`](CONECTAR_MCP.md).
 
-Para exportar um projeto para o Project Tasks MCP, consulte [`docs/EXPORTAR_PROJECT_TASKS.md`](docs/EXPORTAR_PROJECT_TASKS.md).
+Para exportar um projeto para o sistema de destino, consulte [`docs/EXPORTAR.md`](docs/EXPORTAR.md).
 
 ## Sobre
 

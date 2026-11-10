@@ -1,8 +1,8 @@
-# Plano: exportação para Project Tasks MCP
+# Plano: exportação para sistema de destino
 
 **Objetivo:** gerar, a partir de um projeto escolhido do sync-agents, um pacote para importação nativa como projeto separado.
 
-**Arquitetura:** um comando Python no servidor lê o SQLite em uma transação de leitura e gera o pacote `project-tasks-export` v1. O importador existente do destino valida e grava o pacote. O arquivo recebido serve de referência, sem ser alterado ou incorporado.
+**Arquitetura:** um comando Python no servidor lê o SQLite em uma transação de leitura e gera o pacote de exportação v1. O importador existente do destino valida e grava o pacote. O arquivo recebido serve de referência, sem ser alterado ou incorporado.
 
 **Restrições:** não instalar dependências, criar testes, alterar enums, tipos, interfaces ou schemas sem autorização; não fazer commits. Não modificar o banco de origem.
 

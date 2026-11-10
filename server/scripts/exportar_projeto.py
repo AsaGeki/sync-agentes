@@ -1,4 +1,4 @@
-"""Executa a exportação para o Project Tasks MCP pela linha de comando."""
+"""Executa a exportação para o sistema de destino pela linha de comando."""
 
 import sqlite3
 import sys

@@ -1,4 +1,4 @@
-"""Exporta um projeto para o formato de importação do Project Tasks MCP."""
+"""Exporta um projeto para o formato de importação do sistema de destino."""
 
 import argparse
 import json
@@ -228,7 +228,7 @@ def exportar(conn, projeto, repos_por_task):
         "source": {"projectId": project_id},
         "counts": contagens,
         "data": dados,
-        "migrationInstructions": "Importe este pacote pelo importador nativo do Project Tasks MCP. "
+        "migrationInstructions": "Importe este pacote pelo importador nativo do sistema de destino. "
         "Confira os avisos e as contagens retornados.",
         "exclusions": ["Credenciais, tokens, permissões, pedidos de acesso e cursores de leitura"],
     }
@@ -279,7 +279,7 @@ def main():
                 print(f"\n{task['code']} — {task['title']}")
                 repos_por_task[task["id"]] = escolher("Escolha o repositório", repos)["root_sha"]
         pacote = exportar(conn, projeto, repos_por_task)
-        saida = Path(args.saida or f"project-tasks-{projeto['slug']}.json")
+        saida = Path(args.saida or f"exportacao-{projeto['slug']}.json")
         with saida.open("x", encoding="utf-8") as arquivo:
             json.dump(pacote, arquivo, ensure_ascii=False, indent=2)
             arquivo.write("\n")
