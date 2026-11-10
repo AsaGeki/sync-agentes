@@ -14,13 +14,20 @@ from src.shared.erros import Unauthorized
 
 COOKIE_PESSOA = "sa_pessoa"
 COOKIE_ADMIN = "sa_admin"
+# Token da própria pessoa no destino (sincronização): dura um dia de trabalho, não um mês.
+COOKIE_DESTINO = "sa_destino"
 VALIDADE_COOKIE = 30 * 24 * 3600
+VALIDADE_COOKIE_DESTINO = 8 * 3600
 
 
-def gravar_cookie(resposta: Response, nome: str, token: str) -> None:
+def gravar_cookie(resposta: Response, nome: str, token: str, validade: int = VALIDADE_COOKIE) -> None:
     resposta.set_cookie(
-        nome, token, max_age=VALIDADE_COOKIE, path="/web", httponly=True, samesite="strict"
+        nome, token, max_age=validade, path="/web", httponly=True, samesite="strict"
     )
+
+
+def token_destino(request: Request) -> str | None:
+    return request.cookies.get(COOKIE_DESTINO) or None
 
 
 def apagar_cookie(resposta: Response, nome: str) -> None:

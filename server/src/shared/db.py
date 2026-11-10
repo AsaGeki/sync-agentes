@@ -190,6 +190,41 @@ CREATE TABLE IF NOT EXISTS operations (
   result     TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+
+-- Sincronização com o sistema de destino (a conexão fica no .env). Vínculo do projeto
+-- com o projeto do destino; `repo_padrao` é o root_sha usado nas tasks sem pista.
+CREATE TABLE IF NOT EXISTS sync_projects (
+  project_id   INTEGER PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+  destino_id   TEXT NOT NULL,
+  destino_nome TEXT NOT NULL,
+  repo_padrao  TEXT,
+  updated_at   TEXT NOT NULL
+);
+
+-- Repositório de origem -> repositório do projeto de destino.
+CREATE TABLE IF NOT EXISTS sync_repos (
+  project_id      INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  root_sha        TEXT NOT NULL,
+  destino_repo_id TEXT NOT NULL,
+  PRIMARY KEY (project_id, root_sha)
+);
+
+-- Repositório escolhido à mão para uma task.
+CREATE TABLE IF NOT EXISTS sync_task_repos (
+  task_id  INTEGER PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+  root_sha TEXT NOT NULL
+);
+
+-- Histórico de prévias e execuções; `resumo` é JSON com o plano ou o resultado.
+CREATE TABLE IF NOT EXISTS sync_runs (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id   INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  modo         TEXT NOT NULL CHECK (modo IN ('previa','aplicar')),
+  status       TEXT NOT NULL CHECK (status IN ('rodando','ok','erro')),
+  resumo       TEXT,
+  iniciada_em  TEXT NOT NULL,
+  terminada_em TEXT
+);
 """
 
 # Mudou modelagem (coluna nova numa tabela existente)? `CREATE TABLE IF NOT EXISTS`

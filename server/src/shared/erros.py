@@ -31,3 +31,9 @@ class Conflict(DomainError):
 
 class Invalid(DomainError):
     status = 422
+
+
+class Indisponivel(DomainError):
+    """Sistema externo (o destino da sincronização) fora do ar ou recusando a chamada."""
+
+    status = 502
