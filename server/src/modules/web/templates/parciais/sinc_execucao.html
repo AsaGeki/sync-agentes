@@ -1,0 +1,65 @@
+<div id="sinc-run" {% if run.status == 'rodando' %}hx-get="{{ url }}/execucoes/{{ run.id }}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  <h3>{{ 'Prévia' if run.modo == 'previa' else 'Sincronização' }} #{{ run.id }}:
+    {{ {'rodando': 'em andamento', 'ok': 'concluída', 'erro': 'falhou'}[run.status] }}
+    <span class="mudo">{{ run.iniciada_em|quando }}{% if run.segundos is not none %} · {{ run.segundos|round(1) }} s{% endif %}</span></h3>
+  {% set r = run.resumo %}
+  {% if run.status == 'rodando' %}<p role="status">{{ r.etapa or 'Na fila' }}…</p>{% endif %}
+  {% if r.escopo %}<p class="mudo">Tasks suas: {{ r.escopo.proprias }}{% if r.escopo.por_dependencia %}, mais {{ r.escopo.por_dependencia }} por dependência{% endif %}. Você é dono de {{ r.escopo.donas }} e só altera essas, se já existirem no destino.</p>{% endif %}
+  {% if r.credenciais %}<p class="mudo">Importação: {{ 'credencial de serviço' if r.credenciais.importacao == 'servico' else 'token pessoal' }}. Edições em tasks existentes: {{ 'token pessoal' if r.credenciais.edicao == 'pessoal' else 'conta de serviço' }}{% if r.esperado %}, em nome de <strong>{{ r.esperado }}</strong>{% endif %}.</p>{% endif %}
+  {% if r.erro %}<p class="aviso-erro">{{ r.erro }}</p>{% endif %}
+
+  {% if r.plano %}
+    {% set p = r.plano %}
+    <h4>{{ 'O que mudaria' if run.modo == 'previa' else 'Plano calculado' }}</h4>
+    <ul>
+      <li><strong>{{ p.tasks_novas }}</strong> tasks novas</li>
+      <li><strong>{{ p.edicoes }}</strong> tasks existentes com edição{% if p.campos_editados %} ({{ p.campos_editados|join(', ') }}){% endif %}</li>
+      <li><strong>{{ p.mudancas_de_status }}</strong> mudanças de status</li>
+      <li>{{ p.tasks_iguais }} já iguais</li>
+      {% if p.tasks_de_outros %}<li>{{ p.tasks_de_outros }} de outras pessoas, que já estão no destino e não serão alteradas por você</li>{% endif %}
+      <li>{{ p.ignoradas_total }} ignoradas{% if p.ignoradas_total %} por segurança{% endif %}</li>
+    </ul>
+    {% if p.ignoradas %}
+      <details><summary>Ver as ignoradas{% if p.ignoradas_total > p.ignoradas|length %} (primeiras {{ p.ignoradas|length }}){% endif %}</summary>
+        <ul>{% for i in p.ignoradas %}<li><code>{{ i.task[:40] }}</code>: {{ i.motivo }}</li>{% endfor %}</ul>
+      </details>
+    {% endif %}
+  {% endif %}
+
+  {% if r.pacote %}
+    <h4>Pacote</h4>
+    <p>Repositório das tasks: {{ r.pacote.repositorio_das_tasks.tag }} pela tag, {{ r.pacote.repositorio_das_tasks.manual }} à mão, {{ r.pacote.repositorio_das_tasks.padrao }} pelo padrão.
+      {{ r.pacote.respostas_vinculadas }} respostas ligadas a {{ r.pacote.perguntas }} perguntas.</p>
+    <p class="mudo">{% for nome, total in r.pacote.contagens.items() %}{{ nome }}: {{ total }}{{ ' · ' if not loop.last }}{% endfor %}</p>
+    {% if r.pacote.areas_acrescentadas %}<p>Áreas que serão acrescentadas ao projeto: {{ r.pacote.areas_acrescentadas|join(', ') }}.</p>{% endif %}
+  {% endif %}
+
+  {% if r.importacao %}
+    <h4>Importação</h4>
+    {% if r.importacao.alreadyImported %}<p>O destino já tinha este pacote; nada foi duplicado.</p>{% endif %}
+    <p>Criados: {% for nome, total in (r.importacao.importedCounts or {}).items() if total %}{{ nome }} {{ total }}{{ ', ' if not loop.last }}{% else %}nada{% endfor %}.
+      Já existiam: {% for nome, total in (r.importacao.skippedCounts or {}).items() if total %}{{ nome }} {{ total }}{{ ', ' if not loop.last }}{% else %}nada{% endfor %}.</p>
+    {% for aviso in r.importacao.warnings or [] %}<p class="mudo">{{ aviso }}</p>{% endfor %}
+  {% endif %}
+
+  {% if r.aplicacao %}
+    <h4>Mudanças nas tasks existentes</h4>
+    <p>{{ r.aplicacao.editadas }} editadas, {{ r.aplicacao.status_alterados }} com status alterado.</p>
+    {% set a = r.aplicacao.autoria %}
+    {% if a %}
+      {% if a.erro %}<p class="mudo">{{ a.erro }}</p>
+      {% elif a.autores %}
+        <p>Registrado no destino em nome de: {% for autor, n in a.autores.items() %}<strong>{{ autor }}</strong> ({{ n }} mudança{{ '' if n == 1 else 's' }}){{ ', ' if not loop.last }}{% endfor %}.{% if a.conferidas < a.total %} Conferidas {{ a.conferidas }} de {{ a.total }} tasks.{% endif %}</p>
+        {% set divergente = namespace(valor=false) %}
+        {% if r.esperado %}{% for autor in a.autores %}{% if autor|lower != r.esperado|lower %}{% set divergente.valor = true %}{% endif %}{% endfor %}{% endif %}
+        {% if divergente.valor %}<p class="aviso-erro">O destino registrou as mudanças em nome diferente do esperado ({{ r.esperado }}): o token usado pertence a outra pessoa ou conta. Guarde o token certo na página Sincronização.</p>{% endif %}
+      {% endif %}
+    {% endif %}
+    {% if r.aplicacao.falhas %}
+      <p class="aviso-erro">{{ r.aplicacao.falhas|length }} falha(s):</p>
+      <ul>{% for f in r.aplicacao.falhas %}<li><code>{{ f.task[:40] }}</code> ({{ f.etapa }}): {{ f.erro }}</li>{% endfor %}</ul>
+      {% set achado = namespace(sem_acesso=false) %}{% for f in r.aplicacao.falhas %}{% if 'access denied' in f.erro %}{% set achado.sem_acesso = true %}{% endif %}{% endfor %}
+      {% if achado.sem_acesso %}<p class="mudo">"Project access denied" significa que o token que assinou as edições não tem acesso de escrita a este projeto no destino: peça para te adicionarem como colaborador.</p>{% endif %}
+    {% endif %}
+  {% endif %}
+</div>

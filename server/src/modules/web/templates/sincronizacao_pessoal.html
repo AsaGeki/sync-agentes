@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block titulo %}Sincronização · sync-agents{% endblock %}
+{% block conteudo %}
+<h1>Sincronização com o destino</h1>
+<div id="sinc-area">
+  {% if aviso %}<p class="cartao destaque" role="status">{{ aviso }}</p>{% endif %}
+
+  <section class="cartao">
+    <h2>Seu token do destino</h2>
+    {% if not conexao.tem_url %}
+      <p class="aviso-erro">O endereço do destino não está configurado no servidor. Peça ao administrador.</p>
+    {% else %}
+      <p class="mudo">O seu token faz as mudanças em tasks que já existem aparecerem no destino <strong>no seu nome</strong>. {% if conexao.tem_token %}A importação do que é novo é feita pela credencial de serviço do servidor, então o seu token <strong>não precisa ser de administrador do sistema</strong>: basta ser colaborador dos projetos. Sem ele, as suas mudanças aparecem como feitas pela conta de serviço.{% else %}O servidor não tem credencial de serviço configurada, então o seu token também precisa ser de administrador do sistema para importar.{% endif %} Ele fica só neste navegador, por algumas horas, e nunca é mostrado de novo.</p>
+      {% if token.informado %}
+        {% if token.erro %}
+          <p class="aviso-erro">{{ token.erro }}</p>
+        {% else %}
+          <p>Token informado e válido.
+            {% if conexao.tem_token %}As suas mudanças em tasks que já existem serão registradas em nome de <strong>{{ pessoa['email'] }}</strong>, se o token foi emitido para esse e-mail. {% if not token.administrador %}Ele não é de administrador do sistema, e tudo bem: a importação é feita pela credencial de serviço.{% endif %}
+            {% elif token.administrador %}Ele é de <strong>administrador do sistema</strong>: você pode importar.
+            {% else %}<strong>Ele não é de administrador do sistema</strong>: a prévia funciona, mas a importação será recusada.{% endif %}</p>
+        {% endif %}
+        <form class="em-linha" hx-post="/web/sincronizacao/token/remover" hx-select="#sinc-area" hx-target="#sinc-area" hx-swap="outerHTML">
+          <button>Remover token deste navegador</button>
+        </form>
+      {% else %}
+        <form class="em-linha" hx-post="/web/sincronizacao/token" hx-select="#sinc-area" hx-target="#sinc-area" hx-swap="outerHTML">
+          <input type="password" name="token" required placeholder="token do destino" autocomplete="off" size="40" aria-label="Token do destino">
+          <button>Guardar</button>
+        </form>
+      {% endif %}
+    {% endif %}
+  </section>
+
+  <section class="cartao">
+    <h2>Seus projetos</h2>
+    <p class="mudo">Você sincroniza as tasks em que participa: onde é dono, que criou ou em que escreveu uma mensagem. As tasks de que elas dependem vão junto. Tasks novas entram todas; as que já existem no destino só são alteradas por quem é dono delas.</p>
+    {% if not projetos %}
+      <p>Nenhum projeto com tasks suas está pronto para sincronizar. Se esperava ver algum, peça ao administrador para vinculá-lo ao destino.</p>
+    {% else %}
+    <table class="tabela">
+      <thead><tr><th>Projeto</th><th>Vai para</th><th>Suas tasks</th><th></th></tr></thead>
+      <tbody>
+        {% for p in projetos %}
+          <tr>
+            <td><strong>{{ p.name }}</strong> <span class="mudo">{{ p.slug }}</span></td>
+            <td>{{ p.destino }}</td>
+            <td>{{ p.proprias }}{% if p.por_dependencia %} <span class="mudo">+ {{ p.por_dependencia }} por dependência</span>{% endif %}</td>
+            <td class="acoes"><a href="/web/sincronizacao/p/{{ p.slug }}">Abrir</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

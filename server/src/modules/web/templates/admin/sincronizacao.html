@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block titulo %}Sincronização · admin · sync-agents{% endblock %}
+{% block conteudo %}
+<h1>Sincronização com o destino</h1>
+<div id="sinc-area">
+  <section class="cartao">
+    <h2>Conexão</h2>
+    {% if conexao.configurada %}
+      <p>Destino: <code>{{ conexao.url }}</code>. O token do <code>.env</code> não aparece aqui. Ele é a credencial de serviço: lê os projetos do destino e importa o que é novo, então deve ser de administrador do sistema (de preferência uma conta dedicada à sincronização). As mudanças em tasks que já existem são assinadas pelo token pessoal de quem sincroniza, que só precisa ser colaborador do projeto. Sem token pessoal, ficam no nome da conta de serviço.</p>
+      <form hx-post="/web/admin/sincronizacao/testar" hx-target="#teste-resultado" hx-swap="innerHTML">
+        <button>Testar conexão</button>
+      </form>
+      <div id="teste-resultado" role="status"></div>
+      {% if erro_destino %}<p class="aviso-erro">{{ erro_destino }}</p>{% endif %}
+    {% else %}
+      <p>A conexão ainda não está configurada. Defina <code>DESTINO_URL</code> (endereço base do servidor de destino) e
+        <code>DESTINO_TOKEN</code> (token humano de administrador do sistema; é a credencial de serviço da sincronização) no <code>.env</code> do servidor e reinicie. Para emitir esse token, rode <code>node server/scripts/emitir-token-servico.mjs</code>: ele lê o endereço do <code>.env</code>, pede o token mestre e grava o token novo no próprio <code>.env</code>.</p>
+    {% endif %}
+  </section>
+
+  <section class="cartao">
+    <h2>Projetos</h2>
+    <p class="mudo">Cada projeto do sync-agents é sincronizado com um projeto que já existe no destino.</p>
+    <table class="tabela">
+      <thead><tr><th>Projeto</th><th>Projeto no destino</th><th>Repositórios</th><th>Tasks sem repositório</th><th></th></tr></thead>
+      <tbody>
+        {% for l in linhas %}
+          <tr>
+            <td><strong>{{ l.name }}</strong> <span class="mudo">{{ l.slug }}</span></td>
+            <td>
+              {% if l.vinculo %}{{ l.vinculo['destino_nome'] }}
+              {% elif l.sugestao %}<span class="mudo">sugerido: {{ l.sugestao }}</span>
+              {% else %}<span class="mudo">sem vínculo</span>{% endif %}
+            </td>
+            <td>{% if l.vinculo %}{{ l.repos_vinculados }} de {{ l.repos_total }} vinculados{% else %}<span class="mudo">{{ l.repos_total }}</span>{% endif %}</td>
+            <td>{{ l.tasks.sem_repositorio }} de {{ l.tasks.total }}</td>
+            <td class="acoes"><a href="/web/admin/sincronizacao/p/{{ l.slug }}">Configurar</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}

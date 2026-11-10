@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block titulo %}Repositório das tasks · {{ projeto['name'] }} · admin · sync-agents{% endblock %}
+{% block conteudo %}
+{% set destino_url = '/web/admin/sincronizacao/p/' ~ projeto['slug'] %}
+<nav class="trilha" aria-label="Você está em"><a href="/web/admin/sincronizacao">Sincronização</a><span>/</span><a href="{{ destino_url }}">{{ projeto['name'] }}</a><span>/</span><span class="atual">Repositório das tasks</span></nav>
+<h1>Repositório das tasks</h1>
+<div id="sinc-area">
+  {% if aviso %}<p class="cartao destaque" role="status">{{ aviso }}</p>{% endif %}
+
+  <section class="cartao">
+    <h2>Situação</h2>
+    <p>{{ resumo.total }} tasks: <strong>{{ resumo.sem_repositorio }} sem repositório</strong>, {{ resumo.manual }} escolhidas à mão, {{ resumo.tag }} pela tag e {{ resumo.padrao }} pelo repositório padrão.</p>
+    {% if resumo.sem_vinculo %}<p class="aviso-erro">{{ resumo.sem_vinculo }} tasks usam um repositório que ainda não foi vinculado ao do destino. Vincule-o na <a href="{{ destino_url }}">tela do projeto</a>.</p>{% endif %}
+    <p class="mudo">A task usa, nesta ordem: a escolha feita aqui, a tag (<code>backend</code>, <code>frontend</code> ou o nome do repositório) e o repositório padrão do projeto{% if vinculo and vinculo['repo_padrao'] %}, que já está definido{% else %}, que ainda não foi definido{% endif %}.</p>
+  </section>
+
+  <section class="cartao">
+    <h2>Encontrar tasks</h2>
+    <form class="em-linha" method="get" action="{{ destino_url }}/tasks">
+      <select name="situacao" aria-label="Situação">
+        {% for valor, rotulo in situacoes.items() %}<option value="{{ valor }}" {% if filtros.situacao == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
+      </select>
+      <select name="tag" aria-label="Tag">
+        <option value="">Todas as tags</option>
+        {% for tag in tags %}<option value="{{ tag }}" {% if filtros.tag == tag %}selected{% endif %}>{{ tag }}</option>{% endfor %}
+      </select>
+      <select name="feature" aria-label="Feature">
+        <option value="">Todas as features</option>
+        <option value="avulsa" {% if filtros.feature == 'avulsa' %}selected{% endif %}>Sem feature</option>
+        {% for f in features %}<option value="{{ f['id'] }}" {% if filtros.feature == f['id']|string %}selected{% endif %}>{{ f['title'] }}</option>{% endfor %}
+      </select>
+      <button>Filtrar</button>
+    </form>
+  </section>
+
+  <section class="cartao">
+    <h2>Atribuir em lote</h2>
+    <p class="mudo">Vale só para as {{ tasks|length }} tasks da lista abaixo.</p>
+    <form class="em-linha" hx-post="{{ destino_url }}/tasks/lote" hx-select="#sinc-area" hx-target="#sinc-area" hx-swap="outerHTML"
+          hx-confirm="Aplicar à lista atual ({{ tasks|length }} tasks)?">
+      <input type="hidden" name="situacao" value="{{ filtros.situacao }}">
+      <input type="hidden" name="tag" value="{{ filtros.tag }}">
+      <input type="hidden" name="feature" value="{{ filtros.feature }}">
+      <select name="repo" aria-label="Repositório">
+        <option value="">Escolha um repositório</option>
+        {% for r in repos %}<option value="{{ r['root_sha'] }}">{{ r['name'] }}</option>{% endfor %}
+      </select>
+      <label><input type="checkbox" name="sobrescrever" value="1"> Incluir tasks já escolhidas à mão</label>
+      <button name="acao" value="atribuir" {% if not tasks %}disabled{% endif %}>Atribuir</button>
+      <button name="acao" value="limpar" {% if not tasks %}disabled{% endif %}>Voltar ao automático</button>
+    </form>
+  </section>
+
+  <section class="cartao">
+    <h2>Tasks ({{ tasks|length }})</h2>
+    {% if not tasks %}
+      <p><strong>Nenhuma task nesta lista.</strong> Altere ou limpe os filtros para ver outras tasks.</p>
+    {% else %}
+    <form hx-post="{{ destino_url }}/tasks/escolhas" hx-select="#sinc-area" hx-target="#sinc-area" hx-swap="outerHTML">
+      <input type="hidden" name="situacao" value="{{ filtros.situacao }}">
+      <input type="hidden" name="tag" value="{{ filtros.tag }}">
+      <input type="hidden" name="feature" value="{{ filtros.feature }}">
+      <p><button>Salvar escolhas</button></p>
+      <table class="tabela">
+        <thead><tr><th>Task</th><th>Título e feature</th><th>Tags</th><th>Repositório</th></tr></thead>
+        <tbody>
+          {% for t in tasks %}
+            <tr>
+              <td class="numero sinc-codigo"><code>T-{{ t.numero }}</code></td>
+              <td><strong>{{ t.title }}</strong><br><span class="mudo">{{ t.feature or 'Sem feature' }}</span></td>
+              <td>{% for tag in t.tags %}<span class="etiqueta">{{ tag }}</span> {% endfor %}</td>
+              <td>
+                <select name="task_{{ t.id }}" aria-label="Repositório de {{ t.code }}">
+                  <option value="">Automático{% if not t.via %} (sem repositório){% elif t.via != 'manual' %} ({{ t.resolvido_nome }}, {{ 'tag' if t.via == 'tag' else 'padrão' }}){% endif %}</option>
+                  {% for r in repos %}<option value="{{ r['root_sha'] }}" {% if t.manual == r['root_sha'] %}selected{% endif %}>{{ r['name'] }}</option>{% endfor %}
+                </select>
+                {% if t.sem_vinculo %}<span class="etiqueta">sem vínculo no destino</span>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p><button>Salvar escolhas</button></p>
+    </form>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

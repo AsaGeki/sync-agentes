@@ -1,0 +1,6 @@
+{% if erro %}
+  <p class="aviso-erro">{{ erro }}</p>
+{% else %}
+  <p>Conexão ok: {{ projetos|length }} projeto{{ '' if projetos|length == 1 else 's' }} no destino
+    ({% for p in projetos %}{{ p.name }}{{ ', ' if not loop.last }}{% endfor %}).</p>
+{% endif %}

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block titulo %}Sincronizar {{ projeto['name'] }} · sync-agents{% endblock %}
+{% block conteudo %}
+<nav class="trilha" aria-label="Você está em"><a href="/web/sincronizacao">Sincronização</a><span>/</span><span class="atual">{{ projeto['name'] }}</span></nav>
+<h1>Sincronizar {{ projeto['name'] }}</h1>
+<div id="sinc-area">
+  {% if not vinculo %}
+    <section class="cartao">
+      <p>Este projeto ainda não foi vinculado a um projeto do destino. Peça ao administrador.</p>
+    </section>
+  {% elif not conexao.tem_url %}
+    <section class="cartao">
+      <p class="aviso-erro">O endereço do destino não está configurado no servidor.</p>
+    </section>
+  {% else %}
+  <section class="cartao">
+    <h2>Estado</h2>
+    <p>Vai para: <strong>{{ vinculo['destino_nome'] }}</strong>.
+      Suas tasks aqui: <strong>{{ escopo.proprias }}</strong>{% if escopo.por_dependencia %}, mais {{ escopo.por_dependencia }} de que elas dependem{% endif %}.
+      {% if importacao %}O que é novo é importado {% if importacao == 'servico' %}pela credencial de serviço do servidor{% else %}com o seu token{% endif %}.{% endif %}</p>
+    <p>
+      {% if quem_roda %}Há uma execução em andamento ({{ quem_roda }}).
+      {% elif not importacao %}Falta uma credencial: <a href="/web/sincronizacao">informe o seu token do destino</a> ou peça ao administrador para configurar a credencial de serviço.
+      {% elif vigente %}Sua última prévia foi feita em {{ vigente.iniciada_em|quando }} com a configuração de hoje.
+      {% else %}Você ainda não gerou uma prévia com a configuração de hoje.{% endif %}
+    </p>
+    {% if importacao and edicao == 'servico' %}<p class="aviso-erro">Sem o seu token pessoal, as mudanças que você fizer em tasks que já existem aparecerão no destino como feitas pela <strong>conta de serviço</strong>{% if esperado %} (<strong>{{ esperado }}</strong>){% endif %}, não por você. <a href="/web/sincronizacao">Guarde o seu token</a> para que apareçam em nome de <strong>{{ pessoa['email'] }}</strong>.</p>{% elif importacao and edicao == 'pessoal' %}<p>As mudanças em tasks suas que já existem sairão em nome de <strong>{{ esperado }}</strong>, desde que o token que você guardou tenha sido emitido para esse e-mail. Depois de sincronizar, a tela confere o nome que o destino registrou.</p>{% endif %}
+    {% if administrador is false %}<p class="aviso-erro">A credencial usada na importação <strong>não é de administrador do sistema</strong> do destino. A prévia funciona, mas a importação será recusada: ser administrador só do projeto não basta. {% if importacao == 'servico' %}Peça ao administrador para trocar a credencial de serviço do servidor.{% else %}Use um token de administrador do sistema.{% endif %}</p>{% elif erro_credencial %}<p class="aviso-erro">{{ erro_credencial }}</p>{% endif %}
+    <div class="em-linha">
+      <form hx-post="{{ url }}/executar/previa" hx-select="#sinc-area" hx-target="#sinc-area" hx-swap="outerHTML">
+        <button {% if quem_roda or not importacao or not escopo.proprias %}disabled{% endif %}>Gerar prévia</button>
+      </form>
+      <form hx-post="{{ url }}/executar/aplicar" hx-select="#sinc-area" hx-target="#sinc-area" hx-swap="outerHTML"
+            hx-confirm="Sincronizar agora? As mudanças serão gravadas no projeto {{ vinculo['destino_nome'] }} do destino.">
+        <button class="primario" {% if quem_roda or not importacao or not vigente or administrador is false %}disabled{% endif %}>Sincronizar</button>
+      </form>
+    </div>
+    <p class="mudo">A prévia só lê o destino e mostra o que mudaria. Sincronizar fica liberado depois de uma prévia sua, feita com a configuração de hoje. Você só altera tasks que já existem no destino quando é o dono delas (ou o criador, se não houver dono); essas mudanças ficam registradas {% if edicao == 'pessoal' %}em seu nome{% else %}no nome da conta de serviço{% endif %}, com a data de agora. Depois de sincronizar, a tela mostra quem o destino registrou como autor. As tasks de outras pessoas só entram quando são novas. As mensagens, os eventos e as revisões importados mantêm o autor e a data originais, e o dono de cada task vem do sync-agents.</p>
+  </section>
+
+  {% if atual %}
+  <section class="cartao">
+    <h2>Execução</h2>
+    {% set run = atual %}
+    {% include "parciais/sinc_execucao.html" %}
+  </section>
+  {% endif %}
+
+  <section class="cartao">
+    <h2>Seu histórico</h2>
+    {% if not historico %}
+      <p class="mudo">Você ainda não rodou nada neste projeto.</p>
+    {% else %}
+    <table class="tabela">
+      <thead><tr><th>#</th><th>Tipo</th><th>Situação</th><th>Quando</th><th>Resultado</th><th></th></tr></thead>
+      <tbody>
+        {% for h in historico %}
+          <tr>
+            <td class="numero">{{ h.id }}</td>
+            <td>{{ 'Prévia' if h.modo == 'previa' else 'Sincronização' }}</td>
+            <td>{{ {'rodando': 'em andamento', 'ok': 'concluída', 'erro': 'falhou'}[h.status] }}</td>
+            <td class="mudo">{{ h.iniciada_em|quando }}</td>
+            <td>
+              {% if h.resumo.erro %}<span class="mudo">{{ h.resumo.erro[:80] }}</span>
+              {% elif h.resumo.aplicacao %}{{ h.resumo.aplicacao.editadas }} editadas, {{ h.resumo.aplicacao.status_alterados }} status{% if h.resumo.aplicacao.falhas %}, <strong>{{ h.resumo.aplicacao.falhas|length }} falha(s)</strong>{% endif %}
+              {% elif h.resumo.plano %}{{ h.resumo.plano.tasks_novas }} novas, {{ h.resumo.plano.edicoes }} edições, {{ h.resumo.plano.mudancas_de_status }} status
+              {% endif %}
+            </td>
+            <td class="acoes"><a href="{{ url }}?run={{ h.id }}">Ver</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

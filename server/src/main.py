@@ -15,16 +15,20 @@ from src.modules.events.routes import router as eventos_router
 from src.modules.features.routes import router as features_router
 from src.modules.people.routes import router as people_router
 from src.modules.projects.routes import router as projetos_router
+from src.modules.sincronizacao.execucao import encerrar_interrompidas as encerrar_execucoes_interrompidas
 from src.modules.tasks.routes import router as tasks_router
 from src.modules.web.admin_routes import router as web_admin_router
 from src.modules.web.erros import resposta_erro_web
 from src.modules.web.routes import router as web_router
+from src.modules.web.sincronizacao_pessoal_routes import router as web_sincronizacao_pessoal_router
+from src.modules.web.sincronizacao_routes import router as web_sincronizacao_router
 from src.modules.web.templating import PASTA_WEB
 from src.shared.auth import normalizar_agent, resolve_person, validate_admin
 from src.shared.db import BASE_DIR, DB_PATH, conectar, iniciar_banco, now
 from src.shared.erros import DomainError, Unauthorized
 
 iniciar_banco()
+encerrar_execucoes_interrompidas()
 
 INICIADO_EM = now()
 _INICIO_MONOTONICO = time.monotonic()
@@ -194,4 +198,6 @@ app.include_router(realtime_router)
 app.mount("/web/static", StaticFiles(directory=PASTA_WEB / "static"), name="web_static")
 app.mount("/web/assets", StaticFiles(directory=PASTA_WEB / "assets"), name="web_assets")
 app.include_router(web_admin_router)
+app.include_router(web_sincronizacao_router)
+app.include_router(web_sincronizacao_pessoal_router)
 app.include_router(web_router)

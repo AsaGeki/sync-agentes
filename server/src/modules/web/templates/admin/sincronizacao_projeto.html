@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block titulo %}Sincronizar {{ projeto['name'] }} · admin · sync-agents{% endblock %}
+{% block conteudo %}
+<nav class="trilha" aria-label="Você está em"><a href="/web/admin/sincronizacao">Sincronização</a><span>/</span><span class="atual">{{ projeto['name'] }}</span></nav>
+<h1>{{ projeto['name'] }}</h1>
+<div id="sinc-area">
+  {% if erro_destino %}<p class="aviso-erro">{{ erro_destino }}</p>{% endif %}
+
+  <section class="cartao">
+    <h2>Projeto no destino</h2>
+    {% if destino_removido %}
+      <p class="aviso-erro">O projeto vinculado ({{ vinculo['destino_nome'] }}) não existe mais no destino. Escolha outro destino.</p>
+    {% endif %}
+    {% if destinos is none %}
+      <p class="mudo">Sem acesso ao destino agora. {% if vinculo %}Vinculado a <strong>{{ vinculo['destino_nome'] }}</strong>.{% endif %}</p>
+    {% else %}
+      {% if sugestao %}<p class="mudo">Sugestão: <strong>{{ sugestao['name'] }}</strong>, que contém todos os repositórios deste projeto.</p>{% endif %}
+      <form class="em-linha" hx-post="/web/admin/sincronizacao/p/{{ projeto['slug'] }}/destino"
+            hx-select="#sinc-area" hx-target="#sinc-area" hx-swap="outerHTML">
+        <select name="destino_id" aria-label="Projeto no destino">
+          <option value="">Sem vínculo</option>
+          {% for d in destinos %}
+            <option value="{{ d['_id'] }}" {% if (vinculo and vinculo['destino_id'] == d['_id']) or (not vinculo and sugestao and sugestao['_id'] == d['_id']) %}selected{% endif %}>{{ d['name'] }}</option>
+          {% endfor %}
+        </select>
+        <button>Salvar vínculo</button>
+      </form>
+      {% if vinculo %}<p class="mudo">Trocar o projeto de destino descarta os vínculos de repositório abaixo.</p>{% endif %}
+    {% endif %}
+  </section>
+
+  {% if vinculo and destino %}
+  <section class="cartao">
+    <h2>Repositórios</h2>
+    <p class="mudo">Escolha, para cada repositório do sync-agents, o repositório equivalente em {{ destino['name'] }}. A sugestão vem da URL ou do nome com o mesmo commit raiz.</p>
+    {% if not repos %}
+      <p>Este projeto não tem repositórios vinculados no sync-agents.</p>
+    {% else %}
+    <form hx-post="/web/admin/sincronizacao/p/{{ projeto['slug'] }}/repositorios"
+          hx-select="#sinc-area" hx-target="#sinc-area" hx-swap="outerHTML">
+      <table class="tabela">
+        <thead><tr><th>No sync-agents</th><th>No destino</th></tr></thead>
+        <tbody>
+          {% for r in repos %}
+            {% set escolhido = r.salvo or r.sugerido %}
+            <tr>
+              <td><strong>{{ r.name }}</strong><br><span class="mudo">{{ r.remote or r.root_sha[:10] }}</span></td>
+              <td>
+                <select name="repo_{{ r.root_sha }}" aria-label="Repositório de {{ r.name }} no destino">
+                  <option value="">Sem vínculo</option>
+                  {% for x in destino['repositories'] %}
+                    <option value="{{ x['id'] }}" {% if escolhido == x['id'] %}selected{% endif %}>{{ x['name'] }}</option>
+                  {% endfor %}
+                </select>
+                {% if not r.salvo and r.sugerido %}<span class="etiqueta">sugerido</span>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p>
+        <label for="padrao">Repositório padrão para tasks sem pista</label>
+        <select id="padrao" name="padrao">
+          <option value="">Nenhum</option>
+          {% for r in repos %}<option value="{{ r.root_sha }}" {% if vinculo['repo_padrao'] == r.root_sha %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+        </select>
+      </p>
+      <button>Salvar repositórios</button>
+    </form>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <section class="cartao">
+    <h2>Repositório das tasks</h2>
+    <p>{{ resumo_tasks.total }} tasks: <strong>{{ resumo_tasks.sem_repositorio }} sem repositório</strong>, {{ resumo_tasks.manual }} escolhidas à mão, {{ resumo_tasks.tag }} pela tag e {{ resumo_tasks.padrao }} pelo padrão.</p>
+    <p><a href="/web/admin/sincronizacao/p/{{ projeto['slug'] }}/tasks">Revisar as tasks</a></p>
+  </section>
+
+  <section class="cartao">
+    <h2>Sincronização</h2>
+    <p class="mudo">Aqui fica só a configuração compartilhada. Cada pessoa sincroniza as próprias tasks, com o próprio token do destino, na área pessoal (menu Sincronização).</p>
+  </section>
+
+  {% if vinculo %}
+  <section class="cartao">
+    <h2>Corrigir respostas já importadas</h2>
+    <p class="mudo">As mensagens que o destino já recebeu antes desta sincronização ficaram sem a ligação entre resposta e pergunta, e o importador não atualiza o que já existe. Este script do <code>mongosh</code> preenche essa ligação direto no banco do destino, para o projeto inteiro. Ele só grava onde a ligação está vazia, mostra a contagem antes de gravar e deve ser rodado com backup (<code>mongodump</code>). Usa o token do <code>.env</code>.</p>
+    <p><a href="/web/admin/sincronizacao/p/{{ projeto['slug'] }}/replyto.js" hx-boost="false" download>Baixar o script de correção</a></p>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

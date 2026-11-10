@@ -8,7 +8,7 @@
   <title>{% block titulo %}sync-agents{% endblock %}</title>
   <link rel="icon" href="/web/assets/favicon.ico?v=brand-2" type="image/x-icon">
   <link rel="icon" href="/web/assets/favicon-dark.ico?v=brand-2" type="image/x-icon" media="(prefers-color-scheme: dark)">
-  <link rel="stylesheet" href="/web/static/app.css?v=navbar-1">
+  <link rel="stylesheet" href="/web/static/app.css?v=sinc-1">
   <script src="/web/static/htmx.min.js" defer></script>
   <script src="/web/static/tempo-real.js" defer></script>
   <script src="/web/static/tela.js?v=colapsavel-1" defer></script>
@@ -44,6 +44,9 @@
           <a class="sidebar-link" href="/web/admin/projetos" {% if request.url.path == '/web/admin/projetos' %}aria-current="page"{% endif %} title="Todos os projetos">
             {{ icone('pasta') }}<span class="sidebar-link-label">Todos os projetos</span>
           </a>
+          <a class="sidebar-link" href="/web/admin/sincronizacao" {% if request.url.path.startswith('/web/admin/sincronizacao') %}aria-current="page"{% endif %} title="Sincronização">
+            {{ icone('sincronizar') }}<span class="sidebar-link-label">Sincronização</span>
+          </a>
         </nav>
       </section>
       {% endif %}
@@ -62,6 +65,9 @@
           {% if not admin %}
             <a class="sidebar-link" href="/web" {% if request.url.path == '/web' %}aria-current="page"{% endif %} title="Visão geral">
               {{ icone('painel') }}<span class="sidebar-link-label">Visão geral</span>
+            </a>
+            <a class="sidebar-link" href="/web/sincronizacao" {% if request.url.path.startswith('/web/sincronizacao') %}aria-current="page"{% endif %} title="Sincronização">
+              {{ icone('sincronizar') }}<span class="sidebar-link-label">Sincronização</span>
             </a>
           {% endif %}
           {% for item in nav %}
