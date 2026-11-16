@@ -229,9 +229,13 @@ def montar_pacote(conn, projeto, destino, vinculos, padrao=None, manuais=None, e
             }
         )
     corpos = {}
+    # Task sem dono vai para o destino com quem a criou como responsável (mesma regra de `tasks_donas`).
+    criadores = {}
     for e in eventos:
         if e["kind"] == EKindEvent.body_updated:
             corpos.setdefault(e["task_id"], []).append(e)
+        elif e["kind"] == EKindEvent.task_created:
+            criadores[e["task_id"]] = e["author_email"]
     areas_usadas = set()
     for t in tasks:
         tags = json.loads(t["tags"])
@@ -261,8 +265,9 @@ def montar_pacote(conn, projeto, destino, vinculos, padrao=None, manuais=None, e
         }
         if t["feature_id"] is not None:
             registro["featureId"] = id_de("feature", t["feature_id"])
-        if t["owner_email"]:
-            registro["responsible"] = t["owner_email"]
+        responsavel = t["owner_email"] or criadores.get(t["id"])
+        if responsavel:
+            registro["responsible"] = responsavel
         dados["tasks"].append(registro)
     for d in dependencias:
         dados["taskDependencies"].append(
