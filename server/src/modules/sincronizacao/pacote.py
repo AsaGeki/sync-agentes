@@ -7,7 +7,15 @@ import uuid
 from datetime import UTC, datetime
 
 from src.modules.projects.exportacao import COLECOES, STATUS, TIPOS
-from src.shared.enums import EAgent, EKindEvent
+from src.shared.enums import EAgent, EKindEvent, EStatusTask
+
+
+# O que o status do destino não diz: o rótulo de andamento da task na origem.
+ROTULO_ANDAMENTO = {
+    EStatusTask.em_andamento: "Em andamento",
+    EStatusTask.aguardando_decisao: "Aguardando decisão",
+    EStatusTask.parcial: "Parcial",
+}
 
 
 def normalizar_url(valor):
@@ -219,6 +227,7 @@ def montar_pacote(conn, projeto, destino, vinculos, padrao=None, manuais=None, e
                 "_id": id_de("feature", f["id"]),
                 "projectId": projeto_id,
                 "name": f["title"],
+                "responsible": f["creator_email"],
                 "objective": f["description"] or "",
                 "context": f"Código na origem: {f['code']}\nCriado por: {f['creator_email']}",
                 "acceptance": [],
@@ -265,6 +274,8 @@ def montar_pacote(conn, projeto, destino, vinculos, padrao=None, manuais=None, e
         }
         if t["feature_id"] is not None:
             registro["featureId"] = id_de("feature", t["feature_id"])
+        if t["status"] in ROTULO_ANDAMENTO:
+            registro["progressLabel"] = ROTULO_ANDAMENTO[t["status"]]
         responsavel = t["owner_email"] or criadores.get(t["id"])
         if responsavel:
             registro["responsible"] = responsavel

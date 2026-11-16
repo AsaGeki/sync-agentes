@@ -229,7 +229,8 @@ def _executar(
         cliente_edicao = ClienteDestino(config.DESTINO_URL, token_edicao)
         etapa("Comparando com o destino")
         tasks = cliente.listar("task", projectId=destino["_id"])
-        resumo["plano"] = resumo_plano(planejar(pacote, tasks, editaveis))
+        features = cliente.listar("feature", projectId=destino["_id"])
+        resumo["plano"] = resumo_plano(planejar(pacote, tasks, editaveis, features))
         if modo == "aplicar":
             etapa("Importando no destino")
             importacao = cliente.post("/admin/projects/import", pacote, timeout=TIMEOUT_IMPORTACAO)
@@ -238,7 +239,9 @@ def _executar(
             }
             etapa("Aplicando as mudanças nas tasks existentes")
             tasks = cliente.listar("task", projectId=destino["_id"])
-            aplicacao = aplicar_plano(cliente_edicao, destino["_id"], planejar(pacote, tasks, editaveis), tasks)
+            features = cliente.listar("feature", projectId=destino["_id"])
+            plano = planejar(pacote, tasks, editaveis, features)
+            aplicacao = aplicar_plano(cliente_edicao, destino["_id"], plano, tasks, features)
             alteradas = aplicacao.pop("alteradas")
             etapa("Conferindo quem o destino registrou como autor")
             try:
@@ -263,8 +266,8 @@ def _mensagem(erro: Exception, credencial: str) -> str:
     if "System administrator required" in texto:
         quem = "o seu token" if credencial == "pessoal" else "a credencial de serviço do servidor"
         return (
-            f"O destino recusou a importação: {quem} precisa ser de administrador do sistema "
-            "(administrador só do projeto não basta)."
+            f"O destino recusou a importação: {quem} precisa ser de administrador do sistema ou, em projeto que já "
+            "existe no destino, de administrador desse projeto."
         )
     return texto
 

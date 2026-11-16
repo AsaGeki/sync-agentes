@@ -8,14 +8,17 @@ import uuid
 
 # Transições que a rota de status do destino aceita para uma credencial humana.
 TRANSICOES = {
-    "pendente": ["em_revisao", "concluida", "cancelada"],
+    "pendente": ["bloqueada", "em_revisao", "concluida", "cancelada"],
     "bloqueada": ["pendente", "em_revisao", "concluida", "cancelada"],
     "em_revisao": ["pendente", "concluida", "cancelada"],
     "concluida": ["pendente"],
 }
 TERMINAIS = {"concluida", "cancelada"}
-# Tamanho máximo que a rota de edição do destino aceita em nome e instruções (a importação não tem esse limite).
-LIMITE_TEXTO = 20000
+# Tamanho máximo que a rota de edição do destino aceita no nome e nas instruções.
+LIMITE_NOME = 20000
+LIMITE_INSTRUCOES = 100000
+# Edições por chamada na rota em lote do destino.
+LOTE_EDICOES = 100
 # O destino aplica a mesma remoção de segredos na importação; a edição precisa aplicá-la também.
 PADROES_SEGREDO = [
     (re.compile(r"-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----"), "[REDACTED]"),
@@ -102,12 +105,20 @@ def caminho_status(origem, alvo):
     return None
 
 
-def planejar(pacote, tasks_destino, editaveis=None):
+def planejar(pacote, tasks_destino, editaveis=None, features_destino=None):
     """O que mudaria no destino. `editaveis` são os IDs das tasks que quem sincroniza pode alterar; as outras
     tasks que já existem no destino ficam como estão (sem ele, todas são editáveis)."""
     por_id = {t["_id"]: t for t in tasks_destino}
     ids_sync = {t["_id"] for t in pacote["data"]["tasks"]}
-    plano = {"novas": 0, "iguais": 0, "de_outros": 0, "edicoes": [], "status": [], "ignoradas": []}
+    plano = {"novas": 0, "iguais": 0, "de_outros": 0, "edicoes": [], "status": [], "ignoradas": [], "features": []}
+    # Feature do destino sem responsável recebe o criador da origem; quem já tem responsável não é alterado.
+    features_por_id = {f["_id"]: f for f in features_destino or []}
+    for desejada in pacote["data"]["features"]:
+        atual = features_por_id.get(desejada["_id"])
+        if atual and desejada.get("responsible") and not atual.get("responsible"):
+            plano["features"].append(
+                {"feature": desejada["name"], "id": atual["_id"], "campos": {"responsible": desejada["responsible"]}}
+            )
     for desejada in pacote["data"]["tasks"]:
         atual = por_id.get(desejada["_id"])
         codigo = desejada["instructions"].split("\n", 1)[0].removeprefix("Código na origem: ")
@@ -130,20 +141,21 @@ def planejar(pacote, tasks_destino, editaveis=None):
             valor = redigir(desejada[campo])
             if valor == atual.get(campo):
                 continue
-            if len(valor) > LIMITE_TEXTO:
+            limite = LIMITE_INSTRUCOES if campo == "instructions" else LIMITE_NOME
+            if len(valor) > limite:
                 texto_grande = True
                 plano["ignoradas"].append(
                     {
                         "task": codigo,
-                        "motivo": f"{campo} passa de {LIMITE_TEXTO:,} caracteres: texto não atualizado".replace(
-                            ",", "."
-                        ),
+                        "motivo": f"{campo} passa de {limite:,} caracteres: texto não atualizado".replace(",", "."),
                     }
                 )
                 continue
             campos[campo] = valor
         if desejada.get("responsible") and desejada["responsible"] != atual.get("responsible"):
             campos["responsible"] = desejada["responsible"]
+        if desejada.get("progressLabel") != atual.get("progressLabel"):
+            campos["progressLabel"] = desejada.get("progressLabel")
         # Só dependência cujo alvo nasceu no destino (sem "Código na origem") é preservada; a que aponta
         # para task do sync-agents fora deste pacote segue a origem, senão a remoção nunca chegaria.
         nativas = [
@@ -180,6 +192,7 @@ def resumo_plano(plano):
         "tasks_iguais": plano["iguais"],
         "tasks_de_outros": plano["de_outros"],
         "edicoes": len(plano["edicoes"]),
+        "features_com_dono": len(plano["features"]),
         "campos_editados": sorted({c for e in plano["edicoes"] for c in e["campos"]}),
         "mudancas_de_status": len(plano["status"]),
         "ignoradas": plano["ignoradas"][:20],
@@ -187,28 +200,45 @@ def resumo_plano(plano):
     }
 
 
-def aplicar_plano(cliente, projeto_id, plano, tasks_destino):
+def aplicar_plano(cliente, projeto_id, plano, tasks_destino, features_destino=()):
     inicial = {t["_id"]: t["version"] for t in tasks_destino}
     versoes = dict(inicial)
-    falhas, editadas, trocadas = [], 0, 0
+    versoes_features = {f["_id"]: f["version"] for f in features_destino}
+    falhas, editadas, features_editadas, trocadas = [], 0, 0, 0
     com_falha = set()
-    for edicao in plano["edicoes"]:
+    # Cada item: (kind, rótulo, id, campos, versão). O destino edita em lote e devolve o resultado de cada item.
+    itens = [("task", e["task"], e["id"], e["campos"], versoes[e["id"]]) for e in plano["edicoes"]] + [
+        ("feature", e["feature"], e["id"], e["campos"], versoes_features[e["id"]]) for e in plano["features"]
+    ]
+    for inicio in range(0, len(itens), LOTE_EDICOES):
+        lote = itens[inicio : inicio + LOTE_EDICOES]
         corpo = {
-            "operationId": str(
-                uuid.uuid5(uuid.NAMESPACE_URL, f"{edicao['id']}:{versoes[edicao['id']]}:{edicao['campos']}")
-            ),
-            "projectId": projeto_id,
-            "kind": "task",
-            "id": edicao["id"],
-            "version": versoes[edicao["id"]],
-            "data": edicao["campos"],
+            "edits": [
+                {
+                    "operationId": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{id_}:{versao}:{campos}")),
+                    "projectId": projeto_id,
+                    "kind": kind,
+                    "id": id_,
+                    "version": versao,
+                    "data": campos,
+                }
+                for kind, _, id_, campos, versao in lote
+            ]
         }
-        try:
-            versoes[edicao["id"]] = cliente.post("/admin/records/edit", corpo)["version"]
-            editadas += 1
-        except ErroDestino as erro:
-            com_falha.add(edicao["id"])
-            falhas.append({"task": edicao["task"], "etapa": "edição", "erro": str(erro)})
+        resposta = cliente.post("/admin/records/edit-batch", corpo, timeout=300)
+        for (kind, rotulo, id_, _, _), resultado in zip(lote, resposta["results"], strict=True):
+            if resultado["ok"]:
+                if kind == "task":
+                    versoes[id_] = resultado["version"]
+                    editadas += 1
+                else:
+                    features_editadas += 1
+                continue
+            if kind == "task":
+                com_falha.add(id_)
+            falhas.append(
+                {"task": rotulo, "etapa": f"edição de {kind}", "erro": f"{resultado['status']}: {resultado['error']}"}
+            )
     for mudanca in plano["status"]:
         if mudanca["id"] in com_falha:
             continue
@@ -231,7 +261,13 @@ def aplicar_plano(cliente, projeto_id, plano, tasks_destino):
         else:
             trocadas += 1
     alteradas = {id_: (inicial[id_], versao) for id_, versao in versoes.items() if versao != inicial[id_]}
-    return {"editadas": editadas, "status_alterados": trocadas, "falhas": falhas, "alteradas": alteradas}
+    return {
+        "editadas": editadas,
+        "features_editadas": features_editadas,
+        "status_alterados": trocadas,
+        "falhas": falhas,
+        "alteradas": alteradas,
+    }
 
 
 def _historico_da_task(cliente, projeto_id, task_id, paginas=10):
