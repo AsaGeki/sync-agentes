@@ -144,8 +144,13 @@ def planejar(pacote, tasks_destino, editaveis=None):
             campos[campo] = valor
         if desejada.get("responsible") and desejada["responsible"] != atual.get("responsible"):
             campos["responsible"] = desejada["responsible"]
-        # Dependências que apontam para fora do sync foram criadas no destino e são preservadas.
-        nativas = [d for d in atual.get("dependencies", []) if d not in ids_sync]
+        # Só dependência cujo alvo nasceu no destino (sem "Código na origem") é preservada; a que aponta
+        # para task do sync-agents fora deste pacote segue a origem, senão a remoção nunca chegaria.
+        nativas = [
+            d
+            for d in atual.get("dependencies", [])
+            if d not in ids_sync and not por_id.get(d, {}).get("instructions", "").startswith("Código na origem:")
+        ]
         dependencias = desejada["dependencies"] + nativas
         if set(dependencias) != set(atual.get("dependencies", [])):
             campos["dependencies"] = dependencias
