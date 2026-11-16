@@ -16,7 +16,7 @@
       <li><strong>{{ p.edicoes }}</strong> tasks existentes com edição{% if p.campos_editados %} ({{ p.campos_editados|join(', ') }}){% endif %}</li>
       <li><strong>{{ p.mudancas_de_status }}</strong> mudanças de status</li>
       <li>{{ p.tasks_iguais }} já iguais</li>
-      {% if p.tasks_de_outros %}<li>{{ p.tasks_de_outros }} de outras pessoas, que já estão no destino e não serão alteradas por você</li>{% endif %}
+      {% if p.tasks_de_outros %}<li>{{ p.tasks_de_outros }} de outras pessoas, que já estão no destino; só o responsável é atualizado, o resto não é alterado por você</li>{% endif %}
       <li>{{ p.ignoradas_total }} ignoradas{% if p.ignoradas_total %} por segurança{% endif %}</li>
     </ul>
     {% if p.ignoradas %}

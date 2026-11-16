@@ -115,7 +115,12 @@ def planejar(pacote, tasks_destino, editaveis=None):
             plano["novas"] += 1
             continue
         if editaveis is not None and desejada["_id"] not in editaveis:
-            plano["de_outros"] += 1
+            # Em task de outra pessoa só o responsável é atualizado: a troca de dono precisa chegar ao destino.
+            responsavel = desejada.get("responsible")
+            if responsavel and responsavel != atual.get("responsible") and atual["status"] != "em_execucao":
+                plano["edicoes"].append({"task": codigo, "id": atual["_id"], "campos": {"responsible": responsavel}})
+            else:
+                plano["de_outros"] += 1
             continue
         if atual["status"] == "em_execucao":
             plano["ignoradas"].append({"task": codigo, "motivo": "em execução no destino"})
