@@ -2,9 +2,9 @@
 
 - **Prompt summary:** levantar tasks e features sem dono no project-tasks e anotar as limitações do project-tasks que o sync-agents não consegue contornar, mas que poderiam ser corrigidas editando o código dele (base para um PR).
 - **Creation date:** 2026-11-16
-- **Change count:** 2
+- **Change count:** 3
 - **Last update date:** 2026-11-16
-- **Last prompt summary:** registrar a implementação das limitações na branch do project-tasks e o que muda no sync-agents depois do deploy.
+- **Last prompt summary:** registrar o que foi implementado no sync-agents depois do deploy do PR e as decisões que não mudaram.
 
 Fonte de verdade do project-tasks: repositório `project-tasks-mcp` (pasta irmã `../project-tasks-mcp`; as linhas citadas valem para o commit base `21b95d9`, antes do PR). Os caminhos abaixo são relativos a ele. Números de prod medidos em 2026-11-16 com a credencial de serviço do `.env`, só leitura (`list_records`), comparados ao `sync.db` do sync-agents.
 
@@ -89,17 +89,22 @@ Teste extra: `55633e3` ajusta 3 testes de "task órfã" em `test/flow.test.ts`, 
 
 Testes do backend (8 arquivos, um por vez): as falhas que sobraram já existiam antes das mudanças (execução expirada, override de status humano, handshake MCP, 2 de transferência e 1 de criação humana). Não foram criados testes novos. O typecheck do `src` passa; o do frontend não roda aqui porque faltam dependências instaladas (`lucide-react`, `@radix-ui/*`).
 
-## 6. O que muda no sync-agents depois que o PR for implantado em prod
+## 6. O que mudou no sync-agents depois do deploy do PR
 
-Só vale depois do deploy: com o prod antigo, estas mudanças seriam recusadas.
+O prod já aceita a rota de lote (sondagem com lote vazio respondeu 400 de validação, sem escrever). Mudanças em `server/src/modules/sincronizacao/`:
 
-| Hoje (contorno ou limite) | Depois do PR | Mudança no sync-agents |
+| Antes (contorno ou limite) | L | Agora |
 |---|---|---|
-| Features chegam sem dono; só "Criado por" em `context` | L1 | Exportar `responsible` = `features.created_by` e incluir features no plano de edição (hoje só tasks são editadas) |
-| `pendente → bloqueada` "não é permitido": `bloqueado` e `aguardando_decisao` nunca chegam | L3 | Acrescentar `bloqueada` em `TRANSICOES["pendente"]` de `destino.py` |
-| `em_andamento`, `bloqueado` e `aguardando_decisao` viram todos `bloqueada` (mapa `STATUS` em `exportacao.py`) | L3 + L4 | Mapear `em_andamento` para `pendente` + `progressLabel`, e deixar `bloqueada` só para bloqueio real (cuidado: o mesmo mapa serve à exportação) |
-| Task `cancelada` reaberta na origem não volta | L5 | `TRANSICOES["cancelada"] = ["pendente"]`; a regra "não reaberta" de terminais continua sendo escolha nossa |
-| Texto acima de 20.000 caracteres é ignorado (T-194, T-200, T-226) | L6 | `LIMITE_TEXTO` só para o nome; as instruções passam a 100.000 |
-| Uma chamada de edição por task | L7 | `aplicar_plano` usar `/admin/records/edit-batch` |
-| A importação exige token de admin do sistema (credencial de serviço no `.env`) | L8 | Quem é admin do projeto no destino importa com o próprio token; a credencial de serviço deixa de ser obrigatória para projetos já existentes |
-| Criador como responsável quando a task não tem dono (já feito, em `pacote.py`) | L2 | Continua necessário: vale para as tasks do sync-agents, não do project-tasks |
+| Features chegavam sem dono; só "Criado por" em `context` | L1 | `pacote.py` exporta `responsible` = criador da feature. `planejar` inclui features: a que está sem responsável no destino recebe o criador; a que já tem responsável não é alterada |
+| `pendente → bloqueada` "não é permitido": `bloqueado` e `aguardando_decisao` nunca chegavam | L3 | `TRANSICOES["pendente"]` ganhou `bloqueada` em `destino.py` |
+| `em_andamento`, `bloqueado` e `aguardando_decisao` viravam todos `bloqueada`, sem distinção | L4 | O mapa de status continua igual: `em_andamento` segue como `bloqueada` para que nenhuma automação do destino assuma a task como `pendente`. O que mudou é o `progressLabel` ("Em andamento", "Aguardando decisão", "Parcial"), enviado em `pacote.py` e atualizado pelo plano (campo `progressLabel`) |
+| Texto acima de 20.000 caracteres era ignorado (T-194, T-200, T-226) | L6 | `LIMITE_NOME` = 20.000 e `LIMITE_INSTRUCOES` = 100.000 |
+| Uma chamada de edição por task | L7 | `aplicar_plano` edita em lotes de 100 por `/admin/records/edit-batch` (tasks e features), com falha reportada por item |
+| Mensagem dizia que administrador só do projeto não importa | L8 | `_mensagem` em `execucao.py` passa a dizer que vale administrador do sistema ou, em projeto que já existe, administrador do projeto. A credencial de serviço continua sendo a preferida para importar |
+| Criador como responsável quando a task não tem dono | L2 | Continua necessário para as tasks do sync-agents (já em `pacote.py`) |
+
+Decisões que **não** mudaram:
+- **L5 (`cancelada → pendente`):** o sync não reabre task `cancelada` nem `concluida` no destino ("não reaberta"). Reabrir sobrescreveria uma decisão tomada no destino, então a regra ficou.
+- **Sync e a credencial pessoal na importação:** as telas ainda falam em "administrador do sistema" nos textos de ajuda; só a mensagem de erro foi atualizada.
+
+Prévia calculada contra prod (somente leitura) depois das mudanças, para Arthur e Manuca: as 4 ignoradas por "não é permitido" e as 3 por texto grande deixaram de aparecer, e há edições de `progressLabel`, de `responsible` (54 no fbi-crm) e de dono de feature (17 no avb-one, 8 no sso, 5 no fbi-crm).
