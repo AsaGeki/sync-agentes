@@ -338,7 +338,8 @@ def _chamar(ctx: Context, project: str | None, acao, exige_afiliado: bool = True
 @mcp.tool()
 def status(ctx: Context) -> dict[str, Any]:
     """Onde você está: repositório e os projetos afiliados a ele (pode ser mais
-    de 1 - nesse caso as outras tools pedem `project=<slug>`)."""
+    de 1 - nesse caso as outras tools pedem `project=<slug>`). `person_id` é o seu
+    id, o mesmo que `owner_id` aceita em `create_task`/`update_task`."""
     problema = SESSAO.erro_de_ambiente()
     if problema:
         return {"erro": problema}
@@ -353,6 +354,7 @@ def status(ctx: Context) -> dict[str, Any]:
         "branch": branch,
         "commit": commit,
         "assino_como": eu["alias"],
+        "person_id": eu["id"],
         "agent": _agent_do_cliente(ctx),
         "projetos": [
             {
@@ -503,7 +505,10 @@ def create_task(
     pode ir pra status 'feito' enquanto elas não estiverem.
 
     `feature` (code `F-3`) cria a task dentro da feature; omitido, a task fica
-    avulsa."""
+    avulsa.
+
+    `owner_id` é o id da pessoa dona: o seu vem de `status` (`person_id`), o dos
+    outros de `list_members`. Omitido, a task fica sem dono."""
 
     def acao(api: Api, slug: str) -> Any:
         task = api.request(
@@ -547,7 +552,8 @@ def update_task(
     Tirar uma task de 'feito' ou 'cancelada' pra um status aberto devolve pra
     'parcial', em cascata, quem dependia dela e já estava fechado.
 
-    `owner_id=0` tira o dono; omitir `owner_id` não mexe nele.
+    `owner_id` é o id da pessoa dona: o seu vem de `status` (`person_id`), o dos
+    outros de `list_members`. `owner_id=0` tira o dono; omitir não mexe nele.
 
     `status='cancelada'` diz que a task não vai mais ser feita: quem depende
     dela pode fechar e ela sai do total do progresso.

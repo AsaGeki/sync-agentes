@@ -100,6 +100,7 @@ Se o repositório já tem projeto (alguém já criou ou linkou), deve voltar alg
 repo:         loja-api
 branch:       feat/T-003-login
 assino_como:  arthur.macedo
+person_id:    6
 projetos:     [{ slug: loja-api, papel: owner, visibility: public }]
 ```
 
