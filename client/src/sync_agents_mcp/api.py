@@ -1,21 +1,18 @@
-"""Cliente HTTP do servidor sync-agents.
-
-Usa `urllib` da stdlib de propósito: o bridge roda na máquina de quem conecta e
-não deve exigir instalação de nada além do próprio pacote.
-"""
+"""Cliente HTTP do servidor sync-agents (httpx, que já vem com o SDK do MCP)."""
 
 from __future__ import annotations
 
-import http.client
-import json
+import logging
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 import uuid
 from typing import Any
 
+import httpx
+
 from sync_agents_mcp.git_context import ContextoRepo, ponto_atual
+
+# O httpx loga cada requisição em INFO no stderr, que o cliente MCP mostra como ruído.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 METODOS_MUTADORES = {"POST", "PUT", "PATCH", "DELETE"}
 TENTATIVAS_DE_REDE = 3
@@ -34,6 +31,7 @@ class Api:
         self.token = token
         self.repo = repo
         self.agent = agent
+        self.http = httpx.Client(base_url=self.base_url, timeout=30)
 
     def _headers(self, operation_id: str | None) -> dict[str, str]:
         cabecalhos = {
@@ -62,42 +60,29 @@ class Api:
         corpo: dict[str, Any] | None = None,
         query: dict[str, Any] | None = None,
     ) -> Any:
-        url = f"{self.base_url}{caminho}"
-        if query:
-            limpo = {k: v for k, v in query.items() if v is not None}
-            if limpo:
-                url += "?" + urllib.parse.urlencode(limpo)
-        dados = json.dumps(corpo, ensure_ascii=False).encode() if corpo is not None else None
+        params = {k: v for k, v in (query or {}).items() if v is not None}
         # Mesmo operation_id em toda tentativa: se a 1ª chegou no servidor mas a
         # resposta se perdeu, a repetição devolve o resultado gravado em vez de
         # aplicar a escrita de novo.
         operation_id = str(uuid.uuid4()) if metodo in METODOS_MUTADORES else None
-        req = urllib.request.Request(
-            url, data=dados, headers=self._headers(operation_id), method=metodo
-        )
+        cabecalhos = self._headers(operation_id)
         for tentativa in range(1, TENTATIVAS_DE_REDE + 1):
             try:
-                with urllib.request.urlopen(req, timeout=30) as resposta:
-                    texto = resposta.read().decode("utf-8")
-                    tipo = resposta.headers.get("Content-Type", "")
+                resposta = self.http.request(metodo, caminho, json=corpo, params=params, headers=cabecalhos)
                 break
-            except urllib.error.HTTPError as erro:
-                bruto = erro.read().decode("utf-8", errors="replace")
-                try:
-                    detalhe = json.loads(bruto).get("detail", bruto)
-                except json.JSONDecodeError:
-                    detalhe = bruto
-                raise ErroApi(erro.code, detalhe) from None
-            except (OSError, http.client.HTTPException) as erro:
+            except httpx.TransportError as erro:
                 # Inclui conexão derrubada e timeout depois do envio: a resposta
                 # perdida é o caso que o `X-Operation-Id` existe pra cobrir.
                 repetivel = metodo == "GET" or operation_id is not None
                 if not repetivel or tentativa == TENTATIVAS_DE_REDE:
-                    motivo = erro.reason if isinstance(erro, urllib.error.URLError) else erro
-                    raise ErroApi(
-                        0, f"Servidor inacessível em {self.base_url}: {motivo}"
-                    ) from None
+                    raise ErroApi(0, f"Servidor inacessível em {self.base_url}: {erro}") from None
                 time.sleep(0.5 * tentativa)
-        if "application/json" not in tipo:
-            return texto
-        return json.loads(texto) if texto else None
+        if resposta.is_error:
+            try:
+                detalhe = resposta.json().get("detail", resposta.text)
+            except ValueError:
+                detalhe = resposta.text
+            raise ErroApi(resposta.status_code, detalhe)
+        if "application/json" not in resposta.headers.get("Content-Type", ""):
+            return resposta.text
+        return resposta.json() if resposta.content else None

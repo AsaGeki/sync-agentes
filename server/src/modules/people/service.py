@@ -19,10 +19,21 @@ def alias_de(email: str) -> str:
     return email.split("@")[0].lower()
 
 
+def alias_livre(conn: sqlite3.Connection, email: str, exceto_id: int | None = None) -> str:
+    """Alias do email, com sufixo numérico se outra pessoa já usa: a tela agrupa e filtra por alias."""
+    base = alias_de(email)
+    alias, sufixo = base, 2
+    while conn.execute(
+        "SELECT 1 FROM people WHERE alias = ? AND id IS NOT ?", (alias, exceto_id)
+    ).fetchone():
+        alias, sufixo = f"{base}{sufixo}", sufixo + 1
+    return alias
+
+
 def create_person(conn: sqlite3.Connection, dados: PessoaIn) -> dict[str, Any]:
     """Cadastra a pessoa sem token - emitir token é ação separada
     (`generate_token`), pra quem ainda não tem."""
-    alias = alias_de(dados.email)
+    alias = alias_livre(conn, dados.email)
     try:
         with conn:
             person_id = repositorio.insert(conn, dados.email, alias, dados.name)
@@ -66,7 +77,7 @@ def patch_person(conn: sqlite3.Connection, person_id: int, dados: PersonPatch) -
         raise Invalid("Nada pra atualizar")
     if "email" in mudancas:
         mudancas["email"] = mudancas["email"].lower()
-        mudancas["alias"] = alias_de(mudancas["email"])
+        mudancas["alias"] = alias_livre(conn, mudancas["email"], person_id)
     try:
         with conn:
             repositorio.update_campos(conn, person_id, mudancas)

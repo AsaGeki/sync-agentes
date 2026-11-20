@@ -9,11 +9,16 @@ import unicodedata
 LIMITE_SLUG_CODE = 40
 
 
+def slugificar(texto: str) -> str:
+    """Sem acento, minúsculo, hifenizado: `Análise de Crédito` vira `analise-de-credito`."""
+    texto = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-zA-Z0-9]+", "-", texto).strip("-").lower()
+
+
 def slug_do_titulo(title: str) -> str:
-    """Título sem acento, minúsculo, hifenizado. Corta na última palavra inteira
-    que couber - palavra pela metade atrapalha quem lê."""
-    texto = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode()
-    texto = re.sub(r"[^a-zA-Z0-9]+", "-", texto).strip("-").lower()
+    """`slugificar` cortado na última palavra inteira que couber - palavra pela
+    metade atrapalha quem lê."""
+    texto = slugificar(title)
     if len(texto) <= LIMITE_SLUG_CODE:
         return texto
     cortado = texto[:LIMITE_SLUG_CODE]

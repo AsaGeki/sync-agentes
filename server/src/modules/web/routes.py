@@ -7,9 +7,12 @@ import sqlite3
 from contextlib import closing
 
 from fastapi import APIRouter, Depends, Form, Query, Request
-from fastapi.responses import RedirectResponse, Response, StreamingResponse
+from fastapi.responses import RedirectResponse, Response
+from sse_starlette import EventSourceResponse
+from starlette.concurrency import run_in_threadpool
 
-from src.modules.events.bus import INSCRITOS
+from src.modules.events.bus import desinscrever, inscrever
+from src.modules.events.realtime import INTERVALO_PING
 from src.modules.projects import service as projects_service
 from src.modules.projects.service import exigir_acesso
 from src.modules.tasks import service as tasks_service
@@ -65,6 +68,16 @@ def logout() -> RedirectResponse:
 # ---------- páginas ---------- #
 
 
+def _pagina_do_projeto(request: Request, slug: str, pessoa: sqlite3.Row, modelo: str, montar):
+    """Página de projeto da pessoa: confere o acesso, monta o contexto com `montar(conn, projeto)`
+    e junta a barra lateral."""
+    with closing(conectar()) as conn:
+        projeto = exigir_acesso(conn, slug, pessoa["id"])
+        ctx = montar(conn, projeto)
+        nav = paginas.ctx_nav(conn, pessoa["id"])
+    return templates.TemplateResponse(request, modelo, {"pessoa": pessoa, "nav": nav, **ctx})
+
+
 @router.get("/web")
 def inicio(request: Request, pessoa: sqlite3.Row = Depends(pessoa_web)):
     with closing(conectar()) as conn:
@@ -82,11 +95,9 @@ def painel(
     por: str = Query("pessoa", pattern="^(pessoa|agent)$"),
     pessoa: sqlite3.Row = Depends(pessoa_web),
 ):
-    with closing(conectar()) as conn:
-        projeto = exigir_acesso(conn, slug, pessoa["id"])
-        ctx = paginas.ctx_painel(conn, projeto, pessoa["id"], por)
-        nav = paginas.ctx_nav(conn, pessoa["id"])
-    return templates.TemplateResponse(request, "painel.html", {"pessoa": pessoa, "nav": nav, **ctx})
+    return _pagina_do_projeto(
+        request, slug, pessoa, "painel.html", lambda conn, projeto: paginas.ctx_painel(conn, projeto, pessoa["id"], por)
+    )
 
 
 @router.get("/web/p/{slug}/exportar")
@@ -117,11 +128,10 @@ def tasks(
     filtros: dict = Depends(filtros_tasks),
     pessoa: sqlite3.Row = Depends(pessoa_web),
 ):
-    with closing(conectar()) as conn:
-        projeto = exigir_acesso(conn, slug, pessoa["id"])
-        ctx = paginas.ctx_tasks(conn, projeto, pessoa["id"], filtros)
-        nav = paginas.ctx_nav(conn, pessoa["id"])
-    return templates.TemplateResponse(request, "tasks.html", {"pessoa": pessoa, "nav": nav, **ctx})
+    return _pagina_do_projeto(
+        request, slug, pessoa, "tasks.html",
+        lambda conn, projeto: paginas.ctx_tasks(conn, projeto, pessoa["id"], filtros)
+    )
 
 
 @router.get("/web/p/{slug}/features")
@@ -131,28 +141,24 @@ def features(
     status: str = Query("", pattern="^(|" + "|".join(FEATURE_STATUSES) + ")$"),
     pessoa: sqlite3.Row = Depends(pessoa_web),
 ):
-    with closing(conectar()) as conn:
-        projeto = exigir_acesso(conn, slug, pessoa["id"])
-        ctx = paginas.ctx_features(conn, projeto, pessoa["id"], status)
-        nav = paginas.ctx_nav(conn, pessoa["id"])
-    return templates.TemplateResponse(request, "features.html", {"pessoa": pessoa, "nav": nav, **ctx})
+    return _pagina_do_projeto(
+        request, slug, pessoa, "features.html",
+        lambda conn, projeto: paginas.ctx_features(conn, projeto, pessoa["id"], status)
+    )
 
 
 @router.get("/web/p/{slug}/f/{code}")
 def feature(request: Request, slug: str, code: str, pessoa: sqlite3.Row = Depends(pessoa_web)):
-    with closing(conectar()) as conn:
-        projeto = exigir_acesso(conn, slug, pessoa["id"])
-        ctx = paginas.ctx_feature(conn, projeto, pessoa["id"], code)
-        nav = paginas.ctx_nav(conn, pessoa["id"])
-    return templates.TemplateResponse(request, "feature.html", {"pessoa": pessoa, "nav": nav, **ctx})
+    return _pagina_do_projeto(
+        request, slug, pessoa, "feature.html",
+        lambda conn, projeto: paginas.ctx_feature(conn, projeto, pessoa["id"], code)
+    )
 
 
 def _pagina_atividade(request: Request, slug: str, filtros: dict, pessoa: sqlite3.Row, modelo: str):
-    with closing(conectar()) as conn:
-        projeto = exigir_acesso(conn, slug, pessoa["id"])
-        ctx = paginas.ctx_atividade(conn, projeto, pessoa["id"], filtros)
-        nav = paginas.ctx_nav(conn, pessoa["id"])
-    return templates.TemplateResponse(request, modelo, {"pessoa": pessoa, "nav": nav, **ctx})
+    return _pagina_do_projeto(
+        request, slug, pessoa, modelo, lambda conn, projeto: paginas.ctx_atividade(conn, projeto, pessoa["id"], filtros)
+    )
 
 
 @router.get("/web/p/{slug}/atividade")
@@ -176,11 +182,9 @@ def atividade_mais(
 
 
 def _pagina_task(request: Request, slug: str, code: str, pessoa: sqlite3.Row):
-    with closing(conectar()) as conn:
-        projeto = exigir_acesso(conn, slug, pessoa["id"])
-        ctx = paginas.ctx_task(conn, projeto, code, pessoa["id"])
-        nav = paginas.ctx_nav(conn, pessoa["id"])
-    return templates.TemplateResponse(request, "task.html", {"pessoa": pessoa, "nav": nav, **ctx})
+    return _pagina_do_projeto(
+        request, slug, pessoa, "task.html", lambda conn, projeto: paginas.ctx_task(conn, projeto, code, pessoa["id"])
+    )
 
 
 @router.get("/web/p/{slug}/t/{code}")
@@ -277,32 +281,36 @@ def trocar_papel(
 
 
 @router.get("/web/stream")
-async def stream(pessoa: sqlite3.Row = Depends(pessoa_web)) -> StreamingResponse:
+async def stream(pessoa: sqlite3.Row = Depends(pessoa_web)) -> EventSourceResponse:
     """Um canal só por pessoa, com todos os projetos dela: as abas dividem esta
     conexão via SharedWorker, porque o navegador limita 6 conexões HTTP/1.1 por
     host e uma por aba travava quem abria várias. Cada aviso diz projeto e task;
     a página filtra o que é dela e rebusca o trecho afetado. Não corta o próprio
     eco: a IA da pessoa escreve assinando como ela, e isso precisa aparecer."""
-    with closing(conectar()) as conn:
-        slugs = [p["slug"] for p in indicadores.projetos_da_pessoa(conn, pessoa["id"])]
+    def projetos_atuais() -> set[str]:
+        with closing(conectar()) as conn:
+            return {p["slug"] for p in indicadores.projetos_da_pessoa(conn, pessoa["id"])}
+
+    slugs = projetos_atuais()
 
     async def gerar():
         fila: asyncio.Queue = asyncio.Queue(maxsize=500)
-        for slug in slugs:
-            INSCRITOS[slug].add(fila)
+        inscritos = set(slugs)
+        inscrever(fila, inscritos)
         try:
             while True:
                 try:
-                    evento = await asyncio.wait_for(fila.get(), timeout=25)
+                    evento = await asyncio.wait_for(fila.get(), timeout=INTERVALO_PING)
                 except TimeoutError:
-                    yield ": ping\n\n"
+                    # A inscrição acompanha os projetos de agora (entrou ou saiu de algum).
+                    atuais = await run_in_threadpool(projetos_atuais)
+                    inscrever(fila, atuais - inscritos)
+                    desinscrever(fila, inscritos - atuais)
+                    inscritos = atuais
                     continue
                 aviso = {"projeto": evento["project_slug"], "task": evento.get("task_code")}
-                yield f"event: mudou\ndata: {json.dumps(aviso)}\n\n"
+                yield {"event": "mudou", "data": json.dumps(aviso)}
         finally:
-            for slug in slugs:
-                INSCRITOS[slug].discard(fila)
-                if not INSCRITOS[slug]:
-                    del INSCRITOS[slug]
+            desinscrever(fila, inscritos)
 
-    return StreamingResponse(gerar(), media_type="text/event-stream")
+    return EventSourceResponse(gerar(), ping=INTERVALO_PING)

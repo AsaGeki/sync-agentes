@@ -1,8 +1,9 @@
 """Configuração da sincronização: conexão com o destino e vínculos de projeto e repositório."""
 
 import sqlite3
-import urllib.error
 from typing import Any
+
+import httpx
 
 from src.modules.sincronizacao import repositorio
 from src.modules.sincronizacao.destino import ClienteDestino, ErroDestino
@@ -35,8 +36,8 @@ def projetos_destino(token: str | None = None) -> list[dict[str, Any]]:
         if erro.status in (401, 403):
             raise Indisponivel("O destino recusou o token. Ele precisa ser um token humano válido.") from erro
         raise Indisponivel(f"O destino respondeu com erro ({erro}).") from erro
-    except urllib.error.URLError as erro:
-        raise Indisponivel(f"Não consegui conectar em {config.DESTINO_URL}: {erro.reason}") from erro
+    except httpx.TransportError as erro:
+        raise Indisponivel(f"Não consegui conectar em {config.DESTINO_URL}: {erro}") from erro
 
 
 def verificar_token(token: str) -> dict[str, Any]:

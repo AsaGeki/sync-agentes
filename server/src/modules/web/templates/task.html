@@ -186,7 +186,7 @@
       <ul class="lista-lateral">
         {% for d in task.dependencies %}
           <li><a href="{{ base }}/p/{{ projeto['slug'] }}/t/{{ d }}" title="{{ d }}"><code>{{ d|code_curto }}</code></a>
-            {% if d in task.dependencias_pendentes %}<span class="etiqueta t-bloqueio">pendente</span>{% else %}<span class="etiqueta t-decisao">feito</span>{% endif %}</li>
+            {% if d in task.dependencias_pendentes %}<span class="etiqueta t-bloqueio">pendente</span>{% else %}<span class="etiqueta t-decisao">{{ ROTULO_STATUS[status_dependencias[d]] }}</span>{% endif %}</li>
         {% endfor %}
       </ul>
     </section>

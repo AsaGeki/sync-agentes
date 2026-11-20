@@ -8,11 +8,13 @@ Autenticação exige token pessoal (`Authorization` ou `?token=`) e `X-Agent`.
 
 import asyncio
 import json
+from contextlib import closing
 
 from fastapi import APIRouter, Header, HTTPException
-from fastapi.responses import StreamingResponse
+from sse_starlette import EventSourceResponse
+from starlette.concurrency import run_in_threadpool
 
-from src.modules.events.bus import INSCRITOS
+from src.modules.events.bus import desinscrever, inscrever
 from src.modules.events.service import envelope
 from src.modules.projects.service import exigir_acesso
 from src.shared.auth import normalizar_agent, resolve_person
@@ -20,6 +22,8 @@ from src.shared.db import conectar
 from src.shared.erros import DomainError
 
 router = APIRouter()
+# O bridge (canal) considera a conexão caída sem nada por 40s: o ping vem antes disso.
+INTERVALO_PING = 25
 
 
 def _autenticar(
@@ -28,11 +32,8 @@ def _autenticar(
     cabecalho = authorization or (f"Bearer {token}" if token else None)
     pessoa = resolve_person(cabecalho)
     normalizar_agent(x_agent)
-    conn = conectar()
-    try:
+    with closing(conectar()) as conn:
         exigir_acesso(conn, projeto, pessoa["id"])
-    finally:
-        conn.close()
     return int(pessoa["id"])
 
 
@@ -50,20 +51,22 @@ async def sse_eventos(
 
     async def gerar():
         fila: asyncio.Queue = asyncio.Queue(maxsize=500)
-        INSCRITOS[projeto].add(fila)
+        inscrever(fila, {projeto})
         try:
             while True:
                 try:
-                    evento = await asyncio.wait_for(fila.get(), timeout=25)
+                    evento = await asyncio.wait_for(fila.get(), timeout=INTERVALO_PING)
                 except TimeoutError:
-                    yield ": ping\n\n"
+                    # Token reemitido ou pessoa removida do projeto encerra o stream.
+                    try:
+                        await run_in_threadpool(_autenticar, authorization, token, projeto, x_agent)
+                    except DomainError:
+                        return
                     continue
                 if evento.get("author_id") == person_id:
                     continue
-                yield f"data: {json.dumps(envelope(evento), ensure_ascii=False)}\n\n"
+                yield {"data": json.dumps(envelope(evento), ensure_ascii=False)}
         finally:
-            INSCRITOS[projeto].discard(fila)
-            if not INSCRITOS[projeto]:
-                del INSCRITOS[projeto]
+            desinscrever(fila, {projeto})
 
-    return StreamingResponse(gerar(), media_type="text/event-stream")
+    return EventSourceResponse(gerar(), ping=INTERVALO_PING)

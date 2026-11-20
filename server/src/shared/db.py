@@ -4,17 +4,16 @@
 
 from __future__ import annotations
 
-import os
 import shutil
 import sqlite3
 from datetime import datetime, timedelta
-from pathlib import Path
 
-from src.shared import migracao_v3
+from yoyo import get_backend, read_migrations
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-# SYNC_AGENTS_DB troca o arquivo do banco, pra rodar contra um descartável.
-DB_PATH = Path(os.environ.get("SYNC_AGENTS_DB") or BASE_DIR / "sync.db")
+from src.shared.config import PASTA_SERVER, SYNC_AGENTS_DB
+
+BASE_DIR = PASTA_SERVER
+DB_PATH = SYNC_AGENTS_DB or BASE_DIR / "sync.db"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS people (
@@ -227,20 +226,9 @@ CREATE TABLE IF NOT EXISTS sync_runs (
 );
 """
 
-# Mudou modelagem (coluna nova numa tabela existente)? `CREATE TABLE IF NOT EXISTS`
-# acima não alcança banco já criado - ele pula a tabela inteira. Adicione aqui:
-# (id único e permanente, tabela, coluna, "ALTER TABLE ... ADD COLUMN ...").
-# Bancos novos já nascem com a coluna via SCHEMA (adicione lá também) - a checagem
-# de coluna existente abaixo garante que a migração não tenta duplicar.
-MIGRACOES: list[tuple[str, str, str, str]] = [
-    (
-        "tasks-feature-id",
-        "tasks",
-        "feature_id",
-        "ALTER TABLE tasks ADD COLUMN feature_id INTEGER"
-        " REFERENCES features(id) ON DELETE SET NULL",
-    ),
-]
+# Mudança de modelagem é um arquivo novo em `server/migrations` (yoyo), aplicado uma vez por banco.
+# O SCHEMA acima é a base da migração 0002 e não deve mais mudar.
+PASTA_MIGRACOES = BASE_DIR / "migrations"
 
 RETENCAO_OPERATIONS_DIAS = 7
 
@@ -250,9 +238,11 @@ def now() -> str:
 
 
 def conectar() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=5)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # Com WAL, NORMAL só arrisca a última transação numa queda de energia, e grava bem mais rápido.
+    conn.execute("PRAGMA synchronous = NORMAL")
     return conn
 
 
@@ -649,49 +639,20 @@ def _migrar_visibilidade_publica(conn: sqlite3.Connection) -> None:
 
 def iniciar_banco() -> None:
     _backup_antes_de_migrar()
+    backend = get_backend(f"sqlite:///{DB_PATH.as_posix()}")
+    try:
+        with backend.lock():
+            backend.apply_migrations(backend.to_apply(read_migrations(str(PASTA_MIGRACOES))))
+    finally:
+        backend.connection.close()
+
     conn = conectar()
-
-    # DROP TABLE com foreign_keys=ON dispara DELETE implícito em cascata nas
-    # tabelas filhas (documentado no próprio SQLite) - a migração recria
-    # tabela (DROP + rename), então teria apagado tasks/events junto ao
-    # recriar projects. PRAGMA foreign_keys só tem efeito fora de transação,
-    # por isso roda antes do `with conn` (que abre a transação principal).
-    conn.execute("PRAGMA foreign_keys = OFF")
-    with conn:
-        _migrar_para_ingles(conn)
-        _migrar_humano_para_dev(conn)
-        migracao_v3.migrar(conn, _tabela_existe, now())
-        _migrar_repo_para_muitos_projetos(conn)
-        _migrar_events_para_features(conn)
-        _migrar_tasks_status(conn)
-        _migrar_visibilidade_publica(conn)
-    conn.execute("PRAGMA foreign_keys = ON")
-    problemas = conn.execute("PRAGMA foreign_key_check").fetchall()
-    if problemas:
-        raise RuntimeError(f"Inconsistência de FK após migração: {[dict(p) for p in problemas]}")
-
     with conn:
         conn.execute("PRAGMA journal_mode = WAL")
-        conn.executescript(SCHEMA)
-
         # `operations` só serve pro retry imediato do bridge - linha velha não
         # tem mais quem a reenvie.
         conn.execute(
             "DELETE FROM operations WHERE created_at < ?",
             ((datetime.now().astimezone() - timedelta(days=RETENCAO_OPERATIONS_DIAS)).isoformat(timespec="seconds"),),
         )
-
-        aplicadas = {row["id"] for row in conn.execute("SELECT id FROM schema_migrations")}
-        for id_, tabela, coluna, sql in MIGRACOES:
-            if id_ in aplicadas:
-                continue
-            if not _coluna_existe(conn, tabela, coluna):
-                conn.execute(sql)
-            conn.execute(
-                "INSERT INTO schema_migrations (id, aplicada_em) VALUES (?, ?)",
-                (id_, now()),
-            )
-
-        # Fora do SCHEMA: em banco existente a coluna só nasce no laço acima.
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_feature ON tasks (feature_id)")
     conn.close()

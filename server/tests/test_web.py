@@ -259,6 +259,14 @@ def test_editar_campos_entrada_invalida_nao_vira_500(cena):
     assert web_ana.post(f"/web/p/{slug}/t/{code}/campos", data={"owner_id": ""}).status_code == 422
 
 
+def test_dependencia_cancelada_aparece_como_cancelada(cena):
+    mundo, ana, bia, slug, code, web_ana, _ = cena
+    topo = mundo.task(ana, slug, "Topo", dependencies=[code])
+    ana.patch(f"/projetos/{slug}/tasks/{code}", {"status": "cancelada"})
+    html = web_ana.get(f"/web/p/{slug}/t/{topo}").text
+    assert '<span class="etiqueta t-decisao">cancelada</span>' in html
+
+
 def test_editar_campos_respeita_dependencia_pela_tela(cena):
     mundo, ana, bia, slug, code, web_ana, _ = cena
     topo = mundo.task(ana, slug, "Topo", dependencies=[code])

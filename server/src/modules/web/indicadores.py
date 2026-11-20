@@ -12,11 +12,10 @@ from src.modules.events.relatorio import perguntas_abertas
 from src.modules.features import repositorio as features_repositorio
 from src.modules.features import service as features_service
 from src.modules.projects import repositorio as projects_repositorio
-from src.shared.enums import EAgent, EKindEvent, EStatusTask
 from src.modules.tasks import repositorio as tasks_repositorio
 from src.modules.tasks import service as tasks_service
 from src.modules.web.templating import ROTULO_AGENT
-from src.shared.enums import EStatusTask
+from src.shared.enums import EAgent, EKindEvent, EStatusTask
 
 ORDEM_STATUS = [s.value for s in EStatusTask]
 PEDEM_ATENCAO = (EStatusTask.bloqueado.value, EStatusTask.aguardando_decisao.value)

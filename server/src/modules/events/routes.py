@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import closing
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -21,8 +22,7 @@ def ler_mudancas(
     de_outros: bool = False,
     pessoa: sqlite3.Row = Depends(pessoa_atual),
 ) -> dict[str, Any]:
-    conn = conectar()
-    try:
+    with closing(conectar()) as conn:
         projeto = exigir_acesso(conn, slug, pessoa["id"])
         return {
             "projeto": slug,
@@ -30,8 +30,6 @@ def ler_mudancas(
                 conn, projeto["id"], desde, limite, pessoa["id"] if de_outros else None
             ),
         }
-    finally:
-        conn.close()
 
 
 @router.get("/projetos/{slug}/relatorio")
@@ -42,13 +40,10 @@ def ler_relatorio(
     com_diff: bool = True,
     pessoa: sqlite3.Row = Depends(pessoa_atual),
 ):
-    conn = conectar()
-    try:
+    with closing(conectar()) as conn:
         rel = montar_relatorio(conn, slug, pessoa["id"], desde)
         if formato == "json":
             return rel
         return PlainTextResponse(
             relatorio_markdown(conn, rel, com_diff), media_type="text/markdown; charset=utf-8"
         )
-    finally:
-        conn.close()

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import secrets
 import sqlite3
+from contextlib import closing
 from dataclasses import dataclass
 
 from fastapi import Header
@@ -44,11 +45,8 @@ def validate_admin(authorization: str | None) -> None:
 
 def resolve_person(authorization: str | None) -> sqlite3.Row:
     token_hash = hash_token(_bearer(authorization))
-    conn = conectar()
-    try:
+    with closing(conectar()) as conn:
         pessoa = people_repositorio.find_by_token_hash(conn, token_hash)
-    finally:
-        conn.close()
     if pessoa is None:
         raise Unauthorized("Token não corresponde a nenhuma pessoa cadastrada")
     return pessoa

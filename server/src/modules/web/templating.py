@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -136,7 +137,8 @@ def link_remote(remote: str | None) -> str | None:
         remote = f"https://{host}/{caminho}"
     if not remote.startswith(("http://", "https://")):
         return None
-    return remote.removesuffix(".git")
+    # Remote gravado com `usuario:token@` não vira link com a credencial dentro.
+    return re.sub(r"^(https?://)[^/@]+@", r"\1", remote).removesuffix(".git")
 
 
 def linhas_diff(texto: str | None) -> list[tuple[str, str]]:

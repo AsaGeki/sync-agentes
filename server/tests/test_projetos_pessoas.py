@@ -39,6 +39,15 @@ def test_criar_pessoa_validacoes_e_alias(mundo):
     assert c.post("/people", json={"email": "ok@ok.com", "name": ""}, headers=h).status_code == 422
 
 
+def test_alias_repetido_de_outro_dominio_ganha_sufixo(mundo):
+    c, h = mundo.cliente, mundo.admin
+    a = c.post("/people", json={"email": "ana@um.com", "name": "Ana"}, headers=h).json()
+    b = c.post("/people", json={"email": "ana@dois.com", "name": "Ana B"}, headers=h).json()
+    assert (a["alias"], b["alias"]) == ("ana", "ana2")
+    # Trocar o próprio email pra outro com o mesmo alias mantém o alias.
+    assert c.patch(f"/people/{a['id']}", json={"email": "ana@tres.com"}, headers=h).json()["alias"] == "ana"
+
+
 def test_email_com_caixa_diferente_conflita(mundo):
     c, h = mundo.cliente, mundo.admin
     c.post("/people", json={"email": "ana@x.com", "name": "Ana"}, headers=h)
@@ -220,6 +229,8 @@ def test_update_projeto_visibilidade_so_owner_e_patch_vazio(mundo):
     mundo.entrar(bia, slug)
     assert bia.patch(f"/projetos/{slug}", {"visibility": "private"}).status_code == 403
     assert bia.patch(f"/projetos/{slug}", {"name": "Novo nome"}).status_code == 200
+    assert bia.patch(f"/projetos/{slug}", {"status": "arquivado"}).status_code == 403
+    assert bia.patch(f"/projetos/{slug}", {"name": ""}).status_code == 422
     assert ana.patch(f"/projetos/{slug}", {"visibility": "private"}).status_code == 200
     assert ana.patch(f"/projetos/{slug}", {}).status_code == 422
     assert ana.patch(f"/projetos/{slug}", {"status": "invalido"}).status_code == 422
@@ -268,7 +279,7 @@ def test_owner_convida_membro_e_regras_do_convite(mundo):
     ana, bia, leo = mundo.pessoa("Ana"), mundo.pessoa("Bia"), mundo.pessoa("Leo")
     slug = mundo.projeto(ana, visibility="private")
     assert ana.post(f"/projetos/{slug}/membros", {"email": bia.email}).status_code == 201
-    assert ana.post(f"/projetos/{slug}/membros", {"email": bia.email}).status_code == 201  # idempotente
+    assert ana.post(f"/projetos/{slug}/membros", {"email": bia.email}).status_code == 409  # já é membro
     assert bia.post(f"/projetos/{slug}/membros", {"email": leo.email}).status_code == 403  # membro não convida
     assert ana.post(f"/projetos/{slug}/membros", {"email": "ninguem@x.com"}).status_code == 404
     assert leo.post(f"/projetos/{slug}/membros", {"email": leo.email}).status_code == 404
@@ -279,7 +290,7 @@ def test_owner_convida_membro_e_regras_do_convite(mundo):
 def test_convite_nao_rebaixa_owner(mundo):
     ana = mundo.pessoa("Ana")
     slug = mundo.projeto(ana)
-    ana.post(f"/projetos/{slug}/membros", {"email": ana.email})
+    assert ana.post(f"/projetos/{slug}/membros", {"email": ana.email}).status_code == 409
     assert {m["email"]: m["role"] for m in ana.get(f"/projetos/{slug}/membros").json()}[ana.email] == "owner"
 
 

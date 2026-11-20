@@ -5,8 +5,6 @@ from typing import Any
 
 from src.shared.enums import EKindEvent
 
-from src.shared.enums import EKindEvent
-
 
 def insert(conn: sqlite3.Connection, **campos: Any) -> int:
     colunas = ", ".join(campos)

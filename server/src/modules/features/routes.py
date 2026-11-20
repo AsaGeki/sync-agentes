@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import closing
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -18,33 +19,24 @@ def create_feature(
     pessoa: sqlite3.Row = Depends(pessoa_atual),
     ctx: ContextoGit = Depends(contexto_git),
 ) -> dict[str, Any]:
-    conn = conectar()
-    try:
+    with closing(conectar()) as conn:
         return service.create_feature(conn, slug, pessoa["id"], ctx, dados)
-    finally:
-        conn.close()
 
 
 @router.get("/projetos/{slug}/features")
 def list_features(
     slug: str, pessoa: sqlite3.Row = Depends(pessoa_atual)
 ) -> list[dict[str, Any]]:
-    conn = conectar()
-    try:
+    with closing(conectar()) as conn:
         return service.list_features(conn, slug, pessoa["id"])
-    finally:
-        conn.close()
 
 
 @router.get("/projetos/{slug}/features/{code}")
 def read_feature(
     slug: str, code: str, pessoa: sqlite3.Row = Depends(pessoa_atual)
 ) -> dict[str, Any]:
-    conn = conectar()
-    try:
+    with closing(conectar()) as conn:
         return service.read_feature(conn, slug, pessoa["id"], code)
-    finally:
-        conn.close()
 
 
 @router.patch("/projetos/{slug}/features/{code}")
@@ -55,11 +47,8 @@ def update_feature(
     pessoa: sqlite3.Row = Depends(pessoa_atual),
     ctx: ContextoGit = Depends(contexto_git),
 ) -> dict[str, Any]:
-    conn = conectar()
-    try:
+    with closing(conectar()) as conn:
         return service.update_feature(conn, slug, code, pessoa["id"], ctx, dados)
-    finally:
-        conn.close()
 
 
 @router.delete("/projetos/{slug}/features/{code}")
@@ -69,8 +58,5 @@ def delete_feature(
     pessoa: sqlite3.Row = Depends(pessoa_atual),
     ctx: ContextoGit = Depends(contexto_git),
 ) -> dict[str, Any]:
-    conn = conectar()
-    try:
+    with closing(conectar()) as conn:
         return service.delete_feature(conn, slug, code, pessoa["id"], ctx)
-    finally:
-        conn.close()

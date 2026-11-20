@@ -1,10 +1,9 @@
 """Leitura, plano e aplicação da sincronização no sistema de destino (HTTP admin, credencial humana)."""
 
-import json
 import re
-import urllib.error
-import urllib.request
 import uuid
+
+import httpx
 
 # Transições que a rota de status do destino aceita para uma credencial humana.
 TRANSICOES = {
@@ -48,39 +47,28 @@ def redigir(texto):
 
 class ClienteDestino:
     def __init__(self, url, token):
-        self.base = url.rstrip("/")
-        self.token = token
+        # `retries` repete só falha de conexão: um POST que chegou ao destino não é reenviado.
+        self.http = httpx.Client(
+            base_url=url.rstrip("/"),
+            headers={"Authorization": f"Bearer {token}"},
+            transport=httpx.HTTPTransport(retries=2),
+        )
+
+    def _enviar(self, metodo, caminho, corpo, timeout):
+        resposta = self.http.request(metodo, caminho, json=corpo, timeout=timeout)
+        if resposta.is_error:
+            try:
+                mensagem = resposta.json().get("error", "")
+            except ValueError:
+                mensagem = ""
+            raise ErroDestino(resposta.status_code, mensagem or resposta.reason_phrase)
+        return resposta.json()
 
     def post(self, caminho, corpo, timeout=120):
-        pedido = urllib.request.Request(
-            f"{self.base}{caminho}",
-            data=json.dumps(corpo).encode("utf-8"),
-            method="POST",
-            headers={"Authorization": f"Bearer {self.token}", "Content-Type": "application/json; charset=utf-8"},
-        )
-        try:
-            with urllib.request.urlopen(pedido, timeout=timeout) as resposta:
-                return json.loads(resposta.read())
-        except urllib.error.HTTPError as erro:
-            try:
-                mensagem = json.loads(erro.read()).get("error", "")
-            except ValueError:
-                mensagem = ""
-            raise ErroDestino(erro.code, mensagem or str(erro.reason)) from erro
+        return self._enviar("POST", caminho, corpo, timeout)
 
     def get(self, caminho, timeout=60):
-        pedido = urllib.request.Request(
-            f"{self.base}{caminho}", method="GET", headers={"Authorization": f"Bearer {self.token}"}
-        )
-        try:
-            with urllib.request.urlopen(pedido, timeout=timeout) as resposta:
-                return json.loads(resposta.read())
-        except urllib.error.HTTPError as erro:
-            try:
-                mensagem = json.loads(erro.read()).get("error", "")
-            except ValueError:
-                mensagem = ""
-            raise ErroDestino(erro.code, mensagem or str(erro.reason)) from erro
+        return self._enviar("GET", caminho, None, timeout)
 
     def listar(self, kind, **filtros):
         itens, depois = [], None

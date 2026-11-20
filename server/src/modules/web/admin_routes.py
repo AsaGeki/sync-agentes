@@ -198,13 +198,21 @@ def resolver_pedido(
     return painel(request, slug, por="pessoa")
 
 
-@protegido.get("/web/admin/p/{slug}/tasks")
-def tasks(request: Request, slug: str, filtros: dict = Depends(filtros_tasks)):
+def _pagina_do_projeto(request: Request, slug: str, modelo: str, montar):
+    """Página de projeto lida pelo admin: contexto de `montar(conn, projeto)` mais a barra lateral."""
     with closing(conectar()) as conn:
         projeto = projects_repositorio.find_by_slug(conn, slug)
-        ctx = paginas.ctx_tasks(conn, projeto, None, filtros)
+        ctx = montar(conn, projeto)
         nav = paginas.ctx_nav(conn, None)
-    return templates.TemplateResponse(request, "tasks.html", {**ctx, "nav": nav})
+    return templates.TemplateResponse(request, modelo, {**ctx, "nav": nav})
+
+
+@protegido.get("/web/admin/p/{slug}/tasks")
+def tasks(request: Request, slug: str, filtros: dict = Depends(filtros_tasks)):
+    return _pagina_do_projeto(
+        request, slug, "tasks.html",
+        lambda conn, projeto: paginas.ctx_tasks(conn, projeto, None, filtros),
+    )
 
 
 @protegido.get("/web/admin/p/{slug}/features")
@@ -213,28 +221,25 @@ def features(
     slug: str,
     status: str = Query("", pattern="^(|" + "|".join(FEATURE_STATUSES) + ")$"),
 ):
-    with closing(conectar()) as conn:
-        projeto = projects_repositorio.find_by_slug(conn, slug)
-        ctx = paginas.ctx_features(conn, projeto, None, status)
-        nav = paginas.ctx_nav(conn, None)
-    return templates.TemplateResponse(request, "features.html", {**ctx, "nav": nav})
+    return _pagina_do_projeto(
+        request, slug, "features.html",
+        lambda conn, projeto: paginas.ctx_features(conn, projeto, None, status),
+    )
 
 
 @protegido.get("/web/admin/p/{slug}/f/{code}")
 def feature(request: Request, slug: str, code: str):
-    with closing(conectar()) as conn:
-        projeto = projects_repositorio.find_by_slug(conn, slug)
-        ctx = paginas.ctx_feature(conn, projeto, None, code)
-        nav = paginas.ctx_nav(conn, None)
-    return templates.TemplateResponse(request, "feature.html", {**ctx, "nav": nav})
+    return _pagina_do_projeto(
+        request, slug, "feature.html",
+        lambda conn, projeto: paginas.ctx_feature(conn, projeto, None, code),
+    )
 
 
 def _pagina_atividade(request: Request, slug: str, filtros: dict, modelo: str):
-    with closing(conectar()) as conn:
-        projeto = projects_repositorio.find_by_slug(conn, slug)
-        ctx = paginas.ctx_atividade(conn, projeto, None, filtros)
-        nav = paginas.ctx_nav(conn, None)
-    return templates.TemplateResponse(request, modelo, {**ctx, "nav": nav})
+    return _pagina_do_projeto(
+        request, slug, modelo,
+        lambda conn, projeto: paginas.ctx_atividade(conn, projeto, None, filtros),
+    )
 
 
 @protegido.get("/web/admin/p/{slug}/atividade")
@@ -249,11 +254,10 @@ def atividade_mais(request: Request, slug: str, filtros: dict = Depends(filtros_
 
 @protegido.get("/web/admin/p/{slug}/t/{code}")
 def task(request: Request, slug: str, code: str):
-    with closing(conectar()) as conn:
-        projeto = projects_repositorio.find_by_slug(conn, slug)
-        ctx = paginas.ctx_task(conn, projeto, code, None)
-        nav = paginas.ctx_nav(conn, None)
-    return templates.TemplateResponse(request, "task.html", {**ctx, "nav": nav})
+    return _pagina_do_projeto(
+        request, slug, "task.html",
+        lambda conn, projeto: paginas.ctx_task(conn, projeto, code, None),
+    )
 
 
 @protegido.get("/web/admin/p/{slug}/t/{code}/corpo-diff")

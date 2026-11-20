@@ -20,7 +20,7 @@ class ProjetoIn(BaseModel):
 
 
 class ProjetoPatch(BaseModel):
-    name: str | None = None
+    name: str | None = Field(default=None, min_length=1)
     description: str | None = None
     status: EStatusProject | None = None
     visibility: EVisibility | None = None

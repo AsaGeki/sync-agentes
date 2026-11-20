@@ -131,6 +131,15 @@
     });
   }
 
+  // A atualização em tempo real não troca as propriedades da task enquanto a pessoa digita nelas (Tags).
+  document.addEventListener("htmx:oobBeforeSwap", (e) => {
+    const alvo = e.detail.target;
+    const foco = document.activeElement;
+    if (alvo?.id === "propriedades" && alvo.contains(foco) && foco.matches("input[type=text], textarea")) {
+      e.detail.shouldSwap = false;
+    }
+  });
+
   document.addEventListener("click", (e) => {
     const resumo = e.target.closest && e.target.closest("details[data-estado] > summary");
     if (resumo && !e.target.closest("a")) guardar(resumo.parentElement, !resumo.parentElement.open);
@@ -147,11 +156,16 @@
   const chaveSidebar = "sync-agents:sidebar-recolhida";
   const chaveSidebarLargura = "sync-agents:sidebar-largura";
   const sidebarMovel = window.matchMedia("(max-width: 900px)");
+  // O hx-boost troca o body e a sidebar nasce de novo: os listeners de document/window da anterior saem aqui.
+  let controleGlobal = null;
 
   function iniciarSidebar() {
     const app = document.querySelector("[data-sidebar-app]");
     if (!app || app.dataset.sidebarReady) return;
     app.dataset.sidebarReady = "true";
+    controleGlobal?.abort();
+    controleGlobal = new AbortController();
+    const global = { signal: controleGlobal.signal };
 
     const sidebar = app.querySelector("#app-sidebar");
     const toggles = app.querySelectorAll("[data-sidebar-toggle]");
@@ -334,7 +348,7 @@
       if (sidebarMovel.matches && app.classList.contains("sidebar-drawer-aberto") && sidebar.contains(e.target)) {
         if (e.target.closest("a[href]") && !e.target.closest("[data-user-menu]")) fecharDrawer(false);
       }
-    });
+    }, global);
 
     busca?.addEventListener("input", () => {
       const consulta = busca.value.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
@@ -382,12 +396,12 @@
           primeiro?.focus();
         }
       }
-    });
+    }, global);
 
     window.addEventListener("resize", () => {
       if (!sidebarMovel.matches) fecharDrawer(false);
       sincronizar();
-    });
+    }, global);
   }
 
   // Texto longo (descrição do projeto) começa recolhido; o botão só existe se ele de fato passa do limite.

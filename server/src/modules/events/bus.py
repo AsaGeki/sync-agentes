@@ -9,6 +9,19 @@ from anyio import from_thread
 INSCRITOS: dict[str, set[asyncio.Queue]] = defaultdict(set)
 
 
+def inscrever(fila: asyncio.Queue, slugs: set[str]) -> None:
+    for slug in slugs:
+        INSCRITOS[slug].add(fila)
+
+
+def desinscrever(fila: asyncio.Queue, slugs: set[str]) -> None:
+    """Tira a fila dos projetos; projeto sem ninguém ouvindo sai do dicionário."""
+    for slug in slugs:
+        INSCRITOS[slug].discard(fila)
+        if not INSCRITOS[slug]:
+            del INSCRITOS[slug]
+
+
 def _entregar(slug: str, evento: dict[str, Any]) -> None:
     for fila in list(INSCRITOS.get(slug, ())):
         try:

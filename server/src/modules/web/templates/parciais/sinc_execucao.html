@@ -30,7 +30,7 @@
   {% if r.pacote %}
     <h4>Pacote</h4>
     <p>Repositório das tasks: {{ r.pacote.repositorio_das_tasks.tag }} pela tag, {{ r.pacote.repositorio_das_tasks.manual }} à mão, {{ r.pacote.repositorio_das_tasks.padrao }} pelo padrão.
-      {{ r.pacote.respostas_vinculadas }} respostas ligadas a {{ r.pacote.perguntas }} perguntas.</p>
+      {{ r.pacote.respostas_vinculadas }} respostas e decisões ligadas a {{ r.pacote.perguntas }} perguntas.</p>
     <p class="mudo">{% for nome, total in r.pacote.contagens.items() %}{{ nome }}: {{ total }}{{ ' · ' if not loop.last }}{% endfor %}</p>
     {% if r.pacote.areas_acrescentadas %}<p>Áreas que serão acrescentadas ao projeto: {{ r.pacote.areas_acrescentadas|join(', ') }}.</p>{% endif %}
   {% endif %}

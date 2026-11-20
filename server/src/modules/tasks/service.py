@@ -277,9 +277,7 @@ def create_task(
         except sqlite3.IntegrityError:
             if dados.code or tentativa == TENTATIVAS_DE_CODIGO - 1:
                 raise AlreadyExists(f"Task '{code}' já existe neste projeto") from None
-    for publicado in (seq, seq_corpo):
-        if publicado is not None:
-            publish(slug, eventos_service.hidratar(conn, publicado))
+    eventos_service.publicar(conn, slug, seq, seq_corpo)
     return {"cursor": seq_corpo or seq, **serializar(conn, task)}
 
 
@@ -605,8 +603,7 @@ def update_task(
                 conn, projeto["id"], task["id"], author_id, ctx
             )
 
-    for seq in sequencias:
-        publish(slug, eventos_service.hidratar(conn, seq))
+    eventos_service.publicar(conn, slug, *sequencias)
     atual = repositorio.find_by_code(conn, projeto["id"], code)
     return {"cursor": sequencias[-1] if sequencias else None, **serializar(conn, atual)}
 
@@ -662,7 +659,7 @@ def update_corpo(
         seq, versao, diff = _gravar_corpo_evento(
             conn, task, dados.texto, author_id, projeto["id"], ctx
         )
-    publish(slug, eventos_service.hidratar(conn, seq))
+    eventos_service.publicar(conn, slug, seq)
     return {"cursor": seq, "code": code, "versao": versao, "diff": diff}
 
 
@@ -725,9 +722,7 @@ def publish_diff(
                 texto=f"Revisão pedida no diff da seq {seq}: {resumo}",
             )
 
-    for publicado in (seq, seq_pergunta):
-        if publicado is not None:
-            publish(slug, eventos_service.hidratar(conn, publicado))
+    eventos_service.publicar(conn, slug, seq, seq_pergunta)
     evento = eventos_service.envelope(eventos_service.hidratar(conn, seq))
     return {"cursor": seq_pergunta or seq, "truncado": truncado, **evento}
 

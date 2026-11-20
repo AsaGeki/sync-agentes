@@ -9,6 +9,7 @@ import sqlite3
 from typing import Any
 
 from src.modules.events import repositorio
+from src.modules.events.bus import publish
 from src.shared.auth import ContextoGit
 from src.shared.db import now
 from src.shared.enums import EAgent, EKindEvent
@@ -22,6 +23,13 @@ def registrar(conn: sqlite3.Connection, ctx: ContextoGit, **campos: Any) -> int:
     campos.setdefault("branch", ctx.branch)
     campos.setdefault("commit_sha", ctx.commit_sha)
     return repositorio.insert(conn, **campos)
+
+
+def publicar(conn: sqlite3.Connection, slug: str, *seqs: int | None) -> None:
+    """Manda os eventos já commitados pro tempo real (SSE); `None` é evento que não aconteceu."""
+    for seq in seqs:
+        if seq is not None:
+            publish(slug, hidratar(conn, seq))
 
 
 def hidratar(conn: sqlite3.Connection, seq: int) -> dict[str, Any]:

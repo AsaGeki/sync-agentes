@@ -9,7 +9,6 @@ from datetime import UTC, datetime
 from src.modules.projects.exportacao import COLECOES, STATUS, TIPOS
 from src.shared.enums import EAgent, EKindEvent, EStatusTask
 
-
 # O que o status do destino não diz: o rótulo de andamento da task na origem.
 ROTULO_ANDAMENTO = {
     EStatusTask.em_andamento: "Em andamento",
@@ -89,13 +88,18 @@ def resumo_evento(e, task):
 
 
 def vincular_respostas(mensagens):
-    # Cada resposta aponta para a pergunta mais antiga ainda sem resposta na mesma task.
+    # Mesma regra do painel: resposta ou decisão fecha as perguntas abertas de outras pessoas na task
+    # e aponta para a mais antiga delas.
     abertas, vinculos = {}, {}
     for m in mensagens:
+        da_task = abertas.setdefault(m["task_id"], [])
         if m["type"] == "pergunta":
-            abertas.setdefault(m["task_id"], []).append(m["seq"])
-        elif m["type"] == "resposta" and abertas.get(m["task_id"]):
-            vinculos[m["seq"]] = abertas[m["task_id"]].pop(0)
+            da_task.append(m)
+        elif m["type"] in ("resposta", "decisao"):
+            de_outros = [p for p in da_task if p["author_id"] != m["author_id"]]
+            if de_outros:
+                vinculos[m["seq"]] = de_outros[0]["seq"]
+                abertas[m["task_id"]] = [p for p in da_task if p["author_id"] == m["author_id"]]
     return vinculos
 
 

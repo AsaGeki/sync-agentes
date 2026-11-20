@@ -193,6 +193,7 @@ def test_apagar_projeto_e_pessoa_limpam_a_marca(cena):
 
 def test_banco_antigo_sem_a_tabela_ganha_a_tabela_no_start(mundo):
     mundo.sql("DROP TABLE feature_reads")
+    mundo.sql("DELETE FROM _yoyo_migration")  # banco de antes do yoyo
     db.iniciar_banco()
     assert mundo.sql("SELECT COUNT(*) AS n FROM feature_reads")[0]["n"] == 0
 

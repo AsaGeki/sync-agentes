@@ -11,6 +11,7 @@ import json
 import logging
 import sqlite3
 import threading
+from contextlib import closing
 from datetime import datetime
 from typing import Any
 
@@ -274,8 +275,7 @@ def _mensagem(erro: Exception, credencial: str) -> str:
 
 def encerrar_interrompidas() -> None:
     """Execução que ficou 'rodando' quando o servidor caiu não vai terminar nunca."""
-    conn = conectar()
-    try:
+    with closing(conectar()) as conn:
         with conn:
             conn.execute(
                 """UPDATE sync_runs
@@ -284,8 +284,6 @@ def encerrar_interrompidas() -> None:
                     WHERE status = 'rodando'""",
                 (now(),),
             )
-    finally:
-        conn.close()
 
 
 def patch_replyto(conn: sqlite3.Connection, projeto: sqlite3.Row) -> tuple[str, int]:

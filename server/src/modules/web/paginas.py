@@ -378,6 +378,8 @@ def ctx_task(
     task = tasks_service.montar_task(conn, projeto, code, person_id, com_corpo=True, marcar_lida=False)
     eventos = task["eventos"]
     abertas = {p["seq"] for p in perguntas_abertas(conn, projeto["id"], [task])}
+    linha = tasks_repositorio.find_by_code(conn, projeto["id"], task["code"])
+    status_dependencias = {d["code"]: d["status"] for d in tasks_repositorio.dependencies(conn, linha["id"])}
 
     participantes: dict[str, dict[str, Any]] = {}
     for evento in eventos:
@@ -400,6 +402,7 @@ def ctx_task(
         "resumo_etapas": etapas_service.resumo_das_etapas(etapas),
         "blocos": linha_do_tempo(eventos, abertas),
         "abertas": len(abertas),
+        "status_dependencias": status_dependencias,
         "participantes": list(participantes.values()),
         "diffs": [e for e in eventos if e["kind"] == EKindEvent.diff_published],
         "ultimo_corpo": corpos[-1] if corpos else None,

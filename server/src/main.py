@@ -2,6 +2,7 @@ import hashlib
 import platform
 import sqlite3
 import time
+from contextlib import closing
 from typing import Any
 
 import psutil
@@ -84,26 +85,20 @@ def _credencial_valida(authorization: str | None) -> None:
 
 
 def _operacao_gravada(operation_id: str) -> dict[str, Any] | None:
-    conn = conectar()
-    try:
+    with closing(conectar()) as conn:
         linha = conn.execute(
             "SELECT status, result FROM operations WHERE id = ?", (operation_id,)
         ).fetchone()
-    finally:
-        conn.close()
     return dict(linha) if linha is not None else None
 
 
 def _gravar_operacao(operation_id: str, status: int, resultado: str) -> None:
-    conn = conectar()
-    try:
+    with closing(conectar()) as conn:
         with conn:
             conn.execute(
                 "INSERT OR IGNORE INTO operations (id, status, result, created_at) VALUES (?,?,?,?)",
                 (operation_id, status, resultado, now()),
             )
-    finally:
-        conn.close()
 
 
 # Retry de rede do bridge reenvia o mesmo X-Operation-Id: a 2ª chamada devolve

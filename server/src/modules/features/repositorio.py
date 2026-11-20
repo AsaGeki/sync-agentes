@@ -5,7 +5,6 @@ from src.modules.features.models import FeatureIn
 from src.shared import codes
 from src.shared.db import now
 from src.shared.enums import EKindEvent
-from src.shared.enums import EKindEvent
 from src.shared.erros import NotFound
 
 

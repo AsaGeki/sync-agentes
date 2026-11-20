@@ -259,6 +259,8 @@ def _rebaixar_tasks_para_check_antigo(mundo):
             conn.execute("ALTER TABLE tasks_velho RENAME TO tasks")
             if sequencia is not None:
                 conn.execute("UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name = 'tasks'", (sequencia[0],))
+            # Banco de antes do yoyo: nenhuma migração marcada como aplicada.
+            conn.execute("DELETE FROM _yoyo_migration")
     finally:
         conn.close()
 

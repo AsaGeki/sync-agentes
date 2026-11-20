@@ -12,6 +12,10 @@ dependencies = [
     "jinja2>=3.1.6",
     "python-multipart>=0.0.32",
     "markdown-it-py>=4.2.0",
+    "httpx>=0.28.1",
+    "sse-starlette>=3.4.10",
+    "pydantic-settings>=2.16.3",
+    "yoyo-migrations>=9.0.0",
 ]
 
 [tool.uv.sources]

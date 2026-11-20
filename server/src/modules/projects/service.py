@@ -1,23 +1,15 @@
-import re
 import sqlite3
-import unicodedata
 from typing import Any
 
 from src.modules.events import service as eventos_service
-from src.modules.events.bus import publish
 from src.modules.people import repositorio as people_repositorio
 from src.modules.projects import repositorio
 from src.modules.projects.models import ProjetoIn, ProjetoPatch, RepoIn
 from src.modules.tasks import repositorio as tasks_repositorio
+from src.shared import codes
 from src.shared.auth import ContextoGit
 from src.shared.enums import EKindEvent, ERequestStatus, ERole, EStatusProject, EVisibility
 from src.shared.erros import AlreadyExists, Conflict, Forbidden, Invalid, NotFound
-
-
-def _slug_de(nome: str) -> str:
-    sem_acento = unicodedata.normalize("NFKD", nome).encode("ascii", "ignore").decode()
-    slug = re.sub(r"[^a-z0-9]+", "-", sem_acento.lower()).strip("-")
-    return slug or "projeto"
 
 
 def _serializar(conn: sqlite3.Connection, projeto: sqlite3.Row) -> dict[str, Any]:
@@ -109,7 +101,7 @@ def create_project(conn: sqlite3.Connection, person_id: int, dados: ProjetoIn) -
     vira owner. O repositório pode já estar afiliado a outro(s) projeto(s) -
     isso só soma mais um vínculo."""
     with conn:
-        slug = repositorio.slug_livre(conn, _slug_de(dados.name))
+        slug = repositorio.slug_livre(conn, codes.slugificar(dados.name) or "projeto")
         projeto_id = repositorio.insert(
             conn, slug, dados.name, person_id, dados.description, dados.visibility.value
         )
@@ -154,7 +146,8 @@ def update_project(
     mudancas = dados.model_dump(mode="json", exclude_none=True)
     if not mudancas:
         raise Invalid("Nada pra atualizar")
-    if "visibility" in mudancas:
+    # Status `arquivado` trava a escrita de todos; por isso status e visibilidade são de owner.
+    if "visibility" in mudancas or "status" in mudancas:
         _exigir_owner(conn, projeto["id"], person_id)
     with conn:
         repositorio.update_campos(conn, projeto["id"], mudancas)
@@ -199,6 +192,8 @@ def _inserir_membro(conn: sqlite3.Connection, projeto: sqlite3.Row, email: str) 
     convidado = people_repositorio.find_by_email(conn, email)
     if convidado is None:
         raise NotFound(f"Ninguém cadastrado com o email '{email}'")
+    if repositorio.find_membership(conn, projeto["id"], convidado["id"]) is not None:
+        raise AlreadyExists(f"'{convidado['email']}' já é membro deste projeto")
     with conn:
         repositorio.insert_membership(
             conn, projeto["id"], convidado["id"], ERole.member.value
@@ -275,8 +270,7 @@ def _remover_membro(
                 )
             )
         repositorio.delete_membership(conn, projeto["id"], alvo_id)
-    for seq in sequencias:
-        publish(slug, eventos_service.hidratar(conn, seq))
+    eventos_service.publicar(conn, slug, *sequencias)
     removido = people_repositorio.find_by_id(conn, alvo_id)
     return {
         "projeto": slug,

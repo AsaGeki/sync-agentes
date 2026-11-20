@@ -407,6 +407,23 @@ def test_decisao_fecha_pergunta(cena):
     assert _abertas(ana, slug) == []
 
 
+def test_sincronizacao_liga_resposta_e_decisao_pela_regra_do_painel():
+    from src.modules.sincronizacao.pacote import vincular_respostas
+
+    def m(seq, tipo, autor, task=1):
+        return {"seq": seq, "type": tipo, "author_id": autor, "task_id": task}
+
+    mensagens = [
+        m(1, "pergunta", "ana"),
+        m(2, "pergunta", "ana"),
+        m(3, "pergunta", "bia"),
+        m(4, "resposta", "bia"),  # fecha 1 e 2 (da ana), aponta pra 1; a 3 é da própria bia
+        m(5, "decisao", "ana"),  # fecha a 3
+        m(6, "resposta", "bia"),  # nada aberto de outra pessoa
+    ]
+    assert vincular_respostas(mensagens) == {4: 1, 5: 3}
+
+
 def test_task_feita_ou_cancelada_nao_tem_pergunta_aberta(cena):
     mundo, ana, bia, slug = cena
     feita, cancelada, aberta = (mundo.task(ana, slug, t) for t in ("F", "C", "A"))

@@ -3,7 +3,6 @@ from collections import Counter
 from typing import Any
 
 from src.modules.events import service as eventos_service
-from src.modules.events.bus import publish
 from src.modules.features import repositorio
 from src.modules.features.models import FeatureIn, FeaturePatch
 from src.modules.projects.service import exigir_acesso, exigir_escrita
@@ -74,7 +73,7 @@ def create_feature(
         except sqlite3.IntegrityError:
             if tentativa == TENTATIVAS_DE_CODIGO - 1:
                 raise AlreadyExists(f"Feature '{code}' já existe neste projeto") from None
-    publish(slug, eventos_service.hidratar(conn, seq))
+    eventos_service.publicar(conn, slug, seq)
     return {"cursor": seq, **serializar(conn, repositorio.find_by_id(conn, feature_id))}
 
 
@@ -144,8 +143,7 @@ def update_feature(
                     valor_para=valor,
                 )
             )
-    for seq in sequencias:
-        publish(slug, eventos_service.hidratar(conn, seq))
+    eventos_service.publicar(conn, slug, *sequencias)
     atual = repositorio.find_by_id(conn, feature["id"])
     return {"cursor": sequencias[-1] if sequencias else None, **serializar(conn, atual)}
 
@@ -168,5 +166,5 @@ def delete_feature(
             valor_de=feature["code"],
         )
         repositorio.delete(conn, feature["id"])
-    publish(slug, eventos_service.hidratar(conn, seq))
+    eventos_service.publicar(conn, slug, seq)
     return {"cursor": seq, "code": feature["code"], "tasks_soltas": soltas}
