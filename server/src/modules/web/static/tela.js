@@ -153,6 +153,7 @@
     });
   };
 
+  const raiz = document.documentElement;
   const chaveSidebar = "sync-agents:sidebar-recolhida";
   const chaveSidebarLargura = "sync-agents:sidebar-largura";
   const sidebarMovel = window.matchMedia("(max-width: 900px)");
@@ -185,10 +186,10 @@
       const larguraSalva = Number(localStorage.getItem(chaveSidebarLargura));
       if (larguraSalva >= 176 && larguraSalva <= 360) largura = larguraSalva;
     } catch (_) {}
-    app.style.setProperty("--sidebar-largura", `${largura}px`);
+    raiz.style.setProperty("--sidebar-largura", `${largura}px`);
 
     function sincronizar() {
-      app.classList.toggle("sidebar-recolhida", recolhida);
+      raiz.classList.toggle("sidebar-recolhida", recolhida);
       if (trilho) trilho.setAttribute("aria-valuenow", String(recolhida ? 64 : largura));
       const drawerAberto = app.classList.contains("sidebar-drawer-aberto");
       const expandida = sidebarMovel.matches ? drawerAberto : !recolhida;
@@ -258,7 +259,7 @@
         } else {
           recolhida = false;
           largura = Math.max(176, larguraNova);
-          app.style.setProperty("--sidebar-largura", `${largura}px`);
+          raiz.style.setProperty("--sidebar-largura", `${largura}px`);
         }
         sincronizar();
       };
@@ -287,13 +288,13 @@
         e.preventDefault();
         recolhida = false;
         largura = 360;
-        app.style.setProperty("--sidebar-largura", `${largura}px`);
+        raiz.style.setProperty("--sidebar-largura", `${largura}px`);
       } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
         e.preventDefault();
         const base = recolhida ? 128 : largura;
         largura = Math.max(176, Math.min(360, base + (e.key === "ArrowRight" ? 16 : -16)));
         recolhida = false;
-        app.style.setProperty("--sidebar-largura", `${largura}px`);
+        raiz.style.setProperty("--sidebar-largura", `${largura}px`);
       } else if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
         alternarSidebar();
@@ -430,11 +431,11 @@
 
   document.addEventListener("DOMContentLoaded", restaurar);
   document.addEventListener("DOMContentLoaded", iniciarColapsaveis);
-  document.addEventListener("htmx:afterSettle", iniciarColapsaveis);
+  document.addEventListener("htmx:afterSwap", iniciarColapsaveis);
   document.addEventListener("DOMContentLoaded", () => document.querySelectorAll("form.filtros").forEach(atualizarContagemFiltros));
   document.addEventListener("DOMContentLoaded", iniciarTabelas);
   document.addEventListener("DOMContentLoaded", iniciarSidebar);
-  document.addEventListener("htmx:afterSettle", restaurar);
-  document.addEventListener("htmx:afterSettle", iniciarTabelas);
-  document.addEventListener("htmx:afterSettle", iniciarSidebar);
+  document.addEventListener("htmx:afterSwap", restaurar);
+  document.addEventListener("htmx:afterSwap", iniciarTabelas);
+  document.addEventListener("htmx:afterSwap", iniciarSidebar);
 })();

@@ -769,14 +769,16 @@ details summary { cursor: pointer; }
 
 /* ---------- sidebar ---------- */
 
+/* Largura e estado recolhido ficam no <html>, que o hx-boost não troca: a sidebar nova já nasce certa. */
+:root { --sidebar-largura: 248px; }
+
 .app.com-lateral {
-  --sidebar-largura: 248px;
   --sidebar-trilho: 64px;
   display: grid;
   grid-template-columns: var(--sidebar-largura) minmax(0, 1fr);
   transition: grid-template-columns 160ms ease;
 }
-.app.com-lateral.sidebar-recolhida { grid-template-columns: var(--sidebar-trilho) minmax(0, 1fr); }
+.sidebar-recolhida .app.com-lateral { grid-template-columns: var(--sidebar-trilho) minmax(0, 1fr); }
 
 .sidebar {
   position: sticky;
@@ -1017,22 +1019,22 @@ body.sidebar-drawer-aberto { overflow: hidden; }
   80%, 88%, 96% { transform: rotate(-13deg); }
 }
 
-.app.sidebar-recolhida .sidebar { width: var(--sidebar-trilho, 64px); padding-right: 8px; padding-left: 8px; }
-.app.sidebar-recolhida .sidebar-header { justify-content: center; padding-right: 0; padding-left: 0; }
-.app.sidebar-recolhida .sidebar-brand { flex: none; justify-content: center; padding: 0; }
-.app.sidebar-recolhida .sidebar-brand-copy, .app.sidebar-recolhida .sidebar-header-toggle,
-.app.sidebar-recolhida .sidebar-section-title, .app.sidebar-recolhida .sidebar-search,
-.app.sidebar-recolhida .sidebar-link-label, .app.sidebar-recolhida .sidebar-link .contador,
-.app.sidebar-recolhida .sidebar-user-copy, .app.sidebar-recolhida .sidebar-user-chevron,
-.app.sidebar-recolhida .sidebar-submenu, .app.sidebar-recolhida .sidebar-empty { display: none; }
-.app.sidebar-recolhida .sidebar-menu { margin-top: 5px; }
-.app.sidebar-recolhida .sidebar-link { justify-content: center; width: 40px; min-height: 40px; margin: 0 auto; padding: 0; }
-.app.sidebar-recolhida .sidebar-link .icone { width: 18px; height: 18px; }
-.app.sidebar-recolhida .sidebar-project-section { margin-bottom: 0; }
-.app.sidebar-recolhida .sidebar-footer { padding: 8px 0 0; }
-.app.sidebar-recolhida .sidebar-user-trigger { justify-content: center; width: 40px; min-height: 40px; margin: 0 auto; padding: 0; }
-.app.sidebar-recolhida .sidebar-user-avatar { width: 26px; height: 26px; }
-.app.sidebar-recolhida .sidebar:hover, .app.sidebar-recolhida .sidebar:focus-within {
+.sidebar-recolhida .app .sidebar { width: var(--sidebar-trilho, 64px); padding-right: 8px; padding-left: 8px; }
+.sidebar-recolhida .app .sidebar-header { justify-content: center; padding-right: 0; padding-left: 0; }
+.sidebar-recolhida .app .sidebar-brand { flex: none; justify-content: center; padding: 0; }
+.sidebar-recolhida .app .sidebar-brand-copy, .sidebar-recolhida .app .sidebar-header-toggle,
+.sidebar-recolhida .app .sidebar-section-title, .sidebar-recolhida .app .sidebar-search,
+.sidebar-recolhida .app .sidebar-link-label, .sidebar-recolhida .app .sidebar-link .contador,
+.sidebar-recolhida .app .sidebar-user-copy, .sidebar-recolhida .app .sidebar-user-chevron,
+.sidebar-recolhida .app .sidebar-submenu, .sidebar-recolhida .app .sidebar-empty { display: none; }
+.sidebar-recolhida .app .sidebar-menu { margin-top: 5px; }
+.sidebar-recolhida .app .sidebar-link { justify-content: center; width: 40px; min-height: 40px; margin: 0 auto; padding: 0; }
+.sidebar-recolhida .app .sidebar-link .icone { width: 18px; height: 18px; }
+.sidebar-recolhida .app .sidebar-project-section { margin-bottom: 0; }
+.sidebar-recolhida .app .sidebar-footer { padding: 8px 0 0; }
+.sidebar-recolhida .app .sidebar-user-trigger { justify-content: center; width: 40px; min-height: 40px; margin: 0 auto; padding: 0; }
+.sidebar-recolhida .app .sidebar-user-avatar { width: 26px; height: 26px; }
+.sidebar-recolhida .app .sidebar:hover, .sidebar-recolhida .app .sidebar:focus-within {
   position: fixed;
   inset: 0 auto 0 0;
   z-index: 50;
@@ -1041,22 +1043,22 @@ body.sidebar-drawer-aberto { overflow: hidden; }
   padding-left: 10px;
   box-shadow: 8px 0 28px rgba(0, 0, 0, 0.12);
 }
-.app.sidebar-recolhida .sidebar:hover .sidebar-brand-copy, .app.sidebar-recolhida .sidebar:focus-within .sidebar-brand-copy,
-.app.sidebar-recolhida .sidebar:hover .sidebar-header-toggle, .app.sidebar-recolhida .sidebar:focus-within .sidebar-header-toggle,
-.app.sidebar-recolhida .sidebar:hover .sidebar-section-title, .app.sidebar-recolhida .sidebar:focus-within .sidebar-section-title,
-.app.sidebar-recolhida .sidebar:hover .sidebar-search, .app.sidebar-recolhida .sidebar:focus-within .sidebar-search,
-.app.sidebar-recolhida .sidebar:hover .sidebar-link-label, .app.sidebar-recolhida .sidebar:focus-within .sidebar-link-label,
-.app.sidebar-recolhida .sidebar:hover .sidebar-link .contador, .app.sidebar-recolhida .sidebar:focus-within .sidebar-link .contador,
-.app.sidebar-recolhida .sidebar:hover .sidebar-user-copy, .app.sidebar-recolhida .sidebar:focus-within .sidebar-user-copy,
-.app.sidebar-recolhida .sidebar:hover .sidebar-user-chevron, .app.sidebar-recolhida .sidebar:focus-within .sidebar-user-chevron,
-.app.sidebar-recolhida .sidebar:hover .sidebar-submenu, .app.sidebar-recolhida .sidebar:focus-within .sidebar-submenu { display: flex; }
-.app.sidebar-recolhida .sidebar:hover .sidebar-header, .app.sidebar-recolhida .sidebar:focus-within .sidebar-header { justify-content: flex-start; padding-right: 2px; padding-left: 2px; }
-.app.sidebar-recolhida .sidebar:hover .sidebar-brand, .app.sidebar-recolhida .sidebar:focus-within .sidebar-brand { flex: 1; justify-content: flex-start; padding: 0 5px; }
-.app.sidebar-recolhida .sidebar:hover .sidebar-menu, .app.sidebar-recolhida .sidebar:focus-within .sidebar-menu { margin-top: 3px; }
-.app.sidebar-recolhida .sidebar:hover .sidebar-link, .app.sidebar-recolhida .sidebar:focus-within .sidebar-link { justify-content: flex-start; width: auto; min-height: 32px; margin: 0; padding: 0 9px; }
-.app.sidebar-recolhida .sidebar:hover .sidebar-submenu .sidebar-link, .app.sidebar-recolhida .sidebar:focus-within .sidebar-submenu .sidebar-link { min-height: 30px; padding-left: 8px; }
-.app.sidebar-recolhida .sidebar:hover .sidebar-footer, .app.sidebar-recolhida .sidebar:focus-within .sidebar-footer { padding: 8px 2px 0; }
-.app.sidebar-recolhida .sidebar:hover .sidebar-user-trigger, .app.sidebar-recolhida .sidebar:focus-within .sidebar-user-trigger { justify-content: flex-start; width: 100%; min-height: 44px; margin: 0; padding: 5px 7px; }
+.sidebar-recolhida .app .sidebar:hover .sidebar-brand-copy, .sidebar-recolhida .app .sidebar:focus-within .sidebar-brand-copy,
+.sidebar-recolhida .app .sidebar:hover .sidebar-header-toggle, .sidebar-recolhida .app .sidebar:focus-within .sidebar-header-toggle,
+.sidebar-recolhida .app .sidebar:hover .sidebar-section-title, .sidebar-recolhida .app .sidebar:focus-within .sidebar-section-title,
+.sidebar-recolhida .app .sidebar:hover .sidebar-search, .sidebar-recolhida .app .sidebar:focus-within .sidebar-search,
+.sidebar-recolhida .app .sidebar:hover .sidebar-link-label, .sidebar-recolhida .app .sidebar:focus-within .sidebar-link-label,
+.sidebar-recolhida .app .sidebar:hover .sidebar-link .contador, .sidebar-recolhida .app .sidebar:focus-within .sidebar-link .contador,
+.sidebar-recolhida .app .sidebar:hover .sidebar-user-copy, .sidebar-recolhida .app .sidebar:focus-within .sidebar-user-copy,
+.sidebar-recolhida .app .sidebar:hover .sidebar-user-chevron, .sidebar-recolhida .app .sidebar:focus-within .sidebar-user-chevron,
+.sidebar-recolhida .app .sidebar:hover .sidebar-submenu, .sidebar-recolhida .app .sidebar:focus-within .sidebar-submenu { display: flex; }
+.sidebar-recolhida .app .sidebar:hover .sidebar-header, .sidebar-recolhida .app .sidebar:focus-within .sidebar-header { justify-content: flex-start; padding-right: 2px; padding-left: 2px; }
+.sidebar-recolhida .app .sidebar:hover .sidebar-brand, .sidebar-recolhida .app .sidebar:focus-within .sidebar-brand { flex: 1; justify-content: flex-start; padding: 0 5px; }
+.sidebar-recolhida .app .sidebar:hover .sidebar-menu, .sidebar-recolhida .app .sidebar:focus-within .sidebar-menu { margin-top: 3px; }
+.sidebar-recolhida .app .sidebar:hover .sidebar-link, .sidebar-recolhida .app .sidebar:focus-within .sidebar-link { justify-content: flex-start; width: auto; min-height: 32px; margin: 0; padding: 0 9px; }
+.sidebar-recolhida .app .sidebar:hover .sidebar-submenu .sidebar-link, .sidebar-recolhida .app .sidebar:focus-within .sidebar-submenu .sidebar-link { min-height: 30px; padding-left: 8px; }
+.sidebar-recolhida .app .sidebar:hover .sidebar-footer, .sidebar-recolhida .app .sidebar:focus-within .sidebar-footer { padding: 8px 2px 0; }
+.sidebar-recolhida .app .sidebar:hover .sidebar-user-trigger, .sidebar-recolhida .app .sidebar:focus-within .sidebar-user-trigger { justify-content: flex-start; width: 100%; min-height: 44px; margin: 0; padding: 5px 7px; }
 
 @media (max-width: 900px) {
   .app.com-lateral { display: block; }
@@ -1071,26 +1073,26 @@ body.sidebar-drawer-aberto { overflow: hidden; }
   }
   .sidebar-rail { display: none; }
   .app.sidebar-drawer-aberto .sidebar { transform: translateX(0); }
-  .app.sidebar-recolhida .sidebar { width: min(288px, calc(100vw - 48px)); padding: 10px 10px 8px; }
-  .app.sidebar-recolhida .sidebar-brand-copy, .app.sidebar-recolhida .sidebar-header-toggle,
-  .app.sidebar-recolhida .sidebar-section-title, .app.sidebar-recolhida .sidebar-search,
-  .app.sidebar-recolhida .sidebar-link-label, .app.sidebar-recolhida .sidebar-link .contador,
-  .app.sidebar-recolhida .sidebar-user-copy, .app.sidebar-recolhida .sidebar-user-chevron,
-  .app.sidebar-recolhida .sidebar-submenu, .app.sidebar-recolhida .sidebar-empty { display: initial; }
-  .app.sidebar-recolhida .sidebar-header { justify-content: flex-start; padding: 0 2px 8px; }
-  .app.sidebar-recolhida .sidebar-brand { flex: 1; justify-content: flex-start; padding: 0 5px; }
-  .app.sidebar-recolhida .sidebar-header-toggle { display: inline-flex; }
-  .app.sidebar-recolhida .sidebar-section-title { display: flex; }
-  .app.sidebar-recolhida .sidebar-brand-copy, .app.sidebar-recolhida .sidebar-search,
-  .app.sidebar-recolhida .sidebar-user-copy, .app.sidebar-recolhida .sidebar-submenu { display: flex; }
-  .app.sidebar-recolhida .sidebar-link-label { display: inline; }
-  .app.sidebar-recolhida .sidebar-link .contador { display: inline-block; }
-  .app.sidebar-recolhida .sidebar-empty { display: block; }
-  .app.sidebar-recolhida .sidebar-menu { margin-top: 3px; }
-  .app.sidebar-recolhida .sidebar-link { justify-content: flex-start; width: auto; min-height: 32px; margin: 0; padding: 0 9px; }
-  .app.sidebar-recolhida .sidebar-user-trigger { justify-content: flex-start; width: 100%; min-height: 44px; margin: 0; padding: 5px 7px; }
-  .app.sidebar-recolhida .sidebar-footer { padding: 8px 2px 0; }
-  .app.sidebar-recolhida .sidebar-backdrop, .sidebar-backdrop { display: none; }
+  .sidebar-recolhida .app .sidebar { width: min(288px, calc(100vw - 48px)); padding: 10px 10px 8px; }
+  .sidebar-recolhida .app .sidebar-brand-copy, .sidebar-recolhida .app .sidebar-header-toggle,
+  .sidebar-recolhida .app .sidebar-section-title, .sidebar-recolhida .app .sidebar-search,
+  .sidebar-recolhida .app .sidebar-link-label, .sidebar-recolhida .app .sidebar-link .contador,
+  .sidebar-recolhida .app .sidebar-user-copy, .sidebar-recolhida .app .sidebar-user-chevron,
+  .sidebar-recolhida .app .sidebar-submenu, .sidebar-recolhida .app .sidebar-empty { display: initial; }
+  .sidebar-recolhida .app .sidebar-header { justify-content: flex-start; padding: 0 2px 8px; }
+  .sidebar-recolhida .app .sidebar-brand { flex: 1; justify-content: flex-start; padding: 0 5px; }
+  .sidebar-recolhida .app .sidebar-header-toggle { display: inline-flex; }
+  .sidebar-recolhida .app .sidebar-section-title { display: flex; }
+  .sidebar-recolhida .app .sidebar-brand-copy, .sidebar-recolhida .app .sidebar-search,
+  .sidebar-recolhida .app .sidebar-user-copy, .sidebar-recolhida .app .sidebar-submenu { display: flex; }
+  .sidebar-recolhida .app .sidebar-link-label { display: inline; }
+  .sidebar-recolhida .app .sidebar-link .contador { display: inline-block; }
+  .sidebar-recolhida .app .sidebar-empty { display: block; }
+  .sidebar-recolhida .app .sidebar-menu { margin-top: 3px; }
+  .sidebar-recolhida .app .sidebar-link { justify-content: flex-start; width: auto; min-height: 32px; margin: 0; padding: 0 9px; }
+  .sidebar-recolhida .app .sidebar-user-trigger { justify-content: flex-start; width: 100%; min-height: 44px; margin: 0; padding: 5px 7px; }
+  .sidebar-recolhida .app .sidebar-footer { padding: 8px 2px 0; }
+  .sidebar-recolhida .app .sidebar-backdrop, .sidebar-backdrop { display: none; }
   .app.sidebar-drawer-aberto .sidebar-backdrop {
     position: fixed;
     inset: 0;

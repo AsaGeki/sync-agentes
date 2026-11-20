@@ -8,10 +8,18 @@
   <title>{% block titulo %}sync-agents{% endblock %}</title>
   <link rel="icon" href="/web/assets/favicon.ico?v=brand-2" type="image/x-icon">
   <link rel="icon" href="/web/assets/favicon-dark.ico?v=brand-2" type="image/x-icon" media="(prefers-color-scheme: dark)">
-  <link rel="stylesheet" href="/web/static/app.css?v=sinc-1">
+  <link rel="stylesheet" href="/web/static/app.css?v=sidebar-html-1">
+  <script>
+    // Estado salvo da sidebar aplicado antes de pintar o body (o tela.js só roda depois).
+    try {
+      if (localStorage.getItem("sync-agents:sidebar-recolhida") === "1") document.documentElement.classList.add("sidebar-recolhida");
+      const largura = Number(localStorage.getItem("sync-agents:sidebar-largura"));
+      if (largura >= 176 && largura <= 360) document.documentElement.style.setProperty("--sidebar-largura", `${largura}px`);
+    } catch (_) {}
+  </script>
   <script src="/web/static/htmx.min.js" defer></script>
   <script src="/web/static/tempo-real.js" defer></script>
-  <script src="/web/static/tela.js?v=listeners-1" defer></script>
+  <script src="/web/static/tela.js?v=sidebar-html-1" defer></script>
 </head>
 <body hx-boost="true">
 <div class="app {{ 'com-lateral' if nav is defined else '' }}" data-sidebar-app>
