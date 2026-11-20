@@ -1,4 +1,4 @@
 <div id="erro-msg" class="aviso-erro">
   {{ mensagem }}
-  <button class="link" onclick="this.parentElement.remove()">fechar</button>
+  <button class="link" x-data @click="$el.parentElement.remove()">fechar</button>
 </div>

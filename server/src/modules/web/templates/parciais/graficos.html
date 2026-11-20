@@ -1,0 +1,129 @@
+{# Gráficos da web em HTML: cada barra leva o valor escrito e o rótulo embaixo ou ao lado,
+   sem depender de passar o mouse. Um único item em destaque; o resto em cinza. #}
+
+{% macro cabecalho(titulo, subtitulo='') %}
+  <header class="g-cabeca">
+    <h2>{{ titulo }}</h2>
+    {% if subtitulo %}<p>{{ subtitulo }}</p>{% endif %}
+  </header>
+{% endmacro %}
+
+{% macro kpi(rotulo, valor, unidade='', contexto='', tom='', href=none) %}
+  {% set tag = 'a' if href else 'div' %}
+  <{{ tag }} class="g-kpi {{ ('g-kpi-' ~ tom) if tom else '' }}"{% if href %} href="{{ href }}"{% endif %}>
+    <span class="g-kpi-rotulo">{{ rotulo }}</span>
+    <span class="g-kpi-linha"><strong>{{ valor }}</strong>{% if unidade %}<span>{{ unidade }}</span>{% endif %}</span>
+    {% if caller is defined %}{{ caller() }}{% endif %}
+    {% if contexto %}<span class="g-kpi-contexto">{{ contexto }}</span>{% endif %}
+  </{{ tag }}>
+{% endmacro %}
+
+{% macro progresso(parte, todo, cor='feito') %}
+  <div class="g-progresso" role="img" aria-label="{{ parte }} de {{ todo }}">
+    <div class="g-cor-{{ cor }}" style="width: {{ (100 * parte / todo) if todo else 0 }}%"></div>
+  </div>
+{% endmacro %}
+
+{# Colunas por período, com o valor em cima e o rótulo embaixo de cada uma.
+   `itens`: rotulo, valor, destaque, em_curso. #}
+{% macro colunas(itens, media=none, cor='acento') %}
+  {% set teto = [itens|map(attribute='valor')|max, media or 0, 1]|max %}
+  <div class="g-colunas" role="img" aria-label="{% for i in itens %}{{ i.rotulo }}: {{ i.valor }}{{ ' (em curso)' if i.em_curso }}{{ '; ' if not loop.last }}{% endfor %}{% if media is not none %}; média {{ '%.0f'|format(media) }}{% endif %}">
+    <div class="g-colunas-area">
+      {% if media is not none %}
+        <div class="g-media" style="bottom: {{ 100 * media / teto * 0.82 }}%"><span>média {{ '%.0f'|format(media) }}</span></div>
+      {% endif %}
+      {% for item in itens %}
+        <div class="g-coluna {{ 'destaque' if item.destaque }} {{ 'g-em-curso' if item.em_curso }}">
+          <span class="g-coluna-valor">{{ item.valor }}</span>
+          <div class="g-coluna-barra {{ ('g-cor-' ~ cor) if item.destaque }}" style="height: {{ 82 * item.valor / teto }}%"></div>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="g-colunas-rotulos">
+      {% for item in itens %}
+        <span>{{ item.rotulo }}{% if item.em_curso %}<small>em curso</small>{% endif %}</span>
+      {% endfor %}
+    </div>
+  </div>
+{% endmacro %}
+
+{# Barras horizontais ordenadas. `linhas`: rotulo, sub (opcional), valor, texto, nota (opcional),
+   destaque, cor (opcional, sobrepõe a do gráfico), href (opcional). #}
+{% macro barras(linhas, cor='acento', todas_coloridas=false) %}
+  {% set teto = [linhas|map(attribute='valor')|max, 0.0001]|max if linhas else 1 %}
+  <ul class="g-barras">
+    {% for linha in linhas %}
+      {% set cor_linha = linha.cor or cor %}
+      <li class="{{ 'destaque' if linha.destaque }}">
+        <span class="g-barras-rotulo">
+          {% if linha.href %}<a href="{{ linha.href }}">{{ linha.rotulo }}</a>{% else %}<span>{{ linha.rotulo }}</span>{% endif %}
+          {% if linha.sub %}<small>{{ linha.sub }}</small>{% endif %}
+        </span>
+        <span class="g-barras-trilho"><span class="g-barra {{ linha.classe if linha.classe else (('g-cor-' ~ cor_linha) if (linha.destaque or todas_coloridas)) }}" style="width: {{ [100 * linha.valor / teto, 1]|max }}%"></span></span>
+        <span class="g-barras-valor"><strong>{{ linha.texto }}</strong>{% if linha.nota %}<small>{{ linha.nota }}</small>{% endif %}</span>
+      </li>
+    {% endfor %}
+  </ul>
+{% endmacro %}
+
+{# Mesmas categorias em dois momentos, lado a lado. `comparado` vem de `graficos.status_comparado`. #}
+{% macro antes_depois(comparado) %}
+  <div class="g-legenda">
+    <span><i class="g-amostra g-cinza"></i>{{ comparado.rotulo_antes }}</span>
+    <span><i class="g-amostra g-cor-acento"></i>{{ comparado.rotulo_agora }}</span>
+  </div>
+  <ul class="g-pares">
+    {% for l in comparado.linhas %}
+      <li>
+        <span>{{ l.nome }}</span>
+        <span class="g-pares-barras">
+          <span><span class="g-barra" style="width: {{ [l.pct_antes, 0.5]|max }}%"></span><small>{{ l.antes }}</small></span>
+          <span><span class="g-barra st-{{ l.status }}" style="width: {{ [l.pct_agora, 0.5]|max }}%"></span><strong>{{ l.agora }}</strong></span>
+        </span>
+        <strong class="g-delta {{ 'g-sobe' if l.delta > 0 }}">{{ '+' if l.delta > 0 }}{{ l.delta }}</strong>
+      </li>
+    {% endfor %}
+  </ul>
+{% endmacro %}
+
+{# Colunas com o total e a parte concluída por período. `semanas`: rotulo, total, feitas, pct_total, pct_feitas. #}
+{% macro evolucao(semanas) %}
+  <div class="g-legenda">
+    <span><i class="g-amostra g-cor-feito"></i>concluídas</span>
+    <span><i class="g-amostra g-trilho"></i>ainda abertas</span>
+  </div>
+  <div class="g-colunas" role="img" aria-label="{% for s in semanas %}{{ s.rotulo }}: {{ s.feitas }} de {{ s.total }}{{ '; ' if not loop.last }}{% endfor %}">
+    <div class="g-colunas-area">
+      {% for s in semanas %}
+        <div class="g-coluna">
+          <span class="g-coluna-valor"><strong>{{ s.feitas }}</strong> / {{ s.total }}</span>
+          <div class="g-coluna-barra g-trilho g-empilhada" style="height: {{ 82 * s.pct_total / 100 }}%">
+            <div class="g-cor-feito" style="height: {{ s.pct_feitas }}%"></div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="g-colunas-rotulos">
+      {% for s in semanas %}<span>{{ s.rotulo }}</span>{% endfor %}
+    </div>
+  </div>
+{% endmacro %}
+
+{# Etapas de uma task: largura proporcional à duração, com nome, duração e início embaixo. #}
+{% macro etapas_linha(etapas) %}
+  <div class="g-etapas" role="img" aria-label="{% for e in etapas %}{{ ROTULO_STATUS[e.status] }} {{ e.segundos|duracao }}{{ ', ' if not loop.last }}{% endfor %}">
+    <div class="g-etapas-barra">
+      {% for e in etapas %}<span class="st-{{ e.status }}" style="flex-grow: {{ [e.segundos, 1]|max }}"></span>{% endfor %}
+    </div>
+    <div class="g-etapas-rotulos">
+      {% for e in etapas %}
+        <span style="flex-grow: {{ [e.segundos, 1]|max }}">
+          <span><i class="g-amostra st-{{ e.status }}"></i> {{ ROTULO_STATUS[e.status] }}</span>
+          <strong>{{ e.segundos|duracao }}{{ ' até agora' if e.atual }}</strong>
+          <small>desde {{ e.inicio|quando }} · {{ e.actor.person }}</small>
+        </span>
+      {% endfor %}
+    </div>
+  </div>
+{% endmacro %}

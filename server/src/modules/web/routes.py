@@ -92,11 +92,10 @@ def inicio(request: Request, pessoa: sqlite3.Row = Depends(pessoa_web)):
 def painel(
     request: Request,
     slug: str,
-    por: str = Query("pessoa", pattern="^(pessoa|agent)$"),
     pessoa: sqlite3.Row = Depends(pessoa_web),
 ):
     return _pagina_do_projeto(
-        request, slug, pessoa, "painel.html", lambda conn, projeto: paginas.ctx_painel(conn, projeto, pessoa["id"], por)
+        request, slug, pessoa, "painel.html", lambda conn, projeto: paginas.ctx_painel(conn, projeto, pessoa["id"])
     )
 
 

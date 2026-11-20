@@ -15,7 +15,7 @@ from src.modules.features import service as features_service
 from src.modules.projects import repositorio as projects_repositorio
 from src.modules.tasks import repositorio as tasks_repositorio
 from src.modules.tasks import service as tasks_service
-from src.modules.web import indicadores
+from src.modules.web import graficos, indicadores
 from src.modules.web.templating import ROTULO_AGENT, code_curto, parada
 from src.shared import codes
 from src.shared.enums import EKindEvent, EStatusTask, ETypeMessage
@@ -89,15 +89,12 @@ def ctx_nav(conn: sqlite3.Connection, person_id: int | None) -> list[dict[str, A
     return itens
 
 
-def ctx_painel(
-    conn: sqlite3.Connection, projeto: sqlite3.Row, person_id: int | None, por: str
-) -> dict[str, Any]:
+def ctx_painel(conn: sqlite3.Connection, projeto: sqlite3.Row, person_id: int | None) -> dict[str, Any]:
     return {
         **_base(person_id),
         "aba": "painel",
         "projeto": projeto,
         "painel": indicadores.painel(conn, projeto, person_id),
-        "grafico": indicadores.atividade(conn, projeto["id"], por),
     }
 
 
@@ -191,6 +188,10 @@ def _agrupar_por_status(tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+def _tags_do_projeto(tasks: list[sqlite3.Row]) -> list[str]:
+    return sorted({tag for linha in tasks for tag in json.loads(linha["tags"])})
+
+
 def ctx_tasks(
     conn: sqlite3.Connection, projeto: sqlite3.Row, person_id: int | None, f: dict[str, Any]
 ) -> dict[str, Any]:
@@ -223,7 +224,7 @@ def ctx_tasks(
         "colunas": [(s, [t for t in tasks if t["status"] == s]) for s in statuses],
         "features": features_repositorio.find_all(conn, projeto["id"]),
         "membros": membros,
-        "tags": sorted({tag for linha in todas for tag in json.loads(linha["tags"])}),
+        "tags": _tags_do_projeto(todas),
         "statuses": statuses,
         "filtros": f,
         "ativos": ativos,
@@ -268,12 +269,17 @@ def ctx_feature(
         (t for t in tasks if t["status"] in ORDEM_ABERTAS),
         key=lambda t: ORDEM_ABERTAS.index(t["status"]),
     )
+    ids = [t["id"] for t in conn.execute("SELECT id FROM tasks WHERE feature_id = ?", (linha["id"],))]
+    evolucao = graficos.evolucao_da_feature(
+        graficos.historico_de_status(conn, projeto["id"]), ids, datetime.now().astimezone()
+    )
     return {
         **_base(person_id),
         "aba": "feature",
         "projeto": projeto,
         "feature": feature,
         "abertas": abertas,
+        "evolucao": evolucao,
         "feitas": [t for t in tasks if t["status"] == EStatusTask.feito.value],
         "canceladas": [t for t in tasks if t["status"] == EStatusTask.cancelada.value],
         "participantes": indicadores.participantes_por_feature(conn, projeto["id"]).get(feature["code"], []),
@@ -399,6 +405,10 @@ def ctx_task(
         "task": task,
         "nomes": nomes_das_pessoas(conn),
         "etapas": etapas,
+        "etapas_grafico": [
+            e for e in etapas
+            if not (e["atual"] and e["status"] in (EStatusTask.feito.value, EStatusTask.cancelada.value))
+        ],
         "resumo_etapas": etapas_service.resumo_das_etapas(etapas),
         "blocos": linha_do_tempo(eventos, abertas),
         "abertas": len(abertas),
@@ -408,6 +418,7 @@ def ctx_task(
         "ultimo_corpo": corpos[-1] if corpos else None,
         "membros": projects_repositorio.membros_do_projeto(conn, projeto["id"]),
         "features": features_repositorio.find_all(conn, projeto["id"]),
+        "tags_projeto": _tags_do_projeto(tasks_repositorio.find_all(conn, projeto["id"], None)),
         "statuses": [s.value for s in EStatusTask],
         "tipos_mensagem": [t.value for t in ETypeMessage],
     }

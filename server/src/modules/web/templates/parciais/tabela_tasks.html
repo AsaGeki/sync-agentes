@@ -1,7 +1,7 @@
 {% from "parciais/macros.html" import avatar, status_pill, selo_fazendo %}
 {# Variáveis: `tasks`. Opcionais: `legenda`, `na_feature` e `vazio_msg`. #}
 {% set progresso_status = {'ideia': 0, 'em_andamento': 40, 'parcial': 70, 'bloqueado': 40, 'aguardando_decisao': 85, 'feito': 100, 'cancelada': 0} %}
-<div class="data-table-shell" data-data-table>
+<div class="data-table-shell" data-data-table x-data="tabelaTasks">
   <div class="tabela-rolagem">
     <table class="tabela tabela-tasks">
       <caption class="sr">{{ legenda or 'Tasks' }}</caption>
@@ -11,15 +11,15 @@
       </colgroup>
       <thead><tr>
         {% if not admin %}<th scope="col" class="col-lido"><span class="sr">Não lidos pela IA</span></th>{% endif %}
-        <th scope="col"><button type="button" class="data-table-sort" data-table-sort="code" aria-label="Ordenar por código">Code</button></th>
-        <th scope="col"><button type="button" class="data-table-sort" data-table-sort="title" aria-label="Ordenar por título">Título</button></th>
-        <th scope="col"><button type="button" class="data-table-sort" data-table-sort="status" aria-label="Ordenar por status">Status</button></th>
-        <th scope="col"><button type="button" class="data-table-sort" data-table-sort="owner" aria-label="Ordenar por responsável">Dono</button></th>
-        <th scope="col" class="col-tags"><button type="button" class="data-table-sort" data-table-sort="tags" aria-label="Ordenar por tags">Tags</button></th>
-        <th scope="col" class="col-data"><button type="button" class="data-table-sort" data-table-sort="updated" aria-label="Ordenar por data de atualização">Atualizada</button></th>
-        <th scope="col" class="col-progresso"><button type="button" class="data-table-sort" data-table-sort="progress" aria-label="Ordenar por progresso">Progresso</button></th>
+        <th scope="col" :aria-sort="ordem('code')"><button type="button" class="data-table-sort" data-table-sort="code" @click="ordenar('code')" aria-label="Ordenar por código">Code</button></th>
+        <th scope="col" :aria-sort="ordem('title')"><button type="button" class="data-table-sort" data-table-sort="title" @click="ordenar('title')" aria-label="Ordenar por título">Título</button></th>
+        <th scope="col" :aria-sort="ordem('status')"><button type="button" class="data-table-sort" data-table-sort="status" @click="ordenar('status')" aria-label="Ordenar por status">Status</button></th>
+        <th scope="col" :aria-sort="ordem('owner')"><button type="button" class="data-table-sort" data-table-sort="owner" @click="ordenar('owner')" aria-label="Ordenar por responsável">Dono</button></th>
+        <th scope="col" class="col-tags" :aria-sort="ordem('tags')"><button type="button" class="data-table-sort" data-table-sort="tags" @click="ordenar('tags')" aria-label="Ordenar por tags">Tags</button></th>
+        <th scope="col" class="col-data" :aria-sort="ordem('updated')"><button type="button" class="data-table-sort" data-table-sort="updated" @click="ordenar('updated')" aria-label="Ordenar por data de atualização">Atualizada</button></th>
+        <th scope="col" class="col-progresso" :aria-sort="ordem('progress')"><button type="button" class="data-table-sort" data-table-sort="progress" @click="ordenar('progress')" aria-label="Ordenar por progresso">Progresso</button></th>
       </tr></thead>
-      <tbody>
+      <tbody x-ref="corpo">
         {% for t in tasks %}
           {% set progresso = progresso_status[t.status] %}
           <tr class="{{ 'nao-lida' if t.nao_lidos else '' }}" data-task-row>
@@ -49,16 +49,16 @@
   <footer class="data-table-footer" data-table-footer data-page="1" data-page-size="10">
     <div class="data-table-footer-tools">
       <label>Linhas por página
-        <select data-table-page-size aria-label="Linhas por página">
+        <select data-table-page-size aria-label="Linhas por página" x-model.number="tamanho" @change="mudarTamanho()">
           <option value="10" selected>10</option><option value="20">20</option><option value="50">50</option>
         </select>
       </label>
-      <span class="data-table-range" data-page-range aria-live="polite"></span>
+      <span class="data-table-range" data-page-range aria-live="polite" x-text="faixa"></span>
     </div>
     <nav class="data-table-pagination" aria-label="Paginação da tabela">
-      <button type="button" data-table-page-step="-1" aria-label="Página anterior" disabled>‹</button>
-      <span data-page-label aria-live="polite">Página 1 de 1</span>
-      <button type="button" data-table-page-step="1" aria-label="Próxima página" disabled>›</button>
+      <button type="button" data-table-page-step="-1" aria-label="Página anterior" disabled @click="irPara(-1)" :disabled="pagina <= 1">‹</button>
+      <span data-page-label aria-live="polite" x-text="'Página ' + pagina + ' de ' + paginas">Página 1 de 1</span>
+      <button type="button" data-table-page-step="1" aria-label="Próxima página" disabled @click="irPara(1)" :disabled="pagina >= paginas">›</button>
     </nav>
   </footer>
 </div>

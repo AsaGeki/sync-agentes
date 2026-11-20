@@ -180,11 +180,10 @@ def test_web_progresso_sem_canceladas_e_coluna_no_quadro(cena):
     mundo.task(ana, slug, "Cancelada", status="cancelada")
     web = _logar(ana.token)
     painel = web.get(f"/web/p/{slug}").text
-    assert "1<small> / 2</small>" in painel
-    assert "3 tasks no projeto, 1 cancelada(s) fora do progresso" in painel
-    assert "st-cancelada" in painel
+    assert "1 de 2 tasks" in painel
+    assert "1 cancelada(s) fora da conta" in painel
     inicio = web.get("/web").text
-    assert "1/2 tasks feitas" in inicio
+    assert "1 de 2 feitas" in inicio
     quadro = web.get(f"/web/p/{slug}/tasks?visao=quadro").text
     assert quadro.count("coluna-quadro") >= 7 and "cancelada" in quadro
     assert web.get(f"/web/p/{slug}/tasks", params={"status": "cancelada"}).status_code == 200

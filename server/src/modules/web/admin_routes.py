@@ -139,10 +139,10 @@ def apagar_projeto(slug: str) -> Response:
 
 
 @protegido.get("/web/admin/p/{slug}")
-def painel(request: Request, slug: str, por: str = Query("pessoa", pattern="^(pessoa|agent)$")):
+def painel(request: Request, slug: str):
     with closing(conectar()) as conn:
         projeto = projects_repositorio.find_by_slug(conn, slug)
-        ctx = paginas.ctx_painel(conn, projeto, None, por)
+        ctx = paginas.ctx_painel(conn, projeto, None)
         pedidos = projects_repositorio.pending_requests_do_projeto(conn, projeto["id"])
         nav = paginas.ctx_nav(conn, None)
     return templates.TemplateResponse(request, "painel.html", {**ctx, "pedidos": pedidos, "nav": nav})
@@ -172,21 +172,21 @@ async def exportar_projeto(request: Request, slug: str):
 def adicionar_membro(request: Request, slug: str, email: str = Form(...)):
     with closing(conectar()) as conn:
         projects_service.admin_add_member(conn, slug, email.strip())
-    return painel(request, slug, por="pessoa")
+    return painel(request, slug)
 
 
 @protegido.post("/web/admin/p/{slug}/membros/{person_id}/remover")
 def remover_membro(request: Request, slug: str, person_id: int):
     with closing(conectar()) as conn:
         projects_service.admin_remove_member(conn, slug, person_id, CTX_WEB)
-    return painel(request, slug, por="pessoa")
+    return painel(request, slug)
 
 
 @protegido.post("/web/admin/p/{slug}/membros/{person_id}/papel")
 def trocar_papel(request: Request, slug: str, person_id: int, role: ERole = Form(...)):
     with closing(conectar()) as conn:
         projects_service.admin_set_member_role(conn, slug, person_id, role)
-    return painel(request, slug, por="pessoa")
+    return painel(request, slug)
 
 
 @protegido.post("/web/admin/p/{slug}/pedidos/{request_id}/{acao}")
@@ -195,7 +195,7 @@ def resolver_pedido(
 ):
     with closing(conectar()) as conn:
         projects_service.admin_resolver_request(conn, slug, request_id, aceitar=acao == "aceitar")
-    return painel(request, slug, por="pessoa")
+    return painel(request, slug)
 
 
 def _pagina_do_projeto(request: Request, slug: str, modelo: str, montar):

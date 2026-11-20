@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "parciais/macros.html" import icone, avatar, status_pill, selo_fazendo, agente, hora %}
 {% from "parciais/eventos.html" import acao_evento %}
+{% from "parciais/graficos.html" import cabecalho, etapas_linha %}
 {% block titulo %}{{ task.code|code_curto }} {{ task.title }} · {{ projeto['name'] }}{% endblock %}
 {% block conteudo %}
 {% set url_task = base ~ '/p/' ~ projeto['slug'] ~ '/t/' ~ task.code %}
@@ -24,6 +25,16 @@
 <div class="task-layout">
   <div class="task-principal">
 
+    {% if etapas_grafico %}
+    <section class="g-cartao task-etapas">
+      {% set total_etapas = etapas_grafico|sum(attribute='segundos') %}
+      {{ cabecalho('Tempo em cada etapa',
+                   ('da criação até feito: ' ~ (resumo_etapas.ate_feito|duracao)) if resumo_etapas.ate_feito is not none
+                   else ('desde a criação: ' ~ (total_etapas|duracao))) }}
+      {{ etapas_linha(etapas_grafico) }}
+    </section>
+    {% endif %}
+
     <details id="corpo-card" class="cartao corpo-card" {% if task.corpo %}open{% endif %}>
       <summary>
         {{ icone('corpo') }} <strong>Corpo</strong>
@@ -31,11 +42,10 @@
       </summary>
       {% if task.corpo %}
         {% set longo = task.corpo|length > 1500 %}
-        <div class="md {{ 'longa' if longo else '' }}">{{ task.corpo|markdown }}</div>
-        {% if longo %}
-          <button type="button" class="link ver-mais"
-                  onclick="const md = this.previousElementSibling; md.classList.toggle('expandida'); this.textContent = md.classList.contains('expandida') ? 'mostrar menos' : 'mostrar o corpo inteiro';">mostrar o corpo inteiro</button>
-        {% endif %}
+        <div x-data="{ expandida: false }">
+          <div class="md {{ 'longa' if longo else '' }}" :class="{ expandida }">{{ task.corpo|markdown }}</div>
+          {% if longo %}<button type="button" class="link ver-mais" @click="expandida = !expandida" x-text="expandida ? 'mostrar menos' : 'mostrar o corpo inteiro'">mostrar o corpo inteiro</button>{% endif %}
+        </div>
       {% else %}<p class="mudo">Sem corpo.</p>{% endif %}
     </details>
 
@@ -62,11 +72,10 @@
                     {% if not loop.first %}<span class="mudo hora-extra">{{ hora(m.created_at) }}</span>{% endif %}
                   </div>
                   {% set longa = m.payload.texto|length > 1200 %}
-                  <div class="md {{ 'longa' if longa else '' }}">{{ m.payload.texto|markdown }}</div>
-                  {% if longa %}
-                    <button type="button" class="link ver-mais"
-                            onclick="const md = this.previousElementSibling; md.classList.toggle('expandida'); this.textContent = md.classList.contains('expandida') ? 'mostrar menos' : 'mostrar tudo';">mostrar tudo</button>
-                  {% endif %}
+                  <div x-data="{ expandida: false }">
+                    <div class="md {{ 'longa' if longa else '' }}" :class="{ expandida }">{{ m.payload.texto|markdown }}</div>
+                    {% if longa %}<button type="button" class="link ver-mais" @click="expandida = !expandida" x-text="expandida ? 'mostrar menos' : 'mostrar tudo'">mostrar tudo</button>{% endif %}
+                  </div>
                 </div>
               {% endfor %}
             </div>
@@ -138,47 +147,66 @@
           <dt>Tags</dt><dd>{% for tag in task.tags %}<span class="etiqueta">{{ tag }}</span>{% else %}—{% endfor %}</dd>
         </dl>
       {% else %}
-        <form class="props" hx-post="{{ url_task }}/campos" hx-trigger="change" hx-target="#propriedades" hx-select="#propriedades"
+        {% set dono = membros|selectattr('id', 'equalto', task.owner_id)|first %}
+        <form class="props-form" hx-post="{{ url_task }}/campos" hx-trigger="change" hx-target="#propriedades" hx-select="#propriedades"
               hx-select-oob="#task-titulo,#conversa" hx-swap="outerHTML"
               hx-on::after-request="if (event.detail.xhr.status >= 400) this.reset()">
-          <label>Status
-            <select name="status">
-              {% for s in statuses %}<option value="{{ s }}" {% if task.status == s %}selected{% endif %}>{{ ROTULO_STATUS[s] }}</option>{% endfor %}
-            </select>
+          <label class="prop">
+            <span class="prop-rotulo">Status</span>
+            <span class="prop-campo st-{{ task.status }}">
+              <span class="ponto" aria-hidden="true"></span>
+              <select name="status">
+                {% for s in statuses %}<option value="{{ s }}" {% if task.status == s %}selected{% endif %}>{{ ROTULO_STATUS[s] }}</option>{% endfor %}
+              </select>
+            </span>
           </label>
-          <label>Dono
-            <select name="owner_id">
-              {# Vazio não muda o dono: só aparece com dono que já saiu do projeto. "0" tira o dono. #}
-              {% if task.owner_id and task.owner_id not in membros|map(attribute='id')|list %}<option value="" selected>{{ task.owner }}</option>{% endif %}
-              <option value="0" {% if not task.owner_id %}selected{% endif %}>sem dono</option>
-              {% for m in membros %}<option value="{{ m['id'] }}" {% if task.owner_id == m['id'] %}selected{% endif %}>{{ m['name'] }}</option>{% endfor %}
-            </select>
+          <label class="prop">
+            <span class="prop-rotulo">Dono</span>
+            <span class="prop-campo">
+              {% if dono %}{{ avatar(dono['email'].split('@')[0]|lower, dono['name'], 'pequeno') }}
+              {% elif task.owner %}{{ avatar(task.owner, task.owner, 'pequeno') }}
+              {% else %}<span class="avatar pequeno prop-sem-dono" aria-hidden="true"></span>{% endif %}
+              <select name="owner_id">
+                {# Vazio não muda o dono: só aparece com dono que já saiu do projeto. "0" tira o dono. #}
+                {% if task.owner_id and not dono %}<option value="" selected>{{ task.owner }}</option>{% endif %}
+                <option value="0" {% if not task.owner_id %}selected{% endif %}>Sem dono</option>
+                {% for m in membros %}<option value="{{ m['id'] }}" {% if task.owner_id == m['id'] %}selected{% endif %}>{{ m['name'] }}</option>{% endfor %}
+              </select>
+            </span>
           </label>
-          <label>Feature
-            <select name="feature">
-              <option value="">sem feature</option>
-              {% for f in features %}<option value="{{ f['code'] }}" {% if task.feature and task.feature.code == f['code'] %}selected{% endif %}>{{ f['code']|code_curto }} {{ f['title'] }}</option>{% endfor %}
-            </select>
+          <label class="prop">
+            <span class="prop-rotulo">Feature</span>
+            <span class="prop-campo">
+              <select name="feature">
+                <option value="">Sem feature</option>
+                {% for f in features %}<option value="{{ f['code'] }}" {% if task.feature and task.feature.code == f['code'] %}selected{% endif %}>{{ f['code']|code_curto }} · {{ f['title'] }}</option>{% endfor %}
+              </select>
+            </span>
           </label>
-          <label>Tags <input type="text" name="tags" value="{{ task.tags|join(', ') }}" placeholder="separadas por vírgula"></label>
+          <div class="prop prop-tags">
+            <span class="prop-rotulo" id="rotulo-tags">Tags</span>
+            <div class="tags-editor" x-data="editorTags" data-tags="{{ task.tags|tojson|forceescape }}" data-sugestoes="{{ tags_projeto|tojson|forceescape }}"
+                 @focusout="sair($event)" @click.self="$refs.entrada.focus()">
+              <input type="hidden" name="tags" value="{{ task.tags|join(',') }}" x-ref="valor">
+              <template x-for="tag in tags" :key="tag">
+                <span class="tag-chip"><span x-text="tag"></span><button type="button" class="tag-remover" @click="remover(tag)" :aria-label="'Remover a tag ' + tag">×</button></span>
+              </template>
+              <input id="tags-entrada" type="text" class="tags-entrada" x-ref="entrada" x-model="texto" autocomplete="off"
+                     placeholder="Adicionar…" aria-labelledby="rotulo-tags" role="combobox" aria-autocomplete="list" aria-controls="tags-sugestoes"
+                     :aria-expanded="mostrarLista" @input="digitou()" @focus="aberto = true" @keydown="teclado($event)" @change.stop>
+              <ul id="tags-sugestoes" class="tags-sugestoes" role="listbox" hidden :hidden="!mostrarLista">
+                <template x-for="(opcao, i) in opcoes" :key="opcao.valor + opcao.nova">
+                  <li role="option" :aria-selected="i === ativo" :class="{ ativo: i === ativo, nova: opcao.nova }"
+                      @mousedown.prevent="adicionar(opcao.valor)" @mouseenter="ativo = i"
+                      x-text="opcao.nova ? 'Criar “' + opcao.valor + '”' : opcao.valor"></li>
+                </template>
+              </ul>
+            </div>
+          </div>
         </form>
       {% endif %}
     </section>
 
-    <section class="bloco-lateral">
-      <h2>Etapas</h2>
-      <ol class="etapas">
-        {% for et in etapas %}
-          <li class="{{ 'atual' if et.atual else '' }}">
-            {{ status_pill(et.status) }}
-            <span class="duracao">{{ et.segundos|duracao }}{% if et.atual %} até agora{% endif %}</span>
-            <span class="mudo por">{{ et.actor.person }}{{ agente(et.actor.agent) }} · {{ et.inicio|relativo }}</span>
-          </li>
-        {% endfor %}
-      </ol>
-      {% if resumo_etapas.ate_feito is not none %}<p class="mudo resumo-etapas">Da criação até feito: {{ resumo_etapas.ate_feito|duracao }}</p>{% endif %}
-      {% if resumo_etapas.em_andamento is not none %}<p class="mudo resumo-etapas">Em andamento no total: {{ resumo_etapas.em_andamento|duracao }}</p>{% endif %}
-    </section>
 
     {% if task.dependencies %}
     <section class="bloco-lateral">

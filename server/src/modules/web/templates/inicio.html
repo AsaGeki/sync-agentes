@@ -1,37 +1,50 @@
 {% extends "base.html" %}
+{% from "parciais/graficos.html" import progresso %}
 {% block titulo %}{{ 'Todos os projetos' if admin else 'Meus projetos' }} · sync-agents{% endblock %}
 {% block conteudo %}
-<div class="cabeca-pagina"><h1>{{ 'Todos os projetos' if admin else 'Visão geral' }}</h1><span class="mudo">{{ cards|length }} projeto(s)</span></div>
-{% if not cards %}
-  <p class="mudo">{{ 'Nenhum projeto cadastrado.' if admin else 'Você ainda não é membro de nenhum projeto.' }}</p>
-{% endif %}
-<div class="grade-cards">
-  {% for c in cards %}
-  <article class="cartao card-projeto">
-    <header>
-      <h2><a href="{{ base }}/p/{{ c.slug }}">{{ c.name }}</a></h2>
-      <span class="etiqueta">{{ c.status }}</span>
-      <span class="etiqueta">{{ c.visibility }}</span>
-    </header>
-    {% if c.description %}<p class="descricao-card" title="{{ c.description }}">{{ c.description.splitlines()[0]|truncate(160)|markdown_linha }}</p>{% endif %}
-    <div class="medidor" role="img" aria-label="{{ c.feitas }} de {{ c.total_tasks }} tasks feitas">
-      <div class="medidor-fill" style="width: {{ (100 * c.feitas / c.total_tasks) if c.total_tasks else 0 }}%"></div>
-    </div>
-    <p class="mudo">{{ c.feitas }}/{{ c.total_tasks }} tasks feitas · <span title="{{ c.membros }} membro(s) com acesso">{{ c.participantes }} participante(s)</span></p>
-    <dl class="numeros">
-      <div><dt>Fazendo agora</dt><dd>{{ c.fazendo_agora }}</dd></div>
-      <div><dt>Precisam de atenção</dt><dd>{{ c.atencao }}</dd></div>
-      <div><dt>Perguntas abertas</dt><dd>{{ c.perguntas_abertas }}</dd></div>
-      {% if c.nao_lidos is not none %}<div><dt title="Eventos que sua IA ainda não leu">Não lidos (IA)</dt><dd>{{ c.nao_lidos }}</dd></div>{% endif %}
-    </dl>
-    <footer class="mudo">
-      <span title="{{ c.ultima_atividade|quando }}">Última atividade {{ c.ultima_atividade|relativo }}</span>
-      {% if admin %}
-        <button class="perigo" hx-post="/web/admin/p/{{ c.slug }}/apagar"
-                hx-confirm="Apagar o projeto '{{ c.name }}' e tudo dele (tasks, eventos, membros)? Não dá pra desfazer.">apagar</button>
-      {% endif %}
-    </footer>
-  </article>
-  {% endfor %}
+{% set travadas_total = cards|sum(attribute='atencao') %}
+<div class="painel-novo">
+  <header class="g-cabeca">
+    <h1 class="inicio-titulo">{{ 'Todos os projetos' if admin else 'Visão geral' }}</h1>
+    <p>{{ cards|length }} projeto(s) · {{ travadas_total }} task(s) travada(s) no total</p>
+  </header>
+  {% if not cards %}
+    <p class="mudo">{{ 'Nenhum projeto cadastrado.' if admin else 'Você ainda não é membro de nenhum projeto.' }}</p>
+  {% else %}
+  <section class="g-cartao inicio-tabela">
+    <table>
+      <thead>
+        <tr>
+          <th>Projeto</th><th>Concluído</th><th>Travadas</th><th>Perguntas abertas</th>
+          {% if not admin %}<th>Não lidos pela IA</th>{% endif %}
+          <th>Eventos em 14 dias</th><th>Última atividade</th>{% if admin %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in cards|sort(attribute='atencao', reverse=true) %}
+          <tr>
+            <td>
+              <a class="inicio-nome" href="{{ base }}/p/{{ c.slug }}">{{ c.name }}</a>
+              <span class="mudo">{{ c.status }} · {{ c.visibility }} · {{ c.membros }} membro(s)</span>
+            </td>
+            <td class="inicio-concluido">
+              {{ progresso(c.feitas, c.total_tasks) }}
+              <span><strong>{{ '%.0f'|format(100 * c.feitas / c.total_tasks) if c.total_tasks else 0 }}%</strong> <span class="mudo">{{ c.feitas }} de {{ c.total_tasks }} feitas</span></span>
+            </td>
+            <td class="numero {{ 'inicio-alerta' if c.atencao }}">{{ c.atencao }}</td>
+            <td class="numero">{{ c.perguntas_abertas }}</td>
+            {% if not admin %}<td class="numero">{{ c.nao_lidos }}</td>{% endif %}
+            <td class="numero">{{ c.eventos_14d }}</td>
+            <td><span title="{{ c.ultima_atividade|quando }}">{{ c.ultima_atividade|relativo }}</span></td>
+            {% if admin %}
+              <td><button class="perigo" hx-post="/web/admin/p/{{ c.slug }}/apagar"
+                          hx-confirm="Apagar o projeto '{{ c.name }}' e tudo dele (tasks, eventos, membros)? Não dá pra desfazer.">apagar</button></td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
 </div>
 {% endblock %}

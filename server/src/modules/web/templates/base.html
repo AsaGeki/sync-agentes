@@ -8,7 +8,7 @@
   <title>{% block titulo %}sync-agents{% endblock %}</title>
   <link rel="icon" href="/web/assets/favicon.ico?v=brand-2" type="image/x-icon">
   <link rel="icon" href="/web/assets/favicon-dark.ico?v=brand-2" type="image/x-icon" media="(prefers-color-scheme: dark)">
-  <link rel="stylesheet" href="/web/static/app.css?v=sidebar-html-1">
+  <link rel="stylesheet" href="/web/static/app.css?v=props-1">
   <script>
     // Estado salvo da sidebar aplicado antes de pintar o body (o tela.js só roda depois).
     try {
@@ -19,10 +19,14 @@
   </script>
   <script src="/web/static/htmx.min.js" defer></script>
   <script src="/web/static/tempo-real.js" defer></script>
-  <script src="/web/static/tela.js?v=sidebar-html-1" defer></script>
+  <script src="/web/static/tela.js?v=props-1" defer></script>
+  <script src="/web/static/alpine.min.js?v=3.14.9" defer></script>
 </head>
 <body hx-boost="true">
-<div class="app {{ 'com-lateral' if nav is defined else '' }}" data-sidebar-app>
+<div class="app {{ 'com-lateral' if nav is defined else '' }}" data-sidebar-app x-data
+     :class="{ 'sidebar-drawer-aberto': $store.sidebar.gaveta, 'sidebar-redimensionando': $store.sidebar.arrastando }"
+     x-effect="document.body.classList.toggle('sidebar-drawer-aberto', $store.sidebar.gaveta)"
+     @keydown.window="$store.sidebar.teclado($event)">
   {% set notificacoes = namespace(total=0) %}
   {% if projeto is defined and nav is defined and not admin %}
     {% for item in nav %}
@@ -30,7 +34,8 @@
     {% endfor %}
   {% endif %}
   {% if nav is defined %}
-  <aside class="sidebar" id="app-sidebar" aria-label="Navegação principal">
+  <aside class="sidebar" id="app-sidebar" aria-label="Navegação principal"
+         @click="$store.sidebar.cliqueNaLateral($event)" @keydown.tab="$store.sidebar.prenderFoco($event, $el)">
     <header class="sidebar-header">
       <a class="sidebar-brand" href="{{ base }}" aria-label="sync-agents — início">
         <picture class="sidebar-brand-mark" aria-hidden="true">
@@ -59,13 +64,13 @@
       </section>
       {% endif %}
 
-      <section class="sidebar-section sidebar-project-section">
+      <section class="sidebar-section sidebar-project-section" x-data="buscaProjetos">
         <h2 class="sidebar-section-title">{{ 'Projetos' if admin else 'Meus projetos' }}</h2>
         {% if nav|length > 6 %}
         <div class="sidebar-search">
           <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
           <label class="sr" for="sidebar-project-search">Buscar projeto</label>
-          <input id="sidebar-project-search" type="search" placeholder="Buscar projeto…" autocomplete="off" data-sidebar-search>
+          <input id="sidebar-project-search" type="search" placeholder="Buscar projeto…" autocomplete="off" data-sidebar-search x-model="busca">
           <kbd aria-hidden="true">/</kbd>
         </div>
         {% endif %}
@@ -80,7 +85,7 @@
           {% endif %}
           {% for item in nav %}
             {% set atual = projeto is defined and projeto['slug'] == item.slug %}
-            <div class="sidebar-project" data-sidebar-project-item data-project-name="{{ item.name }}">
+            <div class="sidebar-project" data-sidebar-project-item data-project-name="{{ item.name }}" x-show="corresponde($el.dataset.projectName)">
               <a href="{{ base }}/p/{{ item.slug }}" class="sidebar-link projeto-nav {{ 'aberto' if atual else '' }}" {% if not atual and request.url.path == base ~ '/p/' ~ item.slug %}aria-current="page"{% endif %} title="{{ item.name }}">
                 {{ icone('pasta') }}<span class="sidebar-link-label">{{ item.name }}</span>
                 {% if not admin %}<span class="contador" id="contador-{{ item.slug }}" {% if not item.nao_lidos %}hidden{% endif %} title="{{ item.nao_lidos }} evento(s) que sua IA ainda não leu">{{ item.nao_lidos or '' }}</span>{% endif %}
@@ -95,19 +100,22 @@
               {% endif %}
             </div>
           {% endfor %}
-          <p class="sidebar-empty" data-sidebar-empty hidden>Nenhum projeto encontrado.</p>
+          <p class="sidebar-empty" data-sidebar-empty hidden :hidden="!vazio">Nenhum projeto encontrado.</p>
         </nav>
       </section>
     </div>
 
     <footer class="sidebar-footer">
-      <div class="sidebar-user-menu" data-user-menu>
-        <button class="sidebar-user-trigger" type="button" data-user-trigger aria-haspopup="menu" aria-expanded="false" aria-controls="sidebar-user-menu">
+      <div class="sidebar-user-menu" data-user-menu x-data="menuConta"
+           @click.outside="fechar(false)" @keydown.escape="fechar(true)" @focusout="sairDoFoco($event)">
+        <button class="sidebar-user-trigger" type="button" data-user-trigger aria-haspopup="menu" aria-expanded="false" aria-controls="sidebar-user-menu"
+                @click="alternar()" @keydown.down.prevent="abrir(0)" @keydown.up.prevent="abrir(-1)" :aria-expanded="aberto">
           <span class="sidebar-user-avatar">{% if pessoa %}{{ avatar(pessoa['alias'], pessoa['name']) }}{% else %}{{ avatar('admin', 'Administrador') }}{% endif %}</span>
           <span class="sidebar-user-copy"><strong>{{ pessoa['name'] if pessoa else 'Administrador' }}</strong><small>{{ pessoa['alias'] if pessoa else 'Conta de acesso' }}</small></span>
           <svg class="sidebar-user-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4M4 10l4-4 4 4"/></svg>
         </button>
-        <div class="sidebar-user-popover" id="sidebar-user-menu" role="menu" aria-label="Conta" hidden>
+        <div class="sidebar-user-popover" id="sidebar-user-menu" role="menu" aria-label="Conta" hidden :hidden="!aberto"
+             @keydown.down.prevent="mover(1)" @keydown.up.prevent="mover(-1)" @click="if ($event.target.closest('[role=menuitem]')) fechar(false)">
           {% if request.cookies.get('sa_pessoa') %}
             {% if admin %}<a role="menuitem" href="/web">{{ icone('painel') }}<span>Área pessoal</span></a>{% endif %}
             <form method="post" action="/web/logout" hx-boost="false"><button type="submit" role="menuitem">{{ icone('pessoas') }}<span>Sair da conta</span></button></form>
@@ -124,9 +132,10 @@
         </div>
       </div>
     </footer>
-    <div class="sidebar-rail" data-sidebar-rail role="separator" aria-label="Redimensionar navegação" aria-orientation="vertical" aria-valuemin="64" aria-valuemax="360" aria-valuenow="248" tabindex="0" title="Arraste para redimensionar"></div>
+    <div class="sidebar-rail" data-sidebar-rail role="separator" aria-label="Redimensionar navegação" aria-orientation="vertical" aria-valuemin="64" aria-valuemax="360" aria-valuenow="248" tabindex="0" title="Arraste para redimensionar"
+         x-data="trilhoLateral" @pointerdown="iniciar($event)" @keydown="teclado($event)" :aria-valuenow="$store.sidebar.recolhida ? 64 : $store.sidebar.largura"></div>
   </aside>
-  <button class="sidebar-backdrop" type="button" data-sidebar-close aria-label="Fechar navegação"></button>
+  <button class="sidebar-backdrop" type="button" data-sidebar-close aria-label="Fechar navegação" x-data @click="$store.sidebar.fecharGaveta(false)"></button>
   {% endif %}
 
   <main class="area"
@@ -134,7 +143,8 @@
         {%- if projeto is defined and not admin %} data-projeto="{{ projeto['slug'] }}"{% endif %}>
     {% if nav is defined %}
     <header class="sidebar-topbar" aria-label="Barra de navegação">
-      <button class="sidebar-trigger" type="button" data-sidebar-toggle aria-label="Recolher navegação" aria-controls="app-sidebar" aria-expanded="true" title="Recolher navegação">
+      <button class="sidebar-trigger" type="button" data-sidebar-toggle aria-label="Recolher navegação" aria-controls="app-sidebar" aria-expanded="true" title="Recolher navegação"
+              @click="$store.sidebar.alternar()" :aria-expanded="$store.sidebar.expandida" :aria-label="$store.sidebar.rotulo" :title="$store.sidebar.rotulo">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></svg>
       </button>
       {% if projeto is defined and not admin %}

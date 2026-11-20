@@ -9,6 +9,7 @@ from markdown_it import MarkdownIt
 from markupsafe import Markup
 
 from src.modules.events.relatorio import ROTULO_STATUS
+from src.modules.web.graficos import dias_br
 from src.shared import codes
 from src.shared.enums import EAgent, ETypeMessage
 
@@ -172,6 +173,7 @@ templates.env.filters["quando"] = quando
 templates.env.filters["relativo"] = relativo
 templates.env.filters["parada"] = parada
 templates.env.filters["duracao"] = duracao
+templates.env.filters["duracao_dias"] = dias_br
 templates.env.filters["json_lista"] = json_lista
 templates.env.filters["link_remote"] = link_remote
 templates.env.filters["rotulo_dia"] = rotulo_dia

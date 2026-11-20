@@ -228,10 +228,10 @@ def test_web_card_e_painel_somam_eventos_de_feature(cena):
     mundo, ana, bia, slug = cena
     ana.post(_feat(slug), {"title": "A"})
     web = _logar(bia.token)
-    assert "tile-nao-lidos" in web.get(f"/web/p/{slug}").text
+    assert "1 não lido(s) pela sua IA" in web.get(f"/web/p/{slug}").text
     inicio = web.get("/web").text
-    assert "Não lidos (IA)" in inicio
-    assert "<dd>1</dd>" in inicio
+    assert "Não lidos pela IA" in inicio
+    assert '<td class="numero">1</td>' in inicio
 
 
 def test_web_admin_nao_mostra_contador_de_feature(cena):

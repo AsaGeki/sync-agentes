@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "parciais/macros.html" import status_pill, lista_participantes %}
+{% from "parciais/graficos.html" import cabecalho, evolucao as grafico_evolucao %}
 {% block titulo %}{{ feature.code|code_curto }} {{ feature.title }} · {{ projeto['name'] }}{% endblock %}
 {% block conteudo %}
 {% include "parciais/abas.html" %}
@@ -26,6 +27,13 @@
     <a class="tile" href="{{ url_projeto }}/tasks?feature={{ feature.code }}&amp;atencao=true"><span class="rotulo">Precisam de atenção</span><span class="valor">{{ cont.get('bloqueado', 0) + cont.get('aguardando_decisao', 0) }}</span><span class="mudo">bloqueadas ou aguardando decisão</span></a>
   </section>
 
+  {% if evolucao.semanas %}
+  <section class="g-cartao feature-evolucao">
+    {{ cabecalho(evolucao.titulo, evolucao.subtitulo) }}
+    {{ grafico_evolucao(evolucao.semanas) }}
+  </section>
+  {% endif %}
+
   <div class="painel-grade">
     <div class="painel-principal">
       <section class="cartao">
@@ -36,7 +44,7 @@
 
       {% if feitas %}
       <section class="cartao">
-        <details data-estado="feitas">
+        <details data-estado="feitas" x-data="lembrarAberto" @click="clicou($event)">
           <summary><h2 class="grupo-titulo">Feitas <span class="mudo">{{ feitas|length }}</span></h2></summary>
           {% with tasks=feitas, na_feature=true, legenda='Tasks feitas da feature' %}{% include "parciais/tabela_tasks.html" %}{% endwith %}
         </details>
@@ -45,7 +53,7 @@
 
       {% if canceladas %}
       <section class="cartao">
-        <details data-estado="canceladas">
+        <details data-estado="canceladas" x-data="lembrarAberto" @click="clicou($event)">
           <summary><h2 class="grupo-titulo">Canceladas <span class="mudo">{{ canceladas|length }}</span></h2></summary>
           {% with tasks=canceladas, na_feature=true, legenda='Tasks canceladas da feature' %}{% include "parciais/tabela_tasks.html" %}{% endwith %}
         </details>

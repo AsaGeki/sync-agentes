@@ -221,7 +221,7 @@ def test_contador_da_web_nao_conta_historico_de_quem_acabou_de_entrar(cena):
     web = _logar(leo.token)
     assert "tem-notificacoes" not in web.get(f"/web/p/{slug}").text
     assert "tem-notificacoes" not in web.get(f"/web/p/{slug}/tasks").text
-    assert "tile-nao-lidos" not in web.get(f"/web/p/{slug}").text or ">0<" in web.get(f"/web/p/{slug}").text
+    assert "0 não lido(s) pela sua IA" in web.get(f"/web/p/{slug}").text
 
 
 # ---------- escrita pela tela ---------- #

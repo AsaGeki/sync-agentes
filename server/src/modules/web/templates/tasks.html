@@ -21,7 +21,7 @@
   {% if filtros[chave] %}{% set contagem_filtros.total = contagem_filtros.total + 1 %}{% endif %}
 {% endfor %}
 
-<form class="filtros filtros-tasks" hx-get="{{ url_tasks }}" hx-select="#lista" hx-target="#lista"
+<form class="filtros filtros-tasks" x-data="contadorFiltros" @change="contar()" hx-get="{{ url_tasks }}" hx-select="#lista" hx-target="#lista"
       hx-swap="outerHTML" hx-push-url="true" hx-trigger="change, input from:[name=q] delay:300ms, submit">
   <input type="hidden" name="visao" value="{{ filtros.visao }}">
   <div class="filtros-barra">
@@ -43,8 +43,9 @@
       <select id="ordem-tasks" name="ordem" aria-label="Ordenar tasks por">
         {% for chave, rotulo in ordens.items() %}<option value="{{ chave }}" {% if filtros.ordem == chave %}selected{% endif %}>{{ rotulo|capitalize }}</option>{% endfor %}
       </select>
-      <details class="filtros-menu" data-estado="filtros-tasks">
-        <summary>{{ icone('filtro') }}<span>Filtros</span><span class="contador" data-filter-count aria-live="polite" aria-label="{{ contagem_filtros.total }} filtros ativos" {% if not contagem_filtros.total %}hidden{% endif %}>{{ contagem_filtros.total }}</span></summary>
+      <details class="filtros-menu" data-estado="filtros-tasks" x-data="lembrarAberto" @click="clicou($event)">
+        <summary>{{ icone('filtro') }}<span>Filtros</span><span class="contador" data-filter-count aria-live="polite" aria-label="{{ contagem_filtros.total }} filtros ativos" {% if not contagem_filtros.total %}hidden{% endif %}
+                  x-text="total" :hidden="total === 0" :aria-label="total + ' filtros ativos'">{{ contagem_filtros.total }}</span></summary>
         <div class="filtros-painel">
           <fieldset class="grupo-filtros">
             <legend>Atalhos</legend>
@@ -116,11 +117,11 @@
   {% elif filtros.agrupar == 'status' %}
     <div class="barra-grupos">
       <span class="mudo">{{ grupos_status|length }} grupo(s) por status</span>
-      <button type="button" class="link" onclick="alternarGrupos(true)">expandir grupos</button>
-      <button type="button" class="link" onclick="alternarGrupos(false)">recolher grupos</button>
+      <button type="button" class="link" x-data @click="$dispatch('alternar-grupos', true)">expandir grupos</button>
+      <button type="button" class="link" x-data @click="$dispatch('alternar-grupos', false)">recolher grupos</button>
     </div>
     {% for g in grupos_status %}
-      <details class="grupo-status cartao" data-estado="status-{{ g.status }}" open>
+      <details class="grupo-status cartao" data-estado="status-{{ g.status }}" open x-data="lembrarAberto" @alternar-grupos.window="definir($event.detail)" @click="clicou($event)">
         <summary>
           {{ status_pill(g.status) }}
           <span class="mudo">{{ g.tasks|length }} task(s)</span>
@@ -132,11 +133,11 @@
     {% endfor %}
   {% elif grupos is not none %}
     <div class="barra-grupos">
-      <button type="button" class="link" onclick="alternarGrupos(true)">expandir tudo</button>
-      <button type="button" class="link" onclick="alternarGrupos(false)">recolher tudo</button>
+      <button type="button" class="link" x-data @click="$dispatch('alternar-grupos', true)">expandir tudo</button>
+      <button type="button" class="link" x-data @click="$dispatch('alternar-grupos', false)">recolher tudo</button>
     </div>
     {% for g in grupos %}
-      <details class="grupo-feature cartao" data-estado="grupo-{{ g.feature.code if g.feature else 'avulsas' }}" open>
+      <details class="grupo-feature cartao" data-estado="grupo-{{ g.feature.code if g.feature else 'avulsas' }}" open x-data="lembrarAberto" @alternar-grupos.window="definir($event.detail)" @click="clicou($event)">
         <summary>
           <h3 class="grupo-titulo">
             {% if g.feature %}<a href="{{ base }}/p/{{ projeto['slug'] }}/f/{{ g.feature.code }}"><code>{{ g.feature.code|code_curto }}</code> {{ g.feature.title }}</a>{% else %}Sem feature{% endif %}

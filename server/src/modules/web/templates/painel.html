@@ -1,195 +1,158 @@
 {% extends "base.html" %}
-{% from "parciais/macros.html" import avatar, status_pill, selo_fazendo, hora, avatares_participantes, lista_participantes %}
+{% from "parciais/macros.html" import avatar, status_pill, selo_fazendo, hora, lista_participantes %}
+{% from "parciais/graficos.html" import cabecalho, kpi, progresso, colunas, barras, antes_depois %}
 {% block titulo %}{{ projeto['name'] }} · sync-agents{% endblock %}
 {% block conteudo %}
 {% include "parciais/abas.html" %}
 {% set p = painel %}
 {% set url_p = base ~ '/p/' ~ projeto['slug'] %}
+{% set n_aguardando = p.travadas|selectattr('status', 'equalto', 'aguardando_decisao')|list|length %}
+{% set n_bloqueadas = p.travadas|length - n_aguardando %}
+{% set ult, ant = p.ritmo.ultima, p.ritmo.anterior %}
 
 <div>
-<div id="painel-corpo" hx-disinherit="*"
+<div id="painel-corpo" class="painel-novo" hx-disinherit="*"
      {% if not admin %}hx-get="{{ request.url }}" hx-trigger="mudou from:body delay:500ms" hx-select="#painel-corpo" hx-swap="outerHTML"{% endif %}>
 
-  <header class="painel-hero">
-    <div class="painel-hero-conteudo">
-      <p class="painel-kicker"><span class="painel-kicker-ponto"></span>Visão do projeto</p>
-      <div class="painel-hero-titulo">
-        <h1>{{ projeto['name'] }}</h1>
-        <span class="etiqueta">{{ projeto['status'] }}</span>
-        <span class="etiqueta">{{ projeto['visibility'] }}</span>
-      </div>
-      {% if projeto['description'] %}
-        <div class="painel-hero-descricao md" data-colapsavel>{{ projeto['description']|markdown }}</div>
-      {% else %}
-        <p class="painel-hero-descricao">Acompanhe o andamento das tasks, a atividade e os pontos que precisam de atenção.</p>
-      {% endif %}
+  <header class="painel-cabeca">
+    <div class="painel-hero-titulo">
+      <h1>{{ projeto['name'] }}</h1>
+      <span class="etiqueta">{{ projeto['status'] }}</span>
+      <span class="etiqueta">{{ projeto['visibility'] }}</span>
     </div>
-    <div class="painel-hero-marca" aria-hidden="true"></div>
+    {% if projeto['description'] %}
+    <div x-data="colapsavel">
+      <div class="painel-hero-descricao md" x-ref="texto">{{ projeto['description']|markdown }}</div>
+      <button type="button" class="link colapsavel-botao" hidden :hidden="!excede" @click="alternar()" :aria-expanded="aberto" x-text="aberto ? 'Ver menos' : 'Ver tudo'">Ver tudo</button>
+    </div>
+    {% endif %}
   </header>
 
-  <section class="tiles painel-indicadores" aria-label="Indicadores do projeto">
-    <a class="tile tile-concluidas" href="{{ url_p }}/tasks?status=feito">
-      <span class="rotulo">Tasks concluídas</span>
-      <span class="valor">{{ p.feitas }}<small> / {{ p.total_tasks }}</small></span>
-      <span class="tile-contexto">{{ '%.0f'|format(100 * p.feitas / p.total_tasks) if p.total_tasks else 0 }}% do total</span>
-      <div class="medidor"><div class="medidor-fill" style="width: {{ (100 * p.feitas / p.total_tasks) if p.total_tasks else 0 }}%"></div></div>
-    </a>
-    <a class="tile tile-atencao" href="{{ url_p }}/tasks?atencao=true">
-      <span class="rotulo">Precisam de atenção</span>
-      <span class="valor">{{ p.atencao|length }}</span>
-      <span class="tile-contexto">bloqueadas ou aguardando decisão</span>
-    </a>
-    <a class="tile tile-perguntas" href="#painel-perguntas" hx-boost="false">
-      <span class="rotulo">Perguntas abertas</span>
-      <span class="valor">{{ p.perguntas_abertas|length }}</span>
-      <span class="tile-contexto">sem resposta da equipe</span>
-    </a>
-    {% if p.nao_lidos is not none %}
-    <a class="tile tile-nao-lidos" href="{{ url_p }}/tasks?nao_lidas=true">
-      <span class="rotulo">Não lidos pela IA</span>
-      <span class="valor">{{ p.nao_lidos }}</span>
-      <span class="tile-contexto">eventos de outras pessoas</span>
-    </a>
+  <section class="g-kpis" aria-label="Indicadores">
+    {% if p.travadas %}
+      {{ kpi('Tasks travadas', p.travadas|length, '',
+             n_aguardando ~ ' aguardando decisão · ' ~ n_bloqueadas ~ ' bloqueada(s) · a mais antiga há ' ~ p.travadas[0].dias_parada ~ ' dias',
+             'alerta', '#painel-travadas') }}
+    {% else %}
+      {{ kpi('Tasks travadas', 0, '', 'nenhuma aguardando decisão ou bloqueada') }}
     {% endif %}
-    <div class="tile tile-ciclo">
-      <span class="rotulo">Tempo médio até concluir</span>
-      <span class="valor">{{ p.ciclo.segundos|duracao if p.ciclo.segundos is not none else '—' }}</span>
-      <span class="tile-contexto">{{ p.ciclo.n }} task(s) com histórico</span>
-    </div>
+    {% call kpi('Concluído', ('%.0f'|format(100 * p.feitas / p.total_tasks) if p.total_tasks else 0) ~ '%',
+                p.feitas ~ ' de ' ~ p.total_tasks ~ ' tasks',
+                (p.canceladas ~ ' cancelada(s) fora da conta') if p.canceladas else '') %}
+      {{ progresso(p.feitas, p.total_tasks) }}
+    {% endcall %}
+    {% call kpi('Concluídas na semana de ' ~ ult.rotulo, ult.valor, '',
+                ant.valor ~ ' na semana de ' ~ ant.rotulo ~ ' · média de ' ~ '%.0f'|format(p.ritmo.media) ~ ' por semana') %}
+      {% if ult.valor != ant.valor %}<span class="{{ 'g-queda' if ult.valor < ant.valor else 'g-kpi-contexto' }}">{{ '▼' if ult.valor < ant.valor else '▲' }} {{ (ult.valor - ant.valor)|abs }} contra a anterior</span>{% endif %}
+    {% endcall %}
+    {{ kpi('Ciclo mediano (criação até feito)',
+           (ult.ciclo|duracao_dias) if ult.ciclo is not none else '—', '',
+           'semana de ' ~ ult.rotulo ~ ((' · ' ~ (ant.ciclo|duracao_dias) ~ ' na anterior') if ant.ciclo is not none else '')) }}
   </section>
 
-  <div class="painel-grade">
-    <div class="painel-principal">
-      <section class="cartao painel-cartao painel-fazendo">
-        <header class="painel-card-cabeca">
-          <div><h2>Em andamento <span class="painel-contagem">{{ p.fazendo_agora|length }}</span></h2><p class="painel-card-desc">Tasks em que o time está trabalhando agora.</p></div>
-          <a class="painel-card-link" href="{{ url_p }}/tasks?fazendo=true">Ver tasks</a>
-        </header>
-        {% if not p.fazendo_agora %}<p class="painel-vazio">Nenhuma task em andamento no momento.</p>{% endif %}
-        <ul class="lista-fazendo painel-lista-fazendo">
-          {% for t in p.fazendo_agora %}
-            <li>
-              <div class="painel-fazendo-pessoa">{{ selo_fazendo(t) }}</div>
-              <a class="painel-tarefa-link" href="{{ url_p }}/t/{{ t.code }}"><code>{{ t.code|code_curto }}</code><span>{{ t.title }}</span></a>
-            </li>
-          {% endfor %}
-        </ul>
-      </section>
-
-      <div class="painel-duas-colunas">
-        <section class="cartao painel-cartao" id="painel-atencao">
-          <header class="painel-card-cabeca">
-            <div><h2>Precisa de atenção <span class="painel-contagem">{{ p.atencao|length }}</span></h2><p class="painel-card-desc">Bloqueios e decisões pendentes.</p></div>
-            {% if p.atencao %}<a class="painel-card-link" href="{{ url_p }}/tasks?atencao=true">Ver todas</a>{% endif %}
-          </header>
-          {% if not p.atencao %}<p class="painel-vazio">Nenhuma task bloqueada ou aguardando decisão.</p>{% endif %}
-          <ul class="lista-atencao painel-lista-atencao">
-            {% for t in p.atencao[:5] %}
-              <li>
-                {{ status_pill(t.status) }}
-                <a href="{{ url_p }}/t/{{ t.code }}"><code>{{ t.code|code_curto }}</code> {{ t.title }}</a>
-              </li>
-            {% endfor %}
-          </ul>
-          {% if p.atencao|length > 5 %}
-          <details class="painel-mais">
-            <summary>Ver mais {{ p.atencao|length - 5 }} task(s)</summary>
-            <ul class="lista-atencao painel-lista-atencao">
-              {% for t in p.atencao[5:] %}<li>{{ status_pill(t.status) }}<a href="{{ url_p }}/t/{{ t.code }}"><code>{{ t.code|code_curto }}</code> {{ t.title }}</a></li>{% endfor %}
-            </ul>
-          </details>
-          {% endif %}
-        </section>
-
-        <section class="cartao painel-cartao" id="painel-perguntas">
-          <header class="painel-card-cabeca">
-            <div><h2>Perguntas abertas <span class="painel-contagem">{{ p.perguntas_abertas|length }}</span></h2><p class="painel-card-desc">Aguardando resposta da equipe.</p></div>
-          </header>
-          {% if not p.perguntas_abertas %}<p class="painel-vazio">Nenhuma pergunta esperando resposta.</p>{% endif %}
-          <ul class="lista-atencao painel-lista-perguntas">
-            {% for q in p.perguntas_abertas[:5] %}
-              <li>
-                <span class="tipo t-pergunta">pergunta</span>
-                <div class="pergunta">
-                  <a href="{{ url_p }}/t/{{ q.code }}#ev-{{ q.seq }}"><code>{{ q.code|code_curto }}</code></a>
-                  <span>{{ q.texto.splitlines()[0]|truncate(120)|markdown_linha }}</span>
-                  <span class="mudo">{{ q.author_alias }} · {{ hora(q.created_at) }}</span>
-                </div>
-              </li>
-            {% endfor %}
-          </ul>
-          {% if p.perguntas_abertas|length > 5 %}
-          <details class="painel-mais">
-            <summary>Ver mais {{ p.perguntas_abertas|length - 5 }} pergunta(s)</summary>
-            <ul class="lista-atencao painel-lista-perguntas">
-              {% for q in p.perguntas_abertas[5:] %}
-                <li><span class="tipo t-pergunta">pergunta</span><div class="pergunta"><a href="{{ url_p }}/t/{{ q.code }}#ev-{{ q.seq }}"><code>{{ q.code|code_curto }}</code></a><span>{{ q.texto.splitlines()[0]|truncate(120)|markdown_linha }}</span><span class="mudo">{{ q.author_alias }} · {{ hora(q.created_at) }}</span></div></li>
-              {% endfor %}
-            </ul>
-          </details>
-          {% endif %}
-        </section>
-      </div>
-
-      <section class="cartao painel-cartao">
-        <header class="painel-card-cabeca painel-card-cabeca-simples">
-          <div><h2>Features <span class="painel-contagem">{{ p.features|length }}</span></h2><p class="painel-card-desc">Progresso por frente de trabalho.</p></div>
-        </header>
-        {% if not p.features %}<p class="mudo">Nenhuma feature. Tasks avulsas são o caso normal.</p>{% endif %}
-        <ul class="lista-features painel-lista-features">
-          {% for f in p.features %}
-            <li>
-              <div class="linha">
-                <a href="{{ url_p }}/f/{{ f.code }}"><code>{{ f.code|code_curto }}</code> {{ f.title }}</a>
-                <span class="mudo">{{ f.progresso.feito }}/{{ f.progresso.total }}</span>
-              </div>
-              <div class="medidor" role="img" aria-label="{{ f.progresso.feito }} de {{ f.progresso.total }} feitas">
-                <div class="medidor-fill" style="width: {{ (100 * f.progresso.feito / f.progresso.total) if f.progresso.total else 0 }}%"></div>
-              </div>
-              {{ avatares_participantes(f.participantes) }}
-            </li>
-          {% endfor %}
-        </ul>
-      </section>
-
-      <section class="cartao painel-cartao painel-atividade">
-        {% include "parciais/grafico.html" %}
-      </section>
+  <section id="painel-travadas" class="g-cartao">
+    <div class="painel-travadas-cabeca">
+      {{ cabecalho('Tasks travadas há mais tempo') }}
+      <span class="g-kpi-contexto">
+        {{ p.perguntas_abertas|length }} pergunta(s) aberta(s){% if p.nao_lidos is not none %} · {{ p.nao_lidos }} não lido(s) pela sua IA{% endif %}
+      </span>
     </div>
+    {% if not p.travadas %}<p class="painel-vazio">Nenhuma task aguardando decisão ou bloqueada.</p>{% else %}
+    <table class="g-tabela-travadas">
+      <thead><tr><th>Task</th><th>Título</th><th>Status</th><th>Parada há</th></tr></thead>
+      <tbody>
+        {% for t in p.travadas[:6] %}
+          <tr>
+            <td><a href="{{ url_p }}/t/{{ t.code }}"><code>{{ t.code|code_curto }}</code></a></td>
+            <td class="titulo"><a href="{{ url_p }}/t/{{ t.code }}">{{ t.title }}</a></td>
+            <td>{{ status_pill(t.status) }}</td>
+            <td><strong>{{ t.dias_parada }} dia{{ 's' if t.dias_parada != 1 }}</strong></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if p.travadas|length > 6 %}<a class="painel-card-link" href="{{ url_p }}/tasks?atencao=true">ver as {{ p.travadas|length }} travadas</a>{% endif %}
+    {% endif %}
+  </section>
 
-    <aside class="painel-lateral">
-      <section class="cartao painel-cartao">
-        <header class="painel-card-cabeca painel-card-cabeca-simples">
-          <div><h2>Exportar projeto</h2><p class="painel-card-desc">Baixe os dados para importar no sistema de destino.</p></div>
-        </header>
-        {% if p.repos %}
-        <a class="painel-card-link" href="{{ url_p }}/exportar" hx-boost="false">Revisar e exportar</a>
-        {% else %}
-        <p class="mudo">Vincule um repositório ao projeto para exportar.</p>
-        {% endif %}
-      </section>
-      <section class="cartao painel-cartao">
-        <header class="painel-card-cabeca painel-card-cabeca-simples">
-          <div><h2>Tasks por status</h2><p class="painel-card-desc">{{ p.total_tasks + p.canceladas }} tasks no projeto{% if p.canceladas %}, {{ p.canceladas }} cancelada(s) fora do progresso{% endif %}.</p></div>
-        </header>
-        {% if p.total_tasks + p.canceladas %}
-        <div class="barra-status" role="img" aria-label="Distribuição de tasks por status">
-          {% for status, n in p.contagem_status if n %}
-            <span class="seg st-{{ status }}" style="flex-grow: {{ n }}" title="{{ ROTULO_STATUS[status] }}: {{ n }}"></span>
-          {% endfor %}
-        </div>
-        {% endif %}
-        <ul class="lista-status">
-          {% for status, n in p.contagem_status %}
-            <li><a href="{{ url_p }}/tasks?status={{ status }}">{{ status_pill(status) }}</a><span class="numero">{{ n }}</span></li>
-          {% endfor %}
-        </ul>
-      </section>
+  {% if p.perguntas_abertas or p.fazendo_agora %}
+  <div class="g-linha">
+    {% if p.perguntas_abertas %}
+    <section class="g-cartao" id="painel-perguntas">
+      {{ cabecalho('Perguntas abertas', p.perguntas_abertas|length ~ ' esperando resposta') }}
+      <ul class="lista-atencao painel-lista-perguntas">
+        {% for q in p.perguntas_abertas %}
+          <li>
+            <span class="tipo t-pergunta">pergunta</span>
+            <div class="pergunta">
+              <a href="{{ url_p }}/t/{{ q.code }}#ev-{{ q.seq }}"><code>{{ q.code|code_curto }}</code></a>
+              <span>{{ q.texto.splitlines()[0]|truncate(120)|markdown_linha }}</span>
+              <span class="mudo">{{ q.author_alias }} · {{ hora(q.created_at) }}</span>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+    {% if p.fazendo_agora %}
+    <section class="g-cartao painel-fazendo">
+      {{ cabecalho('Em andamento agora', p.fazendo_agora|length ~ ' task(s)') }}
+      <ul class="lista-fazendo painel-lista-fazendo">
+        {% for t in p.fazendo_agora %}
+          <li>
+            <div class="painel-fazendo-pessoa">{{ selo_fazendo(t) }}</div>
+            <a class="painel-tarefa-link" href="{{ url_p }}/t/{{ t.code }}"><code>{{ t.code|code_curto }}</code><span>{{ t.title }}</span></a>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </div>
+  {% endif %}
 
-      <section class="cartao painel-cartao">
-        <header class="painel-card-cabeca painel-card-cabeca-simples">
-          <div><h2>Repositórios <span class="painel-contagem">{{ p.repos|length }}</span></h2></div>
-        </header>
+  <div class="g-linha">
+    <section class="g-cartao">
+      {{ cabecalho(p.ritmo.titulo, p.ritmo.subtitulo) }}
+      {{ colunas(p.ritmo.semanas, p.ritmo.media) }}
+    </section>
+    <section class="g-cartao">
+      {{ cabecalho(p.comparado.titulo, p.comparado.subtitulo) }}
+      {% if p.comparado.linhas %}{{ antes_depois(p.comparado) }}{% else %}<p class="painel-vazio">Nenhuma task aberta.</p>{% endif %}
+    </section>
+  </div>
+
+  <div class="g-linha">
+    <section class="g-cartao">
+      {{ cabecalho(p.tempo.titulo, p.tempo.subtitulo) }}
+      {% set linhas_tempo = [] %}
+      {% for l in p.tempo.linhas %}{% set _ = linhas_tempo.append({'rotulo': l.nome, 'valor': l.dias, 'texto': l.texto, 'nota': l.n ~ ' períodos', 'destaque': l.destaque, 'classe': 'st-' ~ l.status}) %}{% endfor %}
+      {% if linhas_tempo %}{{ barras(linhas_tempo) }}{% else %}<p class="painel-vazio">Sem histórico de status ainda.</p>{% endif %}
+    </section>
+    <section class="g-cartao">
+      {{ cabecalho(p.features_travadas.titulo, p.features_travadas.subtitulo) }}
+      {% set linhas_feat = [] %}
+      {% for f in p.features_travadas.linhas %}{% set _ = linhas_feat.append({'rotulo': (f.code|code_curto) ~ ' ' ~ f.title, 'sub': f.progresso.feito ~ ' de ' ~ f.progresso.total ~ ' feitas', 'valor': f.travadas, 'texto': f.travadas, 'destaque': true, 'href': url_p ~ '/f/' ~ f.code}) %}{% endfor %}
+      {% if linhas_feat %}{{ barras(linhas_feat, cor='aguardando') }}{% else %}<p class="painel-vazio">Nenhuma feature tem task travada.</p>{% endif %}
+    </section>
+  </div>
+
+  <section class="g-cartao">
+    {{ cabecalho(p.pessoas.titulo, p.pessoas.subtitulo) }}
+    {% set linhas_pessoas = [] %}
+    {% for ps in p.pessoas.linhas %}{% set _ = linhas_pessoas.append({'rotulo': ps.alias, 'sub': ps.nota, 'valor': ps.total, 'texto': ps.total ~ ' · ' ~ ps.pct ~ '%', 'destaque': true}) %}{% endfor %}
+    {% if linhas_pessoas %}{{ barras(linhas_pessoas) }}{% else %}<p class="painel-vazio">Nenhum evento nas últimas semanas.</p>{% endif %}
+  </section>
+
+  <details class="g-cartao painel-config" data-estado="config" x-data="lembrarAberto" @click="clicou($event)">
+    <summary><strong>Configuração do projeto</strong> <span class="mudo">· exportar · {{ p.repos|length }} repositório(s) · {{ p.membros|length }} membro(s)</span></summary>
+    <div class="painel-config-corpo">
+      <section>
+        <h3>Exportar projeto</h3>
+        {% if p.repos %}<a class="painel-card-link" href="{{ url_p }}/exportar" hx-boost="false">Revisar e exportar</a>
+        {% else %}<p class="mudo">Vincule um repositório ao projeto para exportar.</p>{% endif %}
+      </section>
+      <section>
+        <h3>Repositórios</h3>
         {% if not p.repos %}<p class="mudo">Nenhum repositório vinculado.</p>{% endif %}
         <ul class="lista-repos">
           {% for r in p.repos %}
@@ -202,19 +165,12 @@
           {% endfor %}
         </ul>
       </section>
-
-      <section class="cartao painel-cartao">
-        <header class="painel-card-cabeca painel-card-cabeca-simples">
-          <div><h2>Participantes <span class="painel-contagem">{{ p.participantes|length }}</span></h2><p class="painel-card-desc">Pessoas que já contribuíram.</p></div>
-        </header>
+      <section>
+        <h3>Participantes</h3>
         {{ lista_participantes(p.participantes) }}
       </section>
-
-      <section class="cartao painel-cartao">
-        <header class="painel-card-cabeca painel-card-cabeca-simples">
-          <div><h2>Membros <span class="painel-contagem">{{ p.membros|length }}</span></h2></div>
-        </header>
-        <p class="mudo">Quem tem acesso ao projeto, tenha feito algo ou não.</p>
+      <section>
+        <h3>Membros</h3>
         {% set meu = namespace(papel=none) %}
         {% if not admin and pessoa is defined %}{% for m in p.membros %}{% if m.id == pessoa['id'] %}{% set meu.papel = m.role %}{% endif %}{% endfor %}{% endif %}
         {% set gerencia = admin or meu.papel == 'owner' %}
@@ -253,7 +209,7 @@
         {% endif %}
         {% if admin %}
           <form class="em-linha" hx-post="/web/admin/p/{{ projeto['slug'] }}/membros" hx-select="#painel-corpo" hx-target="#painel-corpo" hx-swap="outerHTML">
-            <input type="email" name="email" required placeholder="email de quem entra">
+            <input type="email" name="email" required placeholder="email de quem entra" aria-label="Email de quem entra">
             <button>Adicionar</button>
           </form>
           <h3>Pedidos de acesso</h3>
@@ -272,8 +228,10 @@
           </ul>
         {% endif %}
       </section>
-    </aside>
-  </div>
+    </div>
+  </details>
+
+  <footer class="g-rodape">Fonte: trilha de eventos do sync-agents · atualizado {{ p.agora.strftime('%d/%m, %H:%M') }}</footer>
 </div>
 </div>
 {% endblock %}
