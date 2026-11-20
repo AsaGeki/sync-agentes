@@ -125,3 +125,22 @@ Fica pendente até um owner aceitar. Depois de membro, se este repositório aind
 > Linka este repositório ao projeto X.
 
 **Sair ou tirar alguém:** `leave_project` (você sai), `remove_member` e `set_member_role` (só owner). O projeto nunca fica sem owner, e quem foi removido de um projeto `public` pode entrar de novo sozinho: pra manter alguém fora, o projeto precisa ser `private`.
+
+---
+
+## Opcional — Avisos em tempo real (Claude Code)
+
+A partir da versão 0.5.0, o bridge pode empurrar para dentro da sessão aberta o que outra pessoa (ou a IA dela) escreve nos projetos em que você é membro, sem você precisar pedir. Cada aviso chega como um bloco `<channel source="sync-agents" project=... task=...>` com a linha de resumo do evento.
+
+Isso usa os *channels* do Claude Code, que ainda são research preview. Exige:
+
+- Claude Code 2.1.80 ou mais novo, logado com conta claude.ai. Em conta Team/Enterprise, o administrador da organização precisa ter habilitado os channels.
+- Abrir a sessão pelo terminal, na pasta do projeto, com a flag abaixo, e aceitar a confirmação:
+
+```bash
+claude --dangerously-load-development-channels server:sync-agents
+```
+
+Sem a flag, tudo funciona como antes, só sem os avisos. O que você mesmo escreve não volta como aviso. O canal ouve os projetos em que você já era membro quando a sessão abriu; entrou em outro depois, reabra a sessão.
+
+Não chegou nada? Abra com `claude --debug --dangerously-load-development-channels server:sync-agents` e procure no log por `sync-agents: canal`.

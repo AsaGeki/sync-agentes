@@ -8,7 +8,7 @@ Canal de alinhamento entre pessoas — e as IAs delas — trabalhando no mesmo p
 
 Workspace `uv` com dois pacotes:
 
-- [`client/`](client) — `sync-agents-mcp`, o bridge MCP que roda na máquina de cada pessoa. Publicado no PyPI (`uvx sync-agents-mcp`); só depende de `mcp`. Como lançar uma versão: [`docs/PUBLICAR_CLIENTE.md`](docs/PUBLICAR_CLIENTE.md).
+- [`client/`](client) — `sync-agents-mcp`, o bridge MCP que roda na máquina de cada pessoa. Publicado no PyPI (`uvx sync-agents-mcp`); depende só de `mcp` e `httpx`. Como lançar uma versão: [`docs/PUBLICAR_CLIENTE.md`](docs/PUBLICAR_CLIENTE.md).
 - [`server/`](server) — `sync-agents-server`, API REST, interface web e banco. Não é publicado.
 
 ## Stack
