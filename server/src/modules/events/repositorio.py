@@ -162,7 +162,7 @@ def total_participantes(conn: sqlite3.Connection, projeto_id: int) -> int:
 
 def mensagens_da_task(conn: sqlite3.Connection, projeto_id: int, code: str) -> list[sqlite3.Row]:
     return conn.execute(
-        f"""SELECT e.seq, e.type, e.texto, e.agent, e.created_at, pe.alias AS author_alias
+        f"""SELECT e.seq, e.type, e.texto, e.agent, e.created_at, e.author_id, pe.alias AS author_alias
              FROM events e
              JOIN people pe ON pe.id = e.author_id
              JOIN tasks  t  ON t.id = e.task_id

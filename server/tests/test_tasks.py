@@ -377,16 +377,44 @@ def _abertas(ana, slug):
     return [(p["code"], p["texto"]) for p in rel["perguntas_abertas"]]
 
 
-def test_resposta_fecha_a_pergunta_mais_antiga(cena):
+def test_uma_resposta_fecha_todas_as_perguntas_anteriores_de_outra_pessoa(cena):
     mundo, ana, bia, slug = cena
     code = mundo.task(ana, slug)
     mundo.mensagem(ana, slug, code, "pergunta", "p1")
     mundo.mensagem(ana, slug, code, "pergunta", "p2")
     assert [t for _, t in _abertas(ana, slug)] == ["p1", "p2"]
     mundo.mensagem(bia, slug, code, "resposta", "r1")
-    assert [t for _, t in _abertas(ana, slug)] == ["p2"]
-    mundo.mensagem(bia, slug, code, "resposta", "r2")
     assert _abertas(ana, slug) == []
+
+
+def test_resposta_nao_fecha_pergunta_do_proprio_autor_nem_posterior(cena):
+    mundo, ana, bia, slug = cena
+    code = mundo.task(ana, slug)
+    mundo.mensagem(ana, slug, code, "pergunta", "da ana")
+    mundo.mensagem(bia, slug, code, "pergunta", "da bia")
+    mundo.mensagem(ana, slug, code, "resposta", "ana responde a bia")
+    mundo.mensagem(bia, slug, code, "pergunta", "nova da bia")
+    assert [t for _, t in _abertas(ana, slug)] == ["da ana", "nova da bia"]
+
+
+def test_decisao_fecha_pergunta(cena):
+    mundo, ana, bia, slug = cena
+    code = mundo.task(ana, slug)
+    mundo.mensagem(ana, slug, code, "pergunta", "p1")
+    mundo.mensagem(bia, slug, code, "mudanca", "nao fecha")
+    assert [t for _, t in _abertas(ana, slug)] == ["p1"]
+    mundo.mensagem(bia, slug, code, "decisao", "fica assim")
+    assert _abertas(ana, slug) == []
+
+
+def test_task_feita_ou_cancelada_nao_tem_pergunta_aberta(cena):
+    mundo, ana, bia, slug = cena
+    feita, cancelada, aberta = (mundo.task(ana, slug, t) for t in ("F", "C", "A"))
+    for code in (feita, cancelada, aberta):
+        mundo.mensagem(ana, slug, code, "pergunta", code)
+    ana.patch(_t(slug, feita), {"status": "feito"})
+    ana.patch(_t(slug, cancelada), {"status": "cancelada"})
+    assert [c for c, _ in _abertas(ana, slug)] == [aberta]
 
 
 def test_resposta_sem_pergunta_aberta_e_ignorada(cena):

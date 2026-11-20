@@ -21,22 +21,26 @@ ROTULO_STATUS = {
     EStatusTask.aguardando_decisao: "aguardando decisão",
     EStatusTask.cancelada: "cancelada",
 }
+ENCERRADAS = {EStatusTask.feito, EStatusTask.cancelada}
+FECHAM_PERGUNTA = {ETypeMessage.resposta, ETypeMessage.decisao}
 
 
 def perguntas_abertas(
     conn: sqlite3.Connection, projeto_id: int, tasks: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    """Cada `resposta` fecha a pergunta aberta mais antiga da task: duas perguntas
-    em aberto exigem duas respostas pra sumirem daqui."""
+    """Uma `resposta` ou `decisao` fecha todas as perguntas anteriores de outras
+    pessoas na mesma task. Task `feito` ou `cancelada` não tem pergunta aberta."""
     pendentes: list[dict[str, Any]] = []
     for task in tasks:
+        if task["status"] in ENCERRADAS:
+            continue
         linhas = eventos_repositorio.mensagens_da_task(conn, projeto_id, task["code"])
         abertas: list[dict[str, Any]] = []
         for linha in linhas:
             if linha["type"] == ETypeMessage.pergunta:
                 abertas.append(dict(linha))
-            elif linha["type"] == ETypeMessage.resposta and abertas:
-                abertas.pop(0)
+            elif linha["type"] in FECHAM_PERGUNTA:
+                abertas = [p for p in abertas if p["author_id"] == linha["author_id"]]
         pendentes += [{"code": task["code"], **pendente} for pendente in abertas]
     return pendentes
 
