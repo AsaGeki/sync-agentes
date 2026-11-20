@@ -286,6 +286,21 @@
       },
     }));
 
+    // Sidebar recolhida só abre por cima depois de o mouse parar nela um instante; sair fecha na hora.
+    Alpine.data("espiarLateral", () => ({
+      espiando: false,
+      espera: null,
+      entrar() {
+        if (!Alpine.store("sidebar").recolhida) return;
+        clearTimeout(this.espera);
+        this.espera = setTimeout(() => (this.espiando = true), 400);
+      },
+      sair() {
+        clearTimeout(this.espera);
+        this.espiando = false;
+      },
+    }));
+
     // Tags da task como chips. Cada mudança grava o campo escondido `tags` e dispara o `change` do formulário.
     Alpine.data("editorTags", () => ({
       tags: [],

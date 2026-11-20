@@ -815,6 +815,8 @@ details summary { cursor: pointer; }
   transition: grid-template-columns 160ms ease;
 }
 .sidebar-recolhida .app.com-lateral { grid-template-columns: var(--sidebar-trilho) minmax(0, 1fr); }
+/* Fixa o conteúdo na última coluna: no hover da recolhida a sidebar vira `fixed` e sai do grid. */
+.app.com-lateral > .area { grid-column: -2 / -1; grid-row: 1; }
 
 .sidebar {
   position: sticky;
@@ -1070,7 +1072,7 @@ body.sidebar-drawer-aberto { overflow: hidden; }
 .sidebar-recolhida .app .sidebar-footer { padding: 8px 0 0; }
 .sidebar-recolhida .app .sidebar-user-trigger { justify-content: center; width: 40px; min-height: 40px; margin: 0 auto; padding: 0; }
 .sidebar-recolhida .app .sidebar-user-avatar { width: 26px; height: 26px; }
-.sidebar-recolhida .app .sidebar:hover, .sidebar-recolhida .app .sidebar:focus-within {
+.sidebar-recolhida .app .sidebar.sidebar-espiando, .sidebar-recolhida .app .sidebar:focus-within {
   position: fixed;
   inset: 0 auto 0 0;
   z-index: 50;
@@ -1079,22 +1081,22 @@ body.sidebar-drawer-aberto { overflow: hidden; }
   padding-left: 10px;
   box-shadow: 8px 0 28px rgba(0, 0, 0, 0.12);
 }
-.sidebar-recolhida .app .sidebar:hover .sidebar-brand-copy, .sidebar-recolhida .app .sidebar:focus-within .sidebar-brand-copy,
-.sidebar-recolhida .app .sidebar:hover .sidebar-header-toggle, .sidebar-recolhida .app .sidebar:focus-within .sidebar-header-toggle,
-.sidebar-recolhida .app .sidebar:hover .sidebar-section-title, .sidebar-recolhida .app .sidebar:focus-within .sidebar-section-title,
-.sidebar-recolhida .app .sidebar:hover .sidebar-search, .sidebar-recolhida .app .sidebar:focus-within .sidebar-search,
-.sidebar-recolhida .app .sidebar:hover .sidebar-link-label, .sidebar-recolhida .app .sidebar:focus-within .sidebar-link-label,
-.sidebar-recolhida .app .sidebar:hover .sidebar-link .contador, .sidebar-recolhida .app .sidebar:focus-within .sidebar-link .contador,
-.sidebar-recolhida .app .sidebar:hover .sidebar-user-copy, .sidebar-recolhida .app .sidebar:focus-within .sidebar-user-copy,
-.sidebar-recolhida .app .sidebar:hover .sidebar-user-chevron, .sidebar-recolhida .app .sidebar:focus-within .sidebar-user-chevron,
-.sidebar-recolhida .app .sidebar:hover .sidebar-submenu, .sidebar-recolhida .app .sidebar:focus-within .sidebar-submenu { display: flex; }
-.sidebar-recolhida .app .sidebar:hover .sidebar-header, .sidebar-recolhida .app .sidebar:focus-within .sidebar-header { justify-content: flex-start; padding-right: 2px; padding-left: 2px; }
-.sidebar-recolhida .app .sidebar:hover .sidebar-brand, .sidebar-recolhida .app .sidebar:focus-within .sidebar-brand { flex: 1; justify-content: flex-start; padding: 0 5px; }
-.sidebar-recolhida .app .sidebar:hover .sidebar-menu, .sidebar-recolhida .app .sidebar:focus-within .sidebar-menu { margin-top: 3px; }
-.sidebar-recolhida .app .sidebar:hover .sidebar-link, .sidebar-recolhida .app .sidebar:focus-within .sidebar-link { justify-content: flex-start; width: auto; min-height: 32px; margin: 0; padding: 0 9px; }
-.sidebar-recolhida .app .sidebar:hover .sidebar-submenu .sidebar-link, .sidebar-recolhida .app .sidebar:focus-within .sidebar-submenu .sidebar-link { min-height: 30px; padding-left: 8px; }
-.sidebar-recolhida .app .sidebar:hover .sidebar-footer, .sidebar-recolhida .app .sidebar:focus-within .sidebar-footer { padding: 8px 2px 0; }
-.sidebar-recolhida .app .sidebar:hover .sidebar-user-trigger, .sidebar-recolhida .app .sidebar:focus-within .sidebar-user-trigger { justify-content: flex-start; width: 100%; min-height: 44px; margin: 0; padding: 5px 7px; }
+.sidebar-recolhida .app .sidebar.sidebar-espiando .sidebar-brand-copy, .sidebar-recolhida .app .sidebar:focus-within .sidebar-brand-copy,
+.sidebar-recolhida .app .sidebar.sidebar-espiando .sidebar-header-toggle, .sidebar-recolhida .app .sidebar:focus-within .sidebar-header-toggle,
+.sidebar-recolhida .app .sidebar.sidebar-espiando .sidebar-section-title, .sidebar-recolhida .app .sidebar:focus-within .sidebar-section-title,
+.sidebar-recolhida .app .sidebar.sidebar-espiando .sidebar-search, .sidebar-recolhida .app .sidebar:focus-within .sidebar-search,
+.sidebar-recolhida .app .sidebar.sidebar-espiando .sidebar-link-label, .sidebar-recolhida .app .sidebar:focus-within .sidebar-link-label,
+.sidebar-recolhida .app .sidebar.sidebar-espiando .sidebar-link .contador, .sidebar-recolhida .app .sidebar:focus-within .sidebar-link .contador,
+.sidebar-recolhida .app .sidebar.sidebar-espiando .sidebar-user-copy, .sidebar-recolhida .app .sidebar:focus-within .sidebar-user-copy,
+.sidebar-recolhida .app .sidebar.sidebar-espiando .sidebar-user-chevron, .sidebar-recolhida .app .sidebar:focus-within .sidebar-user-chevron,
+.sidebar-recolhida .app .sidebar.sidebar-espiando .sidebar-submenu, .sidebar-recolhida .app .sidebar:focus-within .sidebar-submenu { display: flex; }
+.sidebar-recolhida .app .sidebar.sidebar-espiando .sidebar-header, .sidebar-recolhida .app .sidebar:focus-within .sidebar-header { justify-content: flex-start; padding-right: 2px; padding-left: 2px; }
+.sidebar-recolhida .app .sidebar.sidebar-espiando .sidebar-brand, .sidebar-recolhida .app .sidebar:focus-within .sidebar-brand { flex: 1; justify-content: flex-start; padding: 0 5px; }
+.sidebar-recolhida .app .sidebar.sidebar-espiando .sidebar-menu, .sidebar-recolhida .app .sidebar:focus-within .sidebar-menu { margin-top: 3px; }
+.sidebar-recolhida .app .sidebar.sidebar-espiando .sidebar-link, .sidebar-recolhida .app .sidebar:focus-within .sidebar-link { justify-content: flex-start; width: auto; min-height: 32px; margin: 0; padding: 0 9px; }
+.sidebar-recolhida .app .sidebar.sidebar-espiando .sidebar-submenu .sidebar-link, .sidebar-recolhida .app .sidebar:focus-within .sidebar-submenu .sidebar-link { min-height: 30px; padding-left: 8px; }
+.sidebar-recolhida .app .sidebar.sidebar-espiando .sidebar-footer, .sidebar-recolhida .app .sidebar:focus-within .sidebar-footer { padding: 8px 2px 0; }
+.sidebar-recolhida .app .sidebar.sidebar-espiando .sidebar-user-trigger, .sidebar-recolhida .app .sidebar:focus-within .sidebar-user-trigger { justify-content: flex-start; width: 100%; min-height: 44px; margin: 0; padding: 5px 7px; }
 
 @media (max-width: 900px) {
   .app.com-lateral { display: block; }

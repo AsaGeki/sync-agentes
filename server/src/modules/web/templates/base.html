@@ -8,7 +8,7 @@
   <title>{% block titulo %}sync-agents{% endblock %}</title>
   <link rel="icon" href="/web/assets/favicon.ico?v=brand-2" type="image/x-icon">
   <link rel="icon" href="/web/assets/favicon-dark.ico?v=brand-2" type="image/x-icon" media="(prefers-color-scheme: dark)">
-  <link rel="stylesheet" href="/web/static/app.css?v=props-1">
+  <link rel="stylesheet" href="/web/static/app.css?v=props-3">
   <script>
     // Estado salvo da sidebar aplicado antes de pintar o body (o tela.js só roda depois).
     try {
@@ -19,7 +19,7 @@
   </script>
   <script src="/web/static/htmx.min.js" defer></script>
   <script src="/web/static/tempo-real.js" defer></script>
-  <script src="/web/static/tela.js?v=props-1" defer></script>
+  <script src="/web/static/tela.js?v=props-3" defer></script>
   <script src="/web/static/alpine.min.js?v=3.14.9" defer></script>
 </head>
 <body hx-boost="true">
@@ -35,6 +35,7 @@
   {% endif %}
   {% if nav is defined %}
   <aside class="sidebar" id="app-sidebar" aria-label="Navegação principal"
+         x-data="espiarLateral" :class="{ 'sidebar-espiando': espiando }" @mouseenter="entrar()" @mouseleave="sair()"
          @click="$store.sidebar.cliqueNaLateral($event)" @keydown.tab="$store.sidebar.prenderFoco($event, $el)">
     <header class="sidebar-header">
       <a class="sidebar-brand" href="{{ base }}" aria-label="sync-agents — início">
